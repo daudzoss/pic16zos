@@ -1,3 +1,38 @@
+;;; ZOS.INC
+;;; a lightweight, small-footprint, preemptively multitasking RTOS for Microchip
+;;;  Technology's entire enhanced midrange 8-bit PIC microcontroller family:
+;;;
+;;; memory footprint:
+;;; _ 14-bit words for base RTOS i.e. main() starts at 0x0___
+;;; 
+;;; SRAM footprint:
+;;; 86 bank-0 bytes claimed by RTOS, 30 bytes of stack scratch space relocatable
+;;; 
+;;; available bytes    possible jobs with    local bytes/job (+any heap, besides
+;;;  on PIC device     80 bytes RAM each     2 global bytes) if ZOS_NUM set to 5
+;;; ===============    ==================    ===================================
+;;;      128                 0                          0 (+2)
+;;;      256                 1				0 (+130)
+;;;      384                 3                          0 (+258)
+;;;      512                 4                          0 (+386)
+;;;      768                 5                          80 (+2)
+;;;  >=1,024                 5                          80 (+258...)
+
+;;; you may redefine a constant ZOS_NUM with the maximum job number (<6,
+;;; as determined by where the general purpose register memory stops, as
+;;; the guaranteed 2 bytes global memory isn't sufficient for most jobs)
+ ifdef (ZOS_NUM)
+ else
+ZOS_NUM	set	5
+ endif
+	
+;;; you may redefine the location of the scratch space for restoring the stack
+;;; after each context switch (by default it is 0x20 in bank ZOS_NUM+1, but must
+;;; be pulled in on small devices or pushed out for a heap-management job space)
+ ifdef (ZOS_STK)
+ZOS_STK	set	(((ZOS_NUM+1)<<7)|0x20)
+ endif
+
 ;;; software interrupt infrastructure the OS is based on (with interrupts off!)
 ;;; user-definable:
 ZOS_SB7	equ	7
@@ -21,37 +56,6 @@ ZOS_SLP	equ	0x01		; indicate job waiting on its ISR, so don't run
 ZOS_NEW	equ	0x00		; create a job (FSR0==addr,AR1:0==isr,AR3:2==IM)
 ;;; FND runs high->low, _END/_SLP/_RST can only be run by a _PRV job or *it* got
 
-;;; you may redefine a constant ZOS_NUM with the maximum job number (<6,
-;;; as determined by where the general purposes register memory stops)
- ifdef (ZOS_NUM)
- else
-ZOS_NUM	set	5
- endif
-	
-;;; bank 0 memory space for managing jobs, 1@0x20, 2@0x30, ... , 5@0x60
-ZOS_MEM	macro	fsrnum,job,offset
-	local	fsrn
-	if (fsrnum & 3)
-fsrn set 1
-	else
-fsrn set 0
-	endif
-	swapf	job,w
-	addlw	0x10
-	andlw	0x70
-	if (offset)
-	 addlw	offset
-	endif
-	movwf	FSR#v(fsrn)L
-	clrf	FSR#v(fsrn)H
-	endm
-ZOS_J1M	equ	0x20
-ZOS_J2M	equ	0x30
-ZOS_J3M	equ	0x40
-ZOS_J4M	equ	0x50	
-ZOS_J5M	equ	0x60	
-ZOS_BOS	equ	0x0b		;// right?
-	
 ;;; job/shadow register offsets from ZOS_J0M, ZOS_J1M,...
 ZOS_HDL	equ	0x00		; handle, the start address of the job
 ZOS_HDH	equ	0x01		;
@@ -91,13 +95,104 @@ ZOS_AR1	equ	0x7d
 ZOS_AR2	equ	0x7e
 ZOS_AR3	equ	0x7f
 
-	org	0x0000
-	pagesel	zos_ini
-	goto	zos_ini
-
-	org	0x0002
-	pagesel	zos_swj
-	goto	zos_swj
+ZOS_TOS	equ	0x0e  		; STKPTR for full stack (0x0f reserved for ISRs)
+ZOS_BOS	equ	0x0b		; STKPTR for empty stack (first push is to 0x0c)
+	
+;;; bank 0 memory space for managing jobs, 1@0x20, 2@0x30, ... , 5@0x60
+ZOS_J1M	equ	0x20
+ZOS_J2M	equ	0x30
+ZOS_J3M	equ	0x40
+ZOS_J4M	equ	0x50	
+ZOS_J5M	equ	0x60	
+	
+ZOS_MEM	macro	fsrnum,job,offset;
+	local	fsrn
+	if (fsrnum & 3)
+fsrn set 1
+	else
+fsrn set 0
+	endif
+	swapf	job,w		;inline void ZOS_MEM(int8_t* *fsrnum,
+	addlw	0x10		;                    const int8_t* job,
+	andlw	0x70		;                    const
+	if (offset)
+	 addlw	offset		;                    int8_t offset) {
+	endif
+	movwf	FSR#v(fsrn)L	; *fsrnum = ((job & 0x07) << 4) + offset;
+	clrf	FSR#v(fsrn)H	;}
+	endm
+	
+;;; macro to wind the circular stack around from the running job# to the new job
+;;; (before restoring the new job's STKPTR and copying its return address there)
+;;; typically: ZOS_ROL SHAD_BSR,JOB_NUM(BSR?),ZOS_TMP,FSR0,ZOS_STK
+ZOS_ROL	macro	old,new,temp,fsrnum,base
+	local fsrn,loop1,loop2,done
+	if (fsrn & 3)
+fsrn set 1
+	else
+fsrn set 0
+	endif
+	banksel	STKPTR
+	movlw	low base	;inline void ZOS_ROL(const int8_t* old,
+	movwf	FSR#v(fsrn)L	;                    const int8_t* new,
+	movlw	high base	;                    int8_t* temp,
+	movwf	FSR#v(fsrn)H	;                    int16_t* *fsrnum,
+	movf	new,w		;                    int8_t* base) {
+	subwf	old,w		;
+	btfsc	STATUS,Z	; if (new == old) // nothing to do
+	bra	done		;  return;
+	decf	WREG,w		; w = new - old - 1;
+	btfsc	WREG,7		;
+	addlw	5		; // set STKPTR to the current location of the
+	movwf	STKPTR		; // stack cell that needs to be rotated into
+	rlf	STKPTR,f	; // STK_TOP, then record this value in temp for
+	bcf	STKPTR,0	; // comparison to know when to exit the loop
+	addwf	STKPTR,w	; // that copies the entire stack (except 0x0f)
+	addlw	2		; // into 30-byte scratch in the unrolled order
+	movwf	STKPTR		;
+	movwf	temp		; for (STKPTR = *temp = 2+3*((w<0) ? (w+5) : w);
+loop1
+	movf	TOSL,w		;      STKPTR != *temp + 1;
+	movwf	FSR#v(fsrn)++	;      STKPTR = (STKPTR>0) ? (STKPTR-1):ZOS_TOS)
+	movf	TOSH,w		;
+	movwf	FSR#v(fsrn)++	;  *(*fsrnum)++ = (TOSH << 8) | TOSL;
+	decf	STKPTR,f	;
+	movlw	ZOS_TOS		;
+	btfsc	STKPTR,4	;
+	movwf	STKPTR		;
+	movf	temp,w		;
+	xorwf	STKPTR,w	;
+	btfss	STATUS,Z	; // now rebuild the unrolled stack
+	bra	loop1		;
+	clrf	STKPTR		; for (STKPTR = 0;
+loop2
+	moviw	--FSR#v(fsrn)	;      STKPTR <= ZOS_TOS;
+	movwf	TOSH		;      STKPTR++) {
+	moviw	--FSR#v(fsrn)	;  TOSH = *(*fsrnum) >> 8;
+	movwf	TOSL		;  TOSL = *--(*fsrnum) & 0x00ff;
+	incf	STKPTR,w	; }
+	movwf	STKPTR		;
+	sublw	ZOS_TOS		;
+	btfss	WREG,7		;
+	bra	loop2		;}
+	endm
+;;; running job#: 1         2         3         4         5         6
+;;; stack pos 15: 3rd(1)    3rd(2)    3rd(3)    3rd(4)    3rd(5)    15th(6)
+;;; stack pos 14: 2nd(1)    2nd(2)    2nd(3)    2nd(4)    2nd(5)    14th(6)
+;;; stack pos 13: 1st(1)    1st(2)    1st(3)    1st(4)    1st(5)    13th(6)
+;;; stack pos 12: 0th(1)    0th(2)    0th(3)    0th(4)    0th(5)    12th(6)
+;;; stack pos 11: 2nd(5)    2nd(1)    2nd(2)    2nd(3)    2nd(4)    11th(6)
+;;; stack pos 10: 1st(5)    1st(1)    1st(2)    1st(3)    1st(4)    10th(6)
+;;; stack pos 9:  0th(5)    0th(1)    0th(2)    0th(3)    0th(4)    9th(6)
+;;; stack pos 8:  2nd(4)    2nd(5)    2nd(1)    2nd(2)    2nd(3)    8th(6)
+;;; stack pos 7:  1st(4)    1st(5)    1st(1)    1st(2)    1st(3)    7th(6)
+;;; stack pos 6:  0th(4)    0th(5)    0th(1)    0th(2)    0th(3)    6th(6)
+;;; stack pos 5:  2nd(3)    2nd(4)    2nd(5)    2nd(1)    2nd(2)    5th(6)
+;;; stack pos 4:  1st(3)    1st(4)    1st(5)    1st(1)    1st(2)    4th(6)
+;;; stack pos 3:  0th(3)    0th(4)    0th(5)    0th(1)    0th(2)    3rd(6)
+;;; stack pos 2:  2nd(2)    2nd(3)    2nd(4)    2nd(5)    2nd(1)    2nd(6)
+;;; stack pos 1:  1st(2)    1st(3)    1st(4)    1st(5)    1st(1)    1st(6)
+;;; stack pos 0:  0th(2)    0th(3)    0th(4)    0th(5)    0th(1)    0th(6)
 
 ;;; when searching for the correct hardware interrupt handler, without stack hit
 ZOS_RET	macro
@@ -114,6 +209,15 @@ ZOS_RFI	macro
 	;; a job switch is attempted with every incoming interrupt
 	;; user jobs are responsible for processing their own interrupts
 	;; with an interrupt handler registered at the time of creation
+
+	org	0x0000
+	pagesel	zos_ini
+	goto	zos_ini
+
+	org	0x0002
+	pagesel	zos_swj
+	goto	zos_swj
+
 	org	0x0004
 	;; handle a hardware interrupt
 	clrf	ZOS_MSK		; ZOS_MSK = 0; // indicates a hardware type
@@ -128,12 +232,17 @@ zos_sch
 	;; software interrupt processing
 zos_swj
 	;; save the shadow registers (for the ones that have them)
-	banksel	WREG_SHAD
-	movwf	WREG_SHAD	; // the software interrupt type
+	bcf	INTCON,GIE
+	movwf	ZOS_JOB		; // just convenient temporary global for WREG
 	movf	STATUS,w
-	movwf	STATUS_SHAD
+	movwf	ZOS_MSK		; // just convenient temporary global for STATUS
 	movf	BSR,w
+	banksel	BSR_SHAD
 	movwf	BSR_SHAD	; // the job# that made the interrupt call
+	movf	0xZOS_JOB,w
+	movwf	WREG_SHAD	; // the software interrupt type
+	movf	0xZOS_MSK,w
+	movwf	STATUS_SHAD
 	movf	PCLATH,w
 	movwf	PCLATH_SHAD
 	movf	FSR0L,w
@@ -144,7 +253,7 @@ zos_swj
 	movwf	FSR1L_SHAD
 	movf	FSR1H,w
 	movwf	FSR1H_SHAD
-	movf	FSR1H_SHAD,w
+	movf	BSR_SHAD,w
 	movwf	BSR		; // BSR back to what it used to be
 
 	;; see if the interrupt type is a system one (<8)

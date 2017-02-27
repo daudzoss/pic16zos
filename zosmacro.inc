@@ -1,3 +1,11 @@
+;;; ZOSMACRO.INC
+;;; potentially useful (but not mandatory) macros for ZOS
+;;;
+;;; memory footprint:
+;;; no memory words used upon inclusion (before macro expansion)
+;;; _ 14-bit words if only ZOS_CON() is run for console output
+;;; _ words if full-featured monitor and job manager shell ZOS_MON() instead
+	
 ZOS_SWI	macro	type
 	movlw	type
 	movlp	0x00
@@ -118,32 +126,4 @@ decl
 	ZOS_ARG	2
 	endm
 	
-;;; wind the circular stack around from the running job# to the new job#
-;;; (before restoring the new job's STKPTR and copying its return address there)
-ZOS_STK	macro	oldj,newj 	; typically "ZOS_STK SHAD_BSR,BSR"
-	.
-	.
-	.
-	endm
-;;; calculate the starting address of the *next highest* job #'s stack bottom
-	rlf	BSR,w
-	bcf	WREG,0
-	addwf	BSR,w
-;;; running job#: 1         2         3         4         5         6
-;;; stack pos 15: 3rd(1)    3rd(2)    3rd(3)    3rd(4)    3rd(5)    15th(6)
-;;; stack pos 14: 2nd(1)    2nd(2)    2nd(3)    2nd(4)    2nd(5)    14th(6)
-;;; stack pos 13: 1st(1)    1st(2)    1st(3)    1st(4)    1st(5)    13th(6)
-;;; stack pos 12: 0th(1)    0th(2)    0th(3)    0th(4)    0th(5)    12th(6)
-;;; stack pos 11: 2nd(5)    2nd(1)    2nd(2)    2nd(3)    2nd(4)    11th(6)
-;;; stack pos 10: 1st(5)    1st(1)    1st(2)    1st(3)    1st(4)    10th(6)
-;;; stack pos 9:  0th(5)    0th(1)    0th(2)    0th(3)    0th(4)    9th(6)
-;;; stack pos 8:  2nd(4)    2nd(5)    2nd(1)    2nd(2)    2nd(3)    8th(6)
-;;; stack pos 7:  1st(4)    1st(5)    1st(1)    1st(2)    1st(3)    7th(6)
-;;; stack pos 6:  0th(4)    0th(5)    0th(1)    0th(2)    0th(3)    6th(6)
-;;; stack pos 5:  2nd(3)    2nd(4)    2nd(5)    2nd(1)    2nd(2)    5th(6)
-;;; stack pos 4:  1st(3)    1st(4)    1st(5)    1st(1)    1st(2)    4th(6)
-;;; stack pos 3:  0th(3)    0th(4)    0th(5)    0th(1)    0th(2)    3rd(6)
-;;; stack pos 2:  2nd(2)    2nd(3)    2nd(4)    2nd(5)    2nd(1)    2nd(6)
-;;; stack pos 1:  1st(2)    1st(3)    1st(4)    1st(5)    1st(1)    1st(6)
-;;; stack pos 0:  0th(2)    0th(3)    0th(4)    0th(5)    0th(1)    0th(6)
 
