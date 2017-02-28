@@ -2,8 +2,8 @@
 ;;; potentially useful (but not mandatory) macros for ZOS
 ;;;
 ;;; memory footprint:
-;;; no memory words used upon inclusion (before macro expansion)
-;;; _ 14-bit words if only ZOS_CON() is run for console output
+;;; no memory words used upon inclusion (before expansion of a macro)
+;;; _ 14-bit words if only ZOS_CON() job is started to accept console output
 ;;; _ words if full-featured monitor and job manager shell ZOS_MON() instead
 	
 ZOS_SWI	macro	type
@@ -26,6 +26,8 @@ ZOS_RUN	macro	t0enable
 	if (t0enable)
 	 banksel t0enable
 	 bsf	t0enable,T0IE
+;;FIXME: set the prescaler appropriately so that the IRQ frequency isn't crazy
+
 	endif
 	
 	;; advance the stack pointer to allow 5 stacks of 3 each (+1 if running)
