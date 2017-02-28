@@ -104,7 +104,7 @@ ZOS_J3M	equ	0x40
 ZOS_J4M	equ	0x50	
 ZOS_J5M	equ	0x60	
 	
-ZOS_MEM	macro	fsrnum,job,offset;
+ZOS_MEM	macro	fsrnum,job,offset
 	local	fsrn
 	if (fsrnum & 3)
 fsrn set 1
@@ -120,7 +120,7 @@ fsrn set 0
 	movwf	FSR#v(fsrn)L	; *fsrnum = ((job & 0x07) << 4) + offset;
 	clrf	FSR#v(fsrn)H	;}
 	endm
-	
+
 ;;; macro to wind the circular stack around from the running job# to the new job
 ;;; (before restoring the new job's STKPTR and copying its return address there)
 ;;; typically: ZOS_ROL BSR_SHAD,JOB_NUM(BSR?),ZOS_TMP,FSR0,ZOS_STK
@@ -175,36 +175,40 @@ loop2
 	btfss	WREG,7		;
 	bra	loop2		;}
 	endm
-;;; running job#: 1         2         3         4         5         6
-;;; stack pos 15: 3rd(1)    3rd(2)    3rd(3)    3rd(4)    3rd(5)    15th(6)
-;;; stack pos 14: 2nd(1)    2nd(2)    2nd(3)    2nd(4)    2nd(5)    14th(6)
-;;; stack pos 13: 1st(1)    1st(2)    1st(3)    1st(4)    1st(5)    13th(6)
-;;; stack pos 12: 0th(1)    0th(2)    0th(3)    0th(4)    0th(5)    12th(6)
-;;; stack pos 11: 2nd(5)    2nd(1)    2nd(2)    2nd(3)    2nd(4)    11th(6)
-;;; stack pos 10: 1st(5)    1st(1)    1st(2)    1st(3)    1st(4)    10th(6)
-;;; stack pos 9:  0th(5)    0th(1)    0th(2)    0th(3)    0th(4)    9th(6)
-;;; stack pos 8:  2nd(4)    2nd(5)    2nd(1)    2nd(2)    2nd(3)    8th(6)
-;;; stack pos 7:  1st(4)    1st(5)    1st(1)    1st(2)    1st(3)    7th(6)
-;;; stack pos 6:  0th(4)    0th(5)    0th(1)    0th(2)    0th(3)    6th(6)
-;;; stack pos 5:  2nd(3)    2nd(4)    2nd(5)    2nd(1)    2nd(2)    5th(6)
-;;; stack pos 4:  1st(3)    1st(4)    1st(5)    1st(1)    1st(2)    4th(6)
-;;; stack pos 3:  0th(3)    0th(4)    0th(5)    0th(1)    0th(2)    3rd(6)
-;;; stack pos 2:  2nd(2)    2nd(3)    2nd(4)    2nd(5)    2nd(1)    2nd(6)
-;;; stack pos 1:  1st(2)    1st(3)    1st(4)    1st(5)    1st(1)    1st(6)
-;;; stack pos 0:  0th(2)    0th(3)    0th(4)    0th(5)    0th(1)    0th(6)
+;;; running job#: 1         2         3         4         5
+;;; stack pos 15: 3rd(1)    3rd(2)    3rd(3)    3rd(4)    3rd(5)
+;;; stack pos 14: 2nd(1)    2nd(2)    2nd(3)    2nd(4)    2nd(5)
+;;; stack pos 13: 1st(1)    1st(2)    1st(3)    1st(4)    1st(5)
+;;; stack pos 12: 0th(1)    0th(2)    0th(3)    0th(4)    0th(5)
+;;; stack pos 11: 2nd(5)    2nd(1)    2nd(2)    2nd(3)    2nd(4)
+;;; stack pos 10: 1st(5)    1st(1)    1st(2)    1st(3)    1st(4)
+;;; stack pos 9:  0th(5)    0th(1)    0th(2)    0th(3)    0th(4)
+;;; stack pos 8:  2nd(4)    2nd(5)    2nd(1)    2nd(2)    2nd(3)
+;;; stack pos 7:  1st(4)    1st(5)    1st(1)    1st(2)    1st(3)
+;;; stack pos 6:  0th(4)    0th(5)    0th(1)    0th(2)    0th(3)
+;;; stack pos 5:  2nd(3)    2nd(4)    2nd(5)    2nd(1)    2nd(2)
+;;; stack pos 4:  1st(3)    1st(4)    1st(5)    1st(1)    1st(2)
+;;; stack pos 3:  0th(3)    0th(4)    0th(5)    0th(1)    0th(2)
+;;; stack pos 2:  2nd(2)    2nd(3)    2nd(4)    2nd(5)    2nd(1)
+;;; stack pos 1:  1st(2)    1st(3)    1st(4)    1st(5)    1st(1)
+;;; stack pos 0:  0th(2)    0th(3)    0th(4)    0th(5)    0th(1)
 
+;;; continue with next iteration of HWI-searching loop (mustn't clobber FSR0!)
 ;;; when searching for the correct hardware interrupt handler, without stack hit
 ZOS_RET	macro
 	pagesel	zos_nhw
-	goto	zos_nhw		; next iteration of loop (mustn't clobber FSR0!)
+	goto	zos_nhw		;#define ZOS_RET() goto zos_nhw
 	endm
 
 ;;; at the end of any interupt handler, goes back to scheduler without stack hit
 ZOS_RFI	macro	
 	pagesel	zos_sch
-	goto	zos_sch
+	goto	zos_sch		;#define ZOS_RFI() goto zos_sch
 	endm
 
+;;; find something runnable (i.e. PCH != 0, but sleeping is OK), at job+/-1
+;;; according to incr and branch to unf if job-1 == 0 or job+1 > ZOS_NUM,
+;;; with fsrnum pointing to job's bank 0 structure and then incremented +/-16
 ZOS_LIV	macro	fsrnum,job,incr,unf
 	local	fsrn,loop
 	if (fsrnum & 3)
@@ -214,25 +218,25 @@ fsrn set 0
 	endif
 loop
 	if (incr)
-	 movlw	0x10		;
+	 movlw	0x10		;inline void ZOS_LIV(int8_t* *fsrnum,
 	else
-	 movlw	0-0x10		;
+	 movlw	0-0x10		;     int8_t* job, int8_t incr, void *(unf)()) {
 	endif
-	addwf	FSR#v(fsrn)L,f	;
-	if (incr > 0)
-	 incf	job,f		;
-	 movlw	0xff-ZOS_NUM	;
-	 addwf	job,w		;
+	addwf	FSR#v(fsrn)L,f	; *fsrnum += incr ? 0x10 : -0x10;
+	if (incr)
+	 incf	job,f		; job += incr ? 1 : -1;
+	 movlw	0xff-ZOS_NUM	; do {
+	 addwf	job,w		;  if ((job == 0) || (job == ZOS_NUM+1)) {//edge
 	else
-	 decf	job,f		;
+	 decf	job,f		;   if (unf) goto unf;// else return if provided
 	endif
-	btfss	STATUS,Z	;
+	btfss	STATUS,Z	;  } else if (ZOS_PCH[fsrnum] != 0) //
 	if (unf)
-	 bra	unf		;
+	 bra	unf		;   break;
 	 moviw	ZOS_PCH[FSR#v(fsrn)]
-	 btfss	STATUS,Z	;
+	 btfss	STATUS,Z	; } while (1);
 	endif
-	bra	loop		;
+	bra	loop		;}
 	endif
 	endm
 	
@@ -289,6 +293,10 @@ zos_doi
 	;; scheduler
 zos_ign
 zos_sch
+	
+
+#if 1 ; FIXME rewrite
+
 	;; look for the next-lowest-index runnable job in round-robin fashion
 	decf	BSR_SHAD,w	;
 	btfsc	STATUS,Z	;
@@ -314,6 +322,10 @@ zos_rrt
 	;; if this point is reached, a runnable job was found with job# ZOS_JOB
 	;; (but we skip a whole bunch of trivial copies if ZOS_JOB==BSR_SHAD)
 
+#endif 	; FIXME infinite loops are OK, but WDT bites are not!!!
+
+
+
 	;; copy the interrupted job's (BSR_SHAD) criticals into its bank 0 slot
 zos_sav
 	banksel	BSR_SHAD
@@ -323,7 +335,6 @@ zos_sav
 	movf	TOSH,w		;
 	movwi	FSR0++		;
 	
-#if 1 ;speed (16 words, 16 cycles)
 	movf	STATUS_SHAD,w	;
 	movwi	FSR0++		;
 	movf	WREG_SHAD,w	;
@@ -340,21 +351,7 @@ zos_sav
 	movwi	FSR0++		;
 	movf	FSR1H_SHAD,w	;
 	movwi	FSR0++		;
-#else ;size (12 words, 61=4+7*7+1*6+2cycles)
-	movlw	low STATUS_SHAD	;
-	movwf	FSR1L		;
-	movlw	high STATUS_SHAD;
-	movwf	FSR1H		;
-zos_sav
-	moviw	FSR1++		;
-	movwi	FSR0++		;
-	movlw	ZOS_ISR		;
-	xorlw	FSR0L,w		;
-	btfss	STATUS,Z	;
-	bra	zos_sav		;
-	movf	STKPTR,w	;
-	movwi	-6[FSR0]	;
-#endif
+
 	;; copy ZOS_JOB's criticals out of its bank 0 slot
 	ZOS_MEM	FSR0,ZOS_JOB,ZOS_SST
 	moviw	FSR0++		;
@@ -515,15 +512,25 @@ zos_sw5
 
 
 
+
+	
+
 	ZOS_RFI
 zos_sw6
 ;;; exec: just jump into new except with this job as the known slot
 	
 
 
+
+
+	
 	ZOS_RFI
 zos_sw7
 ;;; find: more find code, just for fun
+
+
+
+
 	
 	;; else handle the software interrupt with the first registered handler
 zos_swh
