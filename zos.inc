@@ -196,8 +196,8 @@ loop2
 
 ;;; when searching for the correct hardware interrupt handler, without stack hit
 ZOS_RET	macro
-	pagesel	?
-	goto	? ;to next iteration of search
+	pagesel	zos_nhw
+	goto	zos_nhw		; next iteration of loop (mustn't clobber FSR0!)
 	endm
 
 ;;; at the end of any interupt handler, goes back to scheduler without stack hit
@@ -206,6 +206,38 @@ ZOS_RFI	macro
 	goto	zos_sch
 	endm
 
+ZOS_LIV	macro	fsrnum,job,incr,unf
+	local	fsrn,loop
+	if (fsrnum & 3)
+fsrn set 1
+	else
+fsrn set 0
+	endif
+	ZOS_MEM	fsrnum,job,0	;
+loop
+	if (incr)
+	 movlw	0x10		;
+	else
+	 movlw	0-0x10		;
+	endif
+	addwf	FSR#v(fsrn)L,f	;
+	if (incr > 0)
+	 incf	job,f		;
+	 movlw	0xff-ZOS_NUM	;
+	 addwf	job,w		;
+	else
+	 decf	job,f		;
+	endif
+	btfss	STATUS,Z	;
+	if (unf)
+	 bra	unf		;
+	 moviw	ZOS_PCH[FSR#v(fsrn)]
+	 btfss	STATUS,Z	;
+	endif
+	bra	loop		;
+	endif
+	endm
+	
 	;; a job switch is attempted with every incoming interrupt
 	;; user jobs are responsible for processing their own interrupts
 	;; with an interrupt handler registered at the time of creation
@@ -221,7 +253,39 @@ ZOS_RFI	macro
 	org	0x0004
 	;; handle a hardware interrupt
 	clrf	ZOS_MSK		; ZOS_MSK = 0; // indicates a hardware type
+	movlw	ZOS_NUM+1
+	movwf	ZOS_JOB
+zos_nhw	
+	ZOS_LIV	FSR0,ZOS_JOB,0,zos_ign
+	moviw	ZOS_HIM[FSR0]	;
+	andwf	INTCON,w	;
+	btfss	STATUS,Z	;
+	bra	zos_doi		;
+	banksel	PIE1		;
+ for
+	ifdef (PIE)
+	 moviw	ZOS_HIM[FSR0]	;
+	 andwf	PIE,w		;
+	 btfsc	STATUS,Z	;
+	 bra	$+5		;
+	 moviw	ZOS_HIM[FSR0]	;
+	 andwf	PIR,w		;
+	 btfss	STATUS,Z	;
+	 bra	zos_doi		;
+	endif
+	
+	bra	zos_nhw		;
+zos_doi
+	moviw	ZOS_ISH[FSR0]	;
+	movwf	PCLATH		;
+	moviw	ZOS_ISR[FSR0]	;
+	movwf	PCL		;
+zos_ign
+	
 
+
+
+	;; scheduler
 zos_sch
 	;; copy this job's criticals into its bank 0 backing store
 
