@@ -78,8 +78,7 @@ ZOS_SIM	equ	0x0f		; mask for software interrupts (low 3 always==1)
 ;;; global memory space for message-passing boxes (or J6M?!?)
 ZOS_JOB	equ	0x70		; next job to run (0 if unknown)
 ZOS_MSK	equ	0x71		; masked-off sofware interrupt for ISR to handle
-ZOS_TMP	equ	0x71		;  (repurposeable as scratch after ZOS_RFI call)
-ZOS_J1L	equ	0x72
+ZOS_J1L	equ	0x72		;  (repurposeable as scratch after ZOS_RFI call)
 ZOS_J1H	equ	0x73
 ZOS_J2L	equ	0x74
 ZOS_J2H	equ	0x75
@@ -124,7 +123,7 @@ fsrn set 0
 	
 ;;; macro to wind the circular stack around from the running job# to the new job
 ;;; (before restoring the new job's STKPTR and copying its return address there)
-;;; typically: ZOS_ROL SHAD_BSR,JOB_NUM(BSR?),ZOS_TMP,FSR0,ZOS_STK
+;;; typically: ZOS_ROL BSR_SHAD,JOB_NUM(BSR?),ZOS_TMP,FSR0,ZOS_STK
 ZOS_ROL	macro	old,new,temp,fsrnum,base
 	local fsrn,loop1,loop2,done
 	if (fsrn & 3)
@@ -213,7 +212,6 @@ fsrn set 1
 	else
 fsrn set 0
 	endif
-	ZOS_MEM	fsrnum,job,0	;
 loop
 	if (incr)
 	 movlw	0x10		;
@@ -251,10 +249,11 @@ loop
 	goto	zos_swj
 
 	org	0x0004
-	;; handle a hardware interrupt
-	clrf	ZOS_MSK		; ZOS_MSK = 0; // indicates a hardware type
+	;; find first handler for an enabled and flagged interrupt
+	clrf	ZOS_MSK		; ZOS_MSK = 0; // indicates a HWI (not SWI) type
 	movlw	ZOS_NUM+1
 	movwf	ZOS_JOB
+	ZOS_MEM	FSR0,ZOS_JOB,0
 zos_nhw	
 	ZOS_LIV	FSR0,ZOS_JOB,0,zos_ign
 	moviw	ZOS_HIM[FSR0]	;
@@ -262,62 +261,149 @@ zos_nhw
 	btfss	STATUS,Z	;
 	bra	zos_doi		;
 	banksel	PIE1		;
- for
-	ifdef (PIE)
-	 moviw	ZOS_HIM[FSR0]	;
-	 andwf	PIE,w		;
-	 btfsc	STATUS,Z	;
-	 bra	$+5		;
-	 moviw	ZOS_HIM[FSR0]	;
-	 andwf	PIR,w		;
-	 btfss	STATUS,Z	;
-	 bra	zos_doi		;
-	endif
-	
+	variable i
+i = 0
+	while i < 10
+	 ifdef (PIE#v(i))
+	  moviw	ZOS_HIM[FSR0]	;
+	  andwf	PIE#v(i),w	;
+	  btfsc	STATUS,Z	;
+	  bra	$+5		;
+	  moviw	ZOS_HIM[FSR0]	;
+	  andwf	PIR#v(i),w	;
+	  btfss	STATUS,Z	;
+	  bra	zos_doi		;
+	 endif
+i += 1
+	endw
 	bra	zos_nhw		;
+	
+	;; enter handler which will ZOS_RFI() to zos_sch if it's the correct one
+	;; (after clearing the interrupt flag) else ZOS_RET() back up to zos_nhw
 zos_doi
 	moviw	ZOS_ISH[FSR0]	;
 	movwf	PCLATH		;
 	moviw	ZOS_ISR[FSR0]	;
 	movwf	PCL		;
-zos_ign
 	
-
-
-
 	;; scheduler
+zos_ign
 zos_sch
-	;; copy this job's criticals into its bank 0 backing store
+	;; look for the next-lowest-index runnable job in round-robin fashion
+	decf	BSR_SHAD,w	;
+	btfsc	STATUS,Z	;
+	movlw	ZOS_NUM		;
+	movwf	ZOS_JOB		;
+	ZOS_MEM	FSR0,ZOS_JOB,0x10
 
-	;; look for the next runnable job
+	;; look for the next-lowest-index runnable job in round-robin fashion
+	movf	BSR_SHAD,w	;
+	movwf	ZOS_JOB		;
+	ZOS_MEM	FSR0,ZOS_JOB,0
+zos_rrb
+	ZOS_LIV	FSR0,ZOS_JOB,0,zos_wra
+	bra	zos_sav		;
+	
+	;; look for the next-highest-index runnable job in round-robin fashion
+zos_wra
+	movf	BSR_SHAD,w	;
+	movwf	ZOS_JOB		;
+	ZOS_MEM	FSR0,ZOS_JOB,0	;
+zos_rrt
+	ZOS_LIV	FSR0,ZOS_JOB,1,zos_don
+	;; if this point is reached, a runnable job was found with job# ZOS_JOB
+	;; (but we skip a whole bunch of trivial copies if ZOS_JOB==BSR_SHAD)
 
-	;; 
-
+	;; copy the interrupted job's (BSR_SHAD) criticals into its bank 0 slot
+zos_sav
+	banksel	BSR_SHAD
+	ZOS_MEM	FSR0,BSR_SHAD,ZOS_PCL
+	movf	TOSL,w		;
+	movwi	FSR0++		;
+	movf	TOSH,w		;
+	movwi	FSR0++		;
+	
+#if 1 ;speed (16 words, 16 cycles)
+	movf	STATUS_SHAD,w	;
+	movwi	FSR0++		;
+	movf	WREG_SHAD,w	;
+	movwi	FSR0++		;
+	movf	STKPTR,w	;
+	movwi	FSR0++		;
+	movf	PCLATH_SHAD,w	;
+	movwi	FSR0++		;
+	movf	FSR0L_SHAD,w	;
+	movwi	FSR0++		;
+	movf	FSR0H_SHAD,w	;
+	movwi	FSR0++		;
+	movf	FSR1L_SHAD,w	;
+	movwi	FSR0++		;
+	movf	FSR1H_SHAD,w	;
+	movwi	FSR0++		;
+#else ;size (12 words, 61=4+7*7+1*6+2cycles)
+	movlw	low STATUS_SHAD	;
+	movwf	FSR1L		;
+	movlw	high STATUS_SHAD;
+	movwf	FSR1H		;
+zos_sav
+	moviw	FSR1++		;
+	movwi	FSR0++		;
+	movlw	ZOS_ISR		;
+	xorlw	FSR0L,w		;
+	btfss	STATUS,Z	;
+	bra	zos_sav		;
+	movf	STKPTR,w	;
+	movwi	-6[FSR0]	;
+#endif
+	;; copy ZOS_JOB's criticals out of its bank 0 slot
+	ZOS_MEM	FSR0,ZOS_JOB,ZOS_SST
+	moviw	FSR0++		;
+	movwf	STATUS_SHAD	;
+	moviw	FSR0++		;
+	movwf	WREG_SHAD	;
+	movf	ZOS_JOB,w	;
+	movwf	BSR_SHAD	; // point to correct 80-byte page of local SRAM
+	moviw	++FSR0		;
+	movwf	PCLATH_SHAD	;
+	moviw	++FSR0		;
+	movwf	FSR0L_SHAD	;
+	moviw	++FSR0		;
+	movwf	FSR0H_SHAD	;
+	moviw	++FSR0		;
+	movwf	FSR1L_SHAD	;
+	moviw	++FSR0		;
+	movwf	FSR1H_SHAD	;
+	
+	;; get the stack spun around to where ZOS_JOB expects it to be
+	ZOS_ROL	BSR_SHAD,ZOS_JOB,ZOS_MSK,FSR0,ZOS_STK
+zos_don
+	retfie			;
+	
 	;; software interrupt processing
 zos_swj
 	;; save the shadow registers (for the ones that have them)
-	bcf	INTCON,GIE
+	bcf	INTCON,GIE	;
 	movwf	ZOS_JOB		; // just convenient temporary global for WREG
-	movf	STATUS,w
+	movf	STATUS,w	;
 	movwf	ZOS_MSK		; // just convenient temporary global for STATUS
-	movf	BSR,w
-	banksel	BSR_SHAD
+	movf	BSR,w		;
+	banksel	BSR_SHAD	;
 	movwf	BSR_SHAD	; // the job# that made the interrupt call
-	movf	0xZOS_JOB,w
+	movf	0xZOS_JOB,w	;
 	movwf	WREG_SHAD	; // the software interrupt type
-	movf	0xZOS_MSK,w
-	movwf	STATUS_SHAD
-	movf	PCLATH,w
-	movwf	PCLATH_SHAD
-	movf	FSR0L,w
-	movwf	FSR0L_SHAD
-	movf	FSR0H,w
-	movwf	FSR0H_SHAD
-	movf	FSR1L,w
-	movwf	FSR1L_SHAD
-	movf	FSR1H,w
-	movwf	FSR1H_SHAD
-	movf	BSR_SHAD,w
+	movf	0xZOS_MSK,w	;
+	movwf	STATUS_SHAD	;
+	movf	PCLATH,w	;
+	movwf	PCLATH_SHAD	;
+	movf	FSR0L,w		;
+	movwf	FSR0L_SHAD	;
+	movf	FSR0H,w		;
+	movwf	FSR0H_SHAD	;
+	movf	FSR1L,w		;
+	movwf	FSR1L_SHAD	;
+	movf	FSR1H,w		;
+	movwf	FSR1H_SHAD	;
+	movf	BSR_SHAD,w	;
 	movwf	BSR		; // BSR back to what it used to be
 
 	;; see if the interrupt type is a system one (<8)
@@ -423,11 +509,19 @@ zos_sw3
 	movwi	ZOS_SSP[FSR1]	;  case ZOS_YLD: ZOS_RFI(); // nothing to do
 zos_sw4
 	ZOS_RFI
+	
 zos_sw5
 ;;; fork: duplicate find code above (functionize?) then do a copy of 0x20-0x6f
+
+
+
 	ZOS_RFI
 zos_sw6
 ;;; exec: just jump into new except with this job as the known slot
+	
+
+
+	ZOS_RFI
 zos_sw7
 ;;; find: more find code, just for fun
 	
