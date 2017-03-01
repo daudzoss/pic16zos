@@ -1,3 +1,8 @@
+#if 1
+processor 16f1847
+include p16f1847.inc
+#endif
+	
 ;;; ZOS.INC
 ;;; a lightweight, small-footprint, preemptively multitasking RTOS for Microchip
 ;;;  Technology's entire enhanced midrange 8-bit PIC microcontroller family:
@@ -237,14 +242,14 @@ loop
 	 btfss	STATUS,Z	; } while (1); // job is runnable (or unf was 0)
 	endif
 	bra	loop		;}
-	endif
 	endm
 	
 	ifdef (PIE0)
-ZOS_PIE	equ	PIE0-1
+ZOS_PE0	 equ	PIE0
+ZOS_PIE	 equ	PIE0-1
 	else
-ZOS_PIE	equ	INTCON-1
-PIE0	equ	PIE1-1
+ZOS_PE0	 equ	PIE1-1
+ZOS_PIE	 equ	INTCON-1
 	endif
 	ifdef (PIE1)
 ZOS_MAX	set	PIE1
@@ -304,17 +309,17 @@ zos_nhw
 	movwf	ZOS_MSK		;
 	moviw	++FSR1		;                  /*job#*/   /*PIE#*/
 	andwf	ZOS_MSK,f	;  ZOS_MSK = ZOS_HIM[fsr0] & *++fsr1;
-	movlw	high PIE0	;
+	movlw	high ZOS_PE0	;
 	subwf	FSR1H,w		;
 	btfsc	WREG,7		;
 	bra	zos_cmp		;
-	movlw	low PIE0	;
+	movlw	low ZOS_PE0	;
 	subwf	FSR1L,w		;
 	btfsc	WREG,7		;
 	bra	zos_cmp		;
 	movlw	low PIE1	;
 	movwf	FSR1L		;
-	movlw	high PIE1	;  if (fsr1 < PIE0+1)
+	movlw	high PIE1	;  if (fsr1 < ZOS_PE0+1)
 	movwf	FSR1H		;   fsr1 = PIE1;//handle the INTCON+1->PIE1 jump
 	
 	;; enter handler which will ZOS_RFI() to zos_sch if it's the correct one
@@ -438,8 +443,9 @@ zos_swj
 
 	;; ZOS_NEW requires us to search for a BSR value first among empty slots
 	movf	WREG_SHAD,f	;
-	btfss	STATUS,Z	;
-	bra	zos_swp		;  if (ZOS_NEW == WREG_SHAD) {
+	btfss	STATUS,Z	;  if (ZOS_NEW == WREG_SHAD) {
+	bra	zos_swp		;  zos_cre:
+zos_cre
 	clrf	ZOS_JOB		;   zos_job = 0;
 	ZOS_MEM	FSR1,ZOS_JOB,0
 zos_emp
@@ -453,6 +459,7 @@ zos_emp
 	moviw	ZOS_PCH[FSR1]	;     break;
 	btfss	STATUS,Z	;   }
 	bra	zos_emp		;   if (zos_job <= ZOS_NUM) {
+zos_dup
 	movf	FSR0L,w		;    // save handle now so we can re-use fsr0
 	movwi	ZOS_HDL[FSR1]	;    // (no harm if we don't validate it as PCH)
 	movf	FSR0H,w		;    ZOS_HDL[fsr1] = fsr0 & 0x00ff;
@@ -534,24 +541,37 @@ zos_sw4
 	ZOS_RFI
 	
 zos_sw5
-;;; fork: duplicate find code above (functionize?) then do a copy of 0x20-0x6f
-	movf	ZOS_AR0		;
-	movwf	ZOS_JOB		;
-	ZOS_MEM	fsr1,ZOS_JOB,0
-zos
-
-	
-
-	ZOS_RFI
+;;; FIXME: need to do a copy of 0x20-0x6f...into every non-running slot?!?
+	movf	ZOS_AR0,w	;  case ZOS_FRK:
+	movwf	ZOS_JOB		;   ZOS_JOB = ZOS_AR0;
+	ZOS_MEM	FSR1,ZOS_JOB,0
+	moviw	ZOS_PCH[FSR1]	;
+	btfsc	STATUS,Z	;
+	bra	zos_sw4		;   if (ZOS_PCH[fsr1]) {
+	moviw	ZOS_HDL[FSR1]	;
+	movwf	FSR0L		;
+	moviw	ZOS_HDH[FSR1]	;
+	movwf	FSR0H		;    fsr0 = (ZOS_HDH[fsr1]<<8) | ZOS_HDL[fsr1];
+	moviw	ZOS_ISR[FSR1]	;
+	movwf	ZOS_AR0		;    ZOS_AR0 = ZOS_ISR[fsr1];
+	moviw	ZOS_ISH[FSR1]	;
+	movwf	ZOS_AR1		;    ZOS_AR1 = ZOS_ISH[fsr1];
+	moviw	ZOS_HIM[FSR1]	;
+	movwf	ZOS_AR2		;    ZOS_AR2 = ZOS_HIM[fsr1];
+	moviw	ZOS_SIM[FSR1]	;
+	movwf	ZOS_AR3		;    ZOS_AR3 = ZOS_SIM[fsr1];
+	banksel	WREG_SHAD
+	clrf	WREG_SHAD	;    WREG_SHAD = ZOS_NEW;
+	movlb	0		;    goto zos_cre;//spoof privilege to fork self
+	bra	zos_cre		;   }
 zos_sw6
-;;; exec: just jump into new except with this job as the known slot
-	
-
-
-
-
-	
-	ZOS_RFI
+	movf	BSR,w		;  case ZOS_EXE:
+	movwf	ZOS_JOB		;   ZOS_JOB = BSR;
+	ZOS_MEM	FSR1,ZOS_JOB,0	;   fsr1 = 0x10 * (1+ZOS_JOB);
+	banksel	WREG_SHAD	;
+	clrf	WREG_SHAD	;    WREG_SHAD = ZOS_NEW;
+	movlb	0		;    //spoof privilege to overwrite
+	bra	zos_dup		;    goto zos_dup;
 zos_sw7
 	movlw	ZOS_NUM+1	;  case ZOS_FND:
 	movwf	ZOS_JOB		;   ZOS_JOB = ZOS_NUM + 1;
