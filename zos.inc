@@ -1,6 +1,6 @@
 #if 1
-processor 16f1847
-include p16f1847.inc
+ processor 16f1847
+ include p16f1847.inc
 #endif
 	
 ;;; ZOS.INC
@@ -26,18 +26,18 @@ include p16f1847.inc
 ;;; you may redefine a constant ZOS_NUM with the maximum job number (<6,
 ;;; as determined by where the general purpose register memory stops, as
 ;;; the guaranteed 2 bytes global memory isn't sufficient for most jobs)
- ifdef (ZOS_NUM)
- else
+#ifdef ZOS_NUM
+#else
 ZOS_NUM	set	5
- endif
+#endif
 	
 ;;; you may redefine the location of the scratch space for restoring the stack
 ;;; after each context switch (by default it is 0x20 in bank ZOS_NUM+1, but must
 ;;; be pulled in on small devices or pushed out for a heap-management job space)
- ifdef (ZOS_STK)
- else
+#ifdef ZOS_STK
+#else
 ZOS_STK	set	(((ZOS_NUM+1)<<7)|0x20)
- endif
+#endif
 
 ;;; software interrupt infrastructure the OS is based on (with interrupts off!)
 ;;; user-definable:
@@ -158,9 +158,9 @@ fsrn set 0
 	movwf	temp		; for (STKPTR = *temp = 2+3*((w<0) ? (w+5) : w);
 loop1
 	movf	TOSL,w		;      STKPTR != *temp + 1;
-	movwf	FSR#v(fsrn)++	;      STKPTR = (STKPTR>0) ? (STKPTR-1):ZOS_TOS)
+	movwi	FSR#v(fsrn)++	;      STKPTR = (STKPTR>0) ? (STKPTR-1):ZOS_TOS)
 	movf	TOSH,w		;
-	movwf	FSR#v(fsrn)++	;  *(*fsrnum)++ = (TOSH << 8) | TOSL;
+	movwi	FSR#v(fsrn)++	;  *(*fsrnum)++ = (TOSH << 8) | TOSL;
 	decf	STKPTR,f	;
 	movlw	ZOS_TOS		;
 	btfsc	STKPTR,4	;
@@ -182,6 +182,8 @@ loop2
 	bra	loop2		;}
 done
 	endm
+ZOS_RTL	equ	((FSR1H_SHAD-STATUS_SHAD-2)&0x3f)
+ZOS_RTH	equ	((FSR1H_SHAD-STATUS_SHAD-1)&0x3f)
 ;;; running job#: 1         2         3         4         5
 ;;; stack pos 15: 3rd(1)    3rd(2)    3rd(3)    3rd(4)    3rd(5)
 ;;; stack pos 14: 2nd(1)    2nd(2)    2nd(3)    2nd(4)    2nd(5)
@@ -235,51 +237,49 @@ loop
 	 movlw	0xff-ZOS_NUM	;  job += incr ? 1 : -1; // next job#
 	 addwf	job,w		;  if ((job == 0) || (job == ZOS_NUM+1)) {//past
 	else
-	 decf	job,f		;   if (unf) goto unf; else return random();
+	 decf	job,f		;   goto unf;
 	endif
 	btfss	STATUS,Z	;  } else if (ZOS_PCH[fsrnum]) // found runnable
-	if (unf)
-	 bra	unf		;   return w = ZOS_PCH[fsrnum];
-	 moviw	ZOS_PCH[FSR#v(fsrn)]
-	 btfss	STATUS,Z	; } while (1); // job is runnable (or unf was 0)
-	endif
+	bra	unf		;   return w = ZOS_PCH[fsrnum];
+	moviw	ZOS_PCH[FSR#v(fsrn)]
+	btfss	STATUS,Z	; } while (1); // job is runnable (or unf was 0)
 	bra	loop		;}
 	endm
 	
-	ifdef (PIE0)
+#ifdef PIE0
 ZOS_PE0	 equ	PIE0
 ZOS_PIE	 equ	PIE0-1
-	else
+#else
 ZOS_PE0	 equ	PIE1-1
 ZOS_PIE	 equ	INTCON-1
-	endif
-	ifdef (PIE1)
+#endif
+#ifdef PIE1
 ZOS_MAX	set	PIE1
-	endif
-	ifdef (PIE2)
+#endif
+#ifdef PIE2
 ZOS_MAX	set	PIE2
-	endif
-	ifdef (PIE3)
+#endif
+#ifdef PIE3
 ZOS_MAX	set	PIE3
-	endif
-	ifdef (PIE4)
+#endif
+#ifdef PIE4
 ZOS_MAX	set	PIE4
-	endif
-	ifdef (PIE5)
+#endif
+#ifdef PIE5
 ZOS_MAX	set	PIE5
-	endif
-	ifdef (PIE6)
+#endif
+#ifdef PIE6
 ZOS_MAX	set	PIE6
-	endif
-	ifdef (PIE7)
+#endif
+#ifdef PIE7
 ZOS_MAX	set	PIE7
-	endif
-	ifdef (PIE8)
+#endif
+#ifdef PIE8
 ZOS_MAX	set	PIE8
-	endif
-	ifdef (PIE9)
+#endif
+#ifdef PIE9
 ZOS_MAX	set	PIE9
-	endif
+#endif
 
 	;; a job switch is attempted with every incoming interrupt
 	;; user jobs are responsible for processing their own interrupts
@@ -401,9 +401,9 @@ zos_itr
 	
 	;; get stack spun around to where ZOS_JOB expects it on return from ISR
 	ZOS_ROL	BSR_SHAD,ZOS_JOB,ZOS_MSK,FSR1,ZOS_STK
-	moviw	-9[FSR0]	;
+	moviw	ZOS_RTL[FSR0]	;
 	movwf	TOSL		;   TOSL = ZOS_PCL[FSR0-11];
-	moviw	-8[FSR0]	;
+	moviw	ZOS_RTH[FSR0]	;
 	movwf	TOSH		;   TOSH = ZOS_PCH[FSR0-11];
 zos_don
 	retfie			;
