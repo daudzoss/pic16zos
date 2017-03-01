@@ -323,7 +323,7 @@ zos_nhw
 	movwf	FSR1L		;
 	movlw	high PIE1	;  if (fsr1 < ZOS_PE0+1)
 	movwf	FSR1H		;   fsr1 = PIE1;//handle the INTCON+1->PIE1 jump
-	
+
 	;; enter handler which will ZOS_RFI() to zos_sch if it's the correct one
 	;; (after clearing the interrupt flag) else ZOS_RET() back up to zos_nhw
 zos_cmp
@@ -628,7 +628,7 @@ zos_swl
 	;; no registered SWI handler: jump into the hardware interrupt scheduler
 zos_swm
 	ZOS_RFI
- #endif
+#endif
 
 zos_ini
 	;; clear out page 0 to reflect no 
