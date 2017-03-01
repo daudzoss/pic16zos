@@ -35,6 +35,7 @@ ZOS_NUM	set	5
 ;;; after each context switch (by default it is 0x20 in bank ZOS_NUM+1, but must
 ;;; be pulled in on small devices or pushed out for a heap-management job space)
  ifdef (ZOS_STK)
+ else
 ZOS_STK	set	(((ZOS_NUM+1)<<7)|0x20)
  endif
 
@@ -129,6 +130,7 @@ fsrn set 0
 ;;; macro to wind the circular stack around from the running job# to the new job
 ;;; (before restoring the new job's STKPTR and copying its return address there)
 ;;; typically: ZOS_ROL BSR_SHAD,JOB_NUM(BSR?),ZOS_TMP,FSR0,ZOS_STK
+;;; note: caller is responsible for making sure the STKPTR/_SHAD bank is active
 ZOS_ROL	macro	old,new,temp,fsrnum,base
 	local fsrn,loop1,loop2,done
 	if (fsrn & 3)
@@ -136,7 +138,6 @@ fsrn set 1
 	else
 fsrn set 0
 	endif
-	banksel	STKPTR
 	movlw	low base	;inline void ZOS_ROL(const int8_t* old,
 	movwf	FSR#v(fsrn)L	;                    const int8_t* new,
 	movlw	high base	;                    int8_t* temp,
@@ -179,6 +180,7 @@ loop2
 	sublw	ZOS_TOS		;
 	btfss	WREG,7		;
 	bra	loop2		;}
+done
 	endm
 ;;; running job#: 1         2         3         4         5
 ;;; stack pos 15: 3rd(1)    3rd(2)    3rd(3)    3rd(4)    3rd(5)
@@ -355,7 +357,6 @@ zos_itr
 	bra	zos_don		;  if (ZOS_JOB != BSR_SHAD) {
 
 	;; copy the interrupted job's (BSR_SHAD) criticals into its bank 0 slot
-zos_sav
 	ZOS_MEM	FSR0,BSR_SHAD,ZOS_PCL
 	movf	TOSL,w		;   fsr0 = 0x10 * (1+BSR_SHAD) + ZOS_PCL;
 	movwi	FSR0++		;   *fsr0++ = TOSL;
@@ -398,8 +399,12 @@ zos_sav
 	moviw	++FSR0		;
 	movwf	FSR1H_SHAD	;   FSR1H_SHAD = *++fsr0;
 	
-	;; get stack spun around to where ZOS_JOB expects it, return from ISR
-	ZOS_ROL	BSR_SHAD,ZOS_JOB,ZOS_MSK,FSR0,ZOS_STK
+	;; get stack spun around to where ZOS_JOB expects it on return from ISR
+	ZOS_ROL	BSR_SHAD,ZOS_JOB,ZOS_MSK,FSR1,ZOS_STK
+	moviw	-9[FSR0]	;
+	movwf	TOSL		;   TOSL = ZOS_PCL[FSR0-11];
+	moviw	-8[FSR0]	;
+	movwf	TOSH		;   TOSH = ZOS_PCH[FSR0-11];
 zos_don
 	retfie			;
 zos_wra
@@ -409,6 +414,7 @@ zos_wra
 
 	;; software interrupt processing reached by jumping to 0x0002 with W set
 zos_swj
+#if 0
 	;; save the shadow registers (for the ones that have them) to use retfie
 	bcf	INTCON,GIE	; INTCON &= ~(1<<GIE); // interrupt would be bad
 	movwf	ZOS_JOB		; // just convenient temporary global for WREG
@@ -435,7 +441,7 @@ zos_swj
 	movwf	BSR		; // BSR unchanged from what it had been at call
 
 	;; see if the interrupt type is a system one (<8)
-	movlp	zos_swh
+	pagesel	zos_swh
 	movlw	ZOS_SI7|ZOS_SI6|ZOS_SI5|ZOS_SI4|ZOS_SI3
 	andwf	WREG_SHAD,w	; if (0 == /* call-type number: */ WREG_SHAD &
 	btfss	STATUS,Z	;   (ZOS_SI7|ZOS_SI6|ZOS_SI5|ZOS_SI4|ZOS_SI3)) {
@@ -622,6 +628,7 @@ zos_swl
 	;; no registered SWI handler: jump into the hardware interrupt scheduler
 zos_swm
 	ZOS_RFI
+ #endif
 
 zos_ini
 	;; clear out page 0 to reflect no 
@@ -630,9 +637,12 @@ zos_end
 	;; your program starts here, with a launcher job (#6) that ends after:
 	;; 1) setting up oscillators, timers, other peripherals, etc.
 	;; 2) starting other jobs with calls to ZOS_NEW
-	;; 3) calling to ZOS_END (which will enable interrupts)
+	;; 3) calling to ZOS_RUN (which will enable interrupts)
 	;; 
 	;; jobs are never allowed to manipulate the BSR directly, as that
 	;; is the prerogative of ZOS (it being used as the current job #)
 	;; and the BSR may never end up greater than ZOS_NUM in user space!!!
 	;;
+ end
+
+	
