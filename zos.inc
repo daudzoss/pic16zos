@@ -554,14 +554,9 @@ zos_sw3
 zos_sw4
 	ZOS_RFI
 zos_sw5
-	;; copy job BSR's 0x20-0x6f into every non-running slot first
-	rrf	BSR,w		;  case ZOS_FRK:
-	andlw	0x3		;
-	movwf	FSR0H		;
-	clrf	FSR0L		;
-	rrf	FSR0L,f		;   fsr0 = BSR << 7;
-	clrf	FSR1L		;   fsr1 = 1 << 7;
-	clrf	FSR1H		;
+	;; copy job BSR's 0x20-0x6f into every non-running bank first
+	clrf	FSR1L		;  case ZOS_FRK:
+	clrf	FSR1H		;   fsr1 = 1 << 7;
 	clrf	ZOS_JOB		;   for (zos_job = 1;
 zos_cp1
 	movlw	0x80		;        zos_job++ <= ZOS_NUM; fsr1 += 0x80) {
@@ -574,20 +569,31 @@ zos_cp1
 	addwf	ZOS_JOB,w	;
 	btfsc	STATUS,Z	;
 	bra	zos_cpd		;        
-	movlw	0x6f		;    for (fsr0 |= 0x6f, fsr1 |= 0x6f;
+	
+	ZOS_MEM	FSR0,BSR,0
+	moviw	ZOS_PCH[FSR0]	;    fsr0 = 0x10 * (1+BSR);
+	btfss	STATUS,Z	;    if (ZOS_PCH[fsr0] == 0)
+	bra	zos_cp1		;     continue; // can't touch a running job
+	
+	rrf	BSR,w		;
+	andlw	0x3		;
+	movwf	FSR0H		;
+	clrf	FSR0L		;
+	rrf	FSR0L,f		;
+	movlw	0x6f		;
+	iorwf	FSR0L,f		;    fsr0 = (BSR << 7) | 0x6f;
+
+	iorwf	FSR1L,f		;    for (fsr1 |= 0x6f; fsr1 & 0x7f >= 0x20;         
 zos_cp2
-	iorwf	FSR1L,f		;         fsr & 0x7f >= 0x20;
-	iorwf	FSR0L,f		;
 	moviw	FSR0--		;
-	movwf	FSR1--		;         *fsr1-- = *fsr0--)
+	movwi	FSR1--		;         *fsr1-- = *fsr0--)
 	movlw	0x60		;
 	andwf	FSR0L,w		;
 	btfss	STATUS,Z	;
 	bra	zos_cp2		;     ;
-	movlw	0x80		;
-	andwf	FSR0L,f		;    fsr0 &= 0x80;
 	bra	zos_cp1		;   }
 zos_cpd
+	;; now copy job BSR's bank0 struct to the ZOS_AR registers and ZOS_NEW()
 	movf	BSR,w		;
 	movwf	ZOS_JOB		;   ZOS_JOB = BSR;
 	ZOS_MEM	FSR1,ZOS_JOB,0
@@ -613,11 +619,11 @@ zos_cpd
 zos_sw6
 	movf	BSR,w		;  case ZOS_EXE:
 	movwf	ZOS_JOB		;   ZOS_JOB = BSR;
-	ZOS_MEM	FSR1,ZOS_JOB,0	;   fsr1 = 0x10 * (1+ZOS_JOB);
-	banksel	WREG_SHAD	;
-	clrf	WREG_SHAD	;    WREG_SHAD = ZOS_NEW;
-	movlb	0		;    //spoof privilege to overwrite
-	bra	zos_dup		;    goto zos_dup;
+	ZOS_MEM	FSR1,ZOS_JOB,0
+	banksel	WREG_SHAD	;   fsr1 = 0x10 * (1+ZOS_JOB);
+	clrf	WREG_SHAD	;   WREG_SHAD = ZOS_NEW;
+	movlb	0		;   //spoof privilege to overwrite
+	bra	zos_dup		;   goto zos_dup;
 zos_sw7
 	movlw	ZOS_NUM+1	;  case ZOS_FND:
 	movwf	ZOS_JOB		;   ZOS_JOB = ZOS_NUM + 1;
