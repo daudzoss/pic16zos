@@ -553,48 +553,41 @@ zos_sw3
 	movwi	ZOS_SSP[FSR1]	;  case ZOS_YLD: ZOS_RFI(); // nothing to do
 zos_sw4
 	ZOS_RFI
-	
 zos_sw5
-;;;;;;;;;;;;;;;;;;BEGIN EXPERIMENTAL CODE;;;;;;;;;;;;;;;;;;;;;;
 	;; copy job BSR's 0x20-0x6f into every non-running slot first
 	rrf	BSR,w		;  case ZOS_FRK:
 	andlw	0x3		;
 	movwf	FSR0H		;
 	clrf	FSR0L		;
 	rrf	FSR0L,f		;   fsr0 = BSR << 7;
-	clrf	ZOS_JOB		;
-	clrf	FSR1L		;   fsr1 = 1;
-	clrf	FSR1H		;   for (zos_job = 0;
-zos_cpy
-	movlw	0x80		;
+	clrf	FSR1L		;   fsr1 = 1 << 7;
+	clrf	FSR1H		;
+	clrf	ZOS_JOB		;   for (zos_job = 1;
+zos_cp1
+	movlw	0x80		;        zos_job++ <= ZOS_NUM; fsr1 += 0x80) {
 	addwf	FSR1L,f		;
 	clrw			;
 	btfsc	STATUS,C	;
 	addwfc	FSR1H,f		;
-	incf	ZOS_JOB,f	;        zos_job++ <= ZOS_NUM;
+	incf	ZOS_JOB,f	;
 	movlw	0xff-ZOS_NUM	;
 	addwf	ZOS_JOB,w	;
-	btfsc	STATUS,Z	;        fsr1 += 0x80) {
-	bra	zos_cpd		;
-	movlw	0x6f		;
-	iorwf	FSR1L,f		;
-	iorwf	FSR0L,f		;    for (
-	
-	bra	zos_cpy		;   if (zos_job <= ZOS_NUM) {
+	btfsc	STATUS,Z	;
+	bra	zos_cpd		;        
+	movlw	0x6f		;    for (fsr0 |= 0x6f, fsr1 |= 0x6f;
+zos_cp2
+	iorwf	FSR1L,f		;         fsr & 0x7f >= 0x20;
+	iorwf	FSR0L,f		;
+	moviw	FSR0--		;
+	movwf	FSR1--		;         *fsr1-- = *fsr0--)
+	movlw	0x60		;
+	andwf	FSR0L,w		;
+	btfss	STATUS,Z	;
+	bra	zos_cp2		;     ;
+	movlw	0x80		;
+	andwf	FSR0L,f		;    fsr0 &= 0x80;
+	bra	zos_cp1		;   }
 zos_cpd
-;	movf	FSR0L,w		;    // save handle now so we can re-use fsr0
-;	movwi	ZOS_HDL[FSR1]	;    // (no harm if we don't validate it as PCH)
-;	movf	FSR0H,w		;    ZOS_HDL[fsr1] = fsr0 & 0x00ff;
-;	movwi	ZOS_HDH[FSR1]	;    ZOS_HDH[fsr1] = fsr0 >> 8;
-;	movf	BSR,f		;    if (bsr == 0)
-;	btfsc	STATUS,Z	;     goto zos_swk; // job#0 (launcher) has perm
-;	bra	zos_swk		;    fsr0 = 0x10 * (1+bsr); // struct for caller
-;	ZOS_MEM	FSR0,BSR,0
-;	moviw	ZOS_HDH[FSR0]	;    if (ZOS_HDH[fsr0] & ZOS_PRV)
-;	btfsc	WREG,ZOS_PRB	;     goto zos_swk; // job has privileged perms
-;	bra	zos_swk		;   }
-;;;;;;;;;;;;;;;;;;END EXPERIMENTAL CODE;;;;;;;;;;;;;;;;;;;;;;
-
 	movf	BSR,w		;
 	movwf	ZOS_JOB		;   ZOS_JOB = BSR;
 	ZOS_MEM	FSR1,ZOS_JOB,0
