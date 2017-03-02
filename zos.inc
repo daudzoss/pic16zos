@@ -246,6 +246,15 @@ loop
 	bra	loop		;}
 	endm
 	
+#ifdef FSR0
+#else
+FSR0	 equ	FSR0L
+#endif
+#ifdef FSR1
+#else
+FSR1	 equ	FSR1L
+#endif
+
 #ifdef PIE0
 ZOS_PE0	 equ	PIE0
 ZOS_PIE	 equ	PIE0-1
@@ -414,7 +423,6 @@ zos_wra
 
 	;; software interrupt processing reached by jumping to 0x0002 with W set
 zos_swj
-#if 0
 	;; save the shadow registers (for the ones that have them) to use retfie
 	bcf	INTCON,GIE	; INTCON &= ~(1<<GIE); // interrupt would be bad
 	movwf	ZOS_JOB		; // just convenient temporary global for WREG
@@ -460,7 +468,7 @@ zos_emp
 	incf	ZOS_JOB,f	;        zos_job++ <= ZOS_NUM;
 	movlw	0xff-ZOS_NUM	;
 	addwf	ZOS_JOB,w	;
-	btfsc	STATUS,Z	;        fsr1 += 10) {
+	btfsc	STATUS,Z	;        fsr1 += 0x10) {
 	bra	zos_err		;    if (ZOS_PCH[FSR1] == 0)
 	moviw	ZOS_PCH[FSR1]	;     break;
 	btfss	STATUS,Z	;   }
@@ -547,9 +555,48 @@ zos_sw4
 	ZOS_RFI
 	
 zos_sw5
-;;; FIXME: need to do a copy of 0x20-0x6f...into every non-running slot?!?
-	movf	ZOS_AR0,w	;  case ZOS_FRK:
-	movwf	ZOS_JOB		;   ZOS_JOB = ZOS_AR0;
+;;;;;;;;;;;;;;;;;;BEGIN EXPERIMENTAL CODE;;;;;;;;;;;;;;;;;;;;;;
+	;; copy job BSR's 0x20-0x6f into every non-running slot first
+	rrf	BSR,w		;  case ZOS_FRK:
+	andlw	0x3		;
+	movwf	FSR0H		;
+	clrf	FSR0L		;
+	rrf	FSR0L,f		;   fsr0 = BSR << 7;
+	clrf	ZOS_JOB		;
+	clrf	FSR1L		;   fsr1 = 1;
+	clrf	FSR1H		;   for (zos_job = 0;
+zos_cpy
+	movlw	0x80		;
+	addwf	FSR1L,f		;
+	clrw			;
+	btfsc	STATUS,C	;
+	addwfc	FSR1H,f		;
+	incf	ZOS_JOB,f	;        zos_job++ <= ZOS_NUM;
+	movlw	0xff-ZOS_NUM	;
+	addwf	ZOS_JOB,w	;
+	btfsc	STATUS,Z	;        fsr1 += 0x80) {
+	bra	zos_cpd		;
+	movlw	0x6f		;
+	iorwf	FSR1L,f		;
+	iorwf	FSR0L,f		;    for (
+	
+	bra	zos_cpy		;   if (zos_job <= ZOS_NUM) {
+zos_cpd
+;	movf	FSR0L,w		;    // save handle now so we can re-use fsr0
+;	movwi	ZOS_HDL[FSR1]	;    // (no harm if we don't validate it as PCH)
+;	movf	FSR0H,w		;    ZOS_HDL[fsr1] = fsr0 & 0x00ff;
+;	movwi	ZOS_HDH[FSR1]	;    ZOS_HDH[fsr1] = fsr0 >> 8;
+;	movf	BSR,f		;    if (bsr == 0)
+;	btfsc	STATUS,Z	;     goto zos_swk; // job#0 (launcher) has perm
+;	bra	zos_swk		;    fsr0 = 0x10 * (1+bsr); // struct for caller
+;	ZOS_MEM	FSR0,BSR,0
+;	moviw	ZOS_HDH[FSR0]	;    if (ZOS_HDH[fsr0] & ZOS_PRV)
+;	btfsc	WREG,ZOS_PRB	;     goto zos_swk; // job has privileged perms
+;	bra	zos_swk		;   }
+;;;;;;;;;;;;;;;;;;END EXPERIMENTAL CODE;;;;;;;;;;;;;;;;;;;;;;
+
+	movf	BSR,w		;
+	movwf	ZOS_JOB		;   ZOS_JOB = BSR;
 	ZOS_MEM	FSR1,ZOS_JOB,0
 	moviw	ZOS_PCH[FSR1]	;
 	btfsc	STATUS,Z	;
@@ -581,9 +628,9 @@ zos_sw6
 zos_sw7
 	movlw	ZOS_NUM+1	;  case ZOS_FND:
 	movwf	ZOS_JOB		;   ZOS_JOB = ZOS_NUM + 1;
-	ZOS_MEM	fsr1,ZOS_JOB,0	;   fsr1 = 0x10 * (1 + ZOS_JOB);
+	ZOS_MEM	FSR1,ZOS_JOB,0	;   fsr1 = 0x10 * (1 + ZOS_JOB);
 zos_nxt
-	ZOS_LIV	fsr1,ZOS_JOB,0,zos_bad
+	ZOS_LIV	FSR1,ZOS_JOB,0,zos_bad
 	moviw	ZOS_HDL[FSR1]	;   while (ZOS_LIV(&fsr0, &ZOS_JOB, 0)) {
 	xorwf	ZOS_AR0,w	;
 	btfss	STATUS,Z	;
@@ -628,7 +675,6 @@ zos_swl
 	;; no registered SWI handler: jump into the hardware interrupt scheduler
 zos_swm
 	ZOS_RFI
-#endif
 
 zos_ini
 	;; clear out page 0 to reflect no 
@@ -645,4 +691,3 @@ zos_end
 	;;
  end
 
-	
