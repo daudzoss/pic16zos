@@ -1,7 +1,10 @@
-	processor
-include p1______.inc
+	processor 16f1847
+include p16f1847.inc
+	
 __CONFIG
 
+;;; uncomment to reduce ZOS footprint by 100 words (at cost of FRK/EXE/FND SWI):
+;;;ZOS_MIN equ 1
 include zos.inc
 include zosmacro.inc
 

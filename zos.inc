@@ -1,15 +1,10 @@
-#if 1
- processor 16f1847
- include p16f1847.inc
-#endif
-	
 ;;; ZOS.INC
 ;;; a lightweight, small-footprint, preemptively multitasking RTOS for Microchip
 ;;;  Technology's entire enhanced midrange 8-bit PIC microcontroller family:
 ;;;
 ;;; memory footprint:
-;;; _TBD_ 14-bit words for base RTOS i.e. main() starts at 0x0___
-;;; _TBD_ words if ZOS_MIN is defined to omit FRK/EXE/FND (thus SWI#4~7 ZOS_YLD)
+;;;  ~430 14-bit words for base RTOS i.e. main() starts at 0x0___
+;;;  ~330 words if ZOS_MIN is defined to omit FRK/EXE/FND (thus SWI#4~7 ZOS_YLD)
 ;;; 
 ;;; SRAM footprint:
 ;;; 86 bank-0 bytes claimed by RTOS, 30 bytes of stack scratch space relocatable
@@ -549,14 +544,24 @@ zos_sw3
 	movlw	ZOS_BOS		;   ZOS_SSP[fsr1] = ZOS_BOS; 
 	movwi	ZOS_SSP[FSR1]	;  case ZOS_YLD: ZOS_RFI(); // nothing to do
 zos_sw4
+
+#ifdef ZOS_MIN
+zos_sw5
+zos_sw6
+zos_sw7
 	ZOS_RFI
+#else
+	ZOS_RFI
+
 zos_sw5
 	;; copy job BSR's 0x20-0x6f into every non-running bank first
 	clrf	FSR1L		;  case ZOS_FRK:
 	clrf	FSR1H		;   fsr1 = 1 << 7;
 	clrf	ZOS_JOB		;   for (zos_job = 1;
 zos_cp1
-	movlw	0x80		;        zos_job++ <= ZOS_NUM; fsr1 += 0x80) {
+	movlw	0x08		;        zos_job++ <= ZOS_NUM; fsr1 += 0x80) {
+	andwf	FSR1L,f		;    fsr1 &= 0x80; // 
+	movlw	0x80		;
 	addwf	FSR1L,f		;
 	clrw			;
 	btfsc	STATUS,C	;
@@ -641,6 +646,7 @@ zos_nxt
 	movwf	WREG_SHAD	;   ZOS_RET();
 zos_bad
 	ZOS_RET
+#endif
 	
 	;; else handle the software interrupt with the first registered handler
 zos_swh
@@ -685,5 +691,3 @@ zos_end
 	;; is the prerogative of ZOS (it being used as the current job #)
 	;; and the BSR may never end up greater than ZOS_NUM in user space!!!
 	;;
- end
-

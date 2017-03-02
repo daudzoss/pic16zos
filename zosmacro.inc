@@ -6,6 +6,22 @@
 ;;; _ 14-bit words if only ZOS_CON() job is started to accept console output
 ;;; _ words if full-featured monitor and job manager shell ZOS_MON() instead
 	
+#define ZOS_ME BSR,w		; // "movf/andwf/xorwf ZOS_ME" can't clobber BSR
+
+ZOS_MY2	macro	fsrnum
+	local	fsrn
+	if (fsrnum & 3)
+fsrn set 1
+	else
+fsrn set 0
+	endif
+	rlf	BSR,w
+	andlw	0x0e
+	iorlw	0x70
+	movwf	FSR#v(fsrn)L
+	clrf	FSR#v(fsrn)H
+	endm
+
 ZOS_SWI	macro	type
 	movlw	type
 	movlp	0x00
