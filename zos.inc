@@ -8,7 +8,8 @@
 ;;;  Technology's entire enhanced midrange 8-bit PIC microcontroller family:
 ;;;
 ;;; memory footprint:
-;;; _ 14-bit words for base RTOS i.e. main() starts at 0x0___
+;;; _TBD_ 14-bit words for base RTOS i.e. main() starts at 0x0___
+;;; _TBD_ words if ZOS_MIN is defined to omit FRK/EXE/FND (thus SWI#4~7 ZOS_YLD)
 ;;; 
 ;;; SRAM footprint:
 ;;; 86 bank-0 bytes claimed by RTOS, 30 bytes of stack scratch space relocatable
@@ -216,7 +217,7 @@ ZOS_RFI	macro
 	endm
 
 ;;; find something runnable (i.e. PCH != 0, but sleep MSB is OK), at job+/-1
-;;; according to incr and branch to unf if job-1 == 0 or job+1 > ZOS_NUM,
+;;; according to incr then branch to unf if job-1 == 0 or job+1 > ZOS_NUM,
 ;;; with fsrnum pointing to job's bank 0 structure and then incremented +/-16
 ZOS_LIV	macro	fsrnum,job,incr,unf
 	local	fsrn,loop
@@ -237,12 +238,12 @@ loop
 	 movlw	0xff-ZOS_NUM	;  job += incr ? 1 : -1; // next job#
 	 addwf	job,w		;  if ((job == 0) || (job == ZOS_NUM+1)) {//past
 	else
-	 decf	job,f		;   goto unf;
+	 decf	job,f		;   goto unf; // Z was set
 	endif
 	btfss	STATUS,Z	;  } else if (ZOS_PCH[fsrnum]) // found runnable
-	bra	unf		;   return w = ZOS_PCH[fsrnum];
+	bra	unf		;   return w = ZOS_PCH[fsrnum]; // Z was cleared
 	moviw	ZOS_PCH[FSR#v(fsrn)]
-	btfss	STATUS,Z	; } while (1); // job is runnable (or unf was 0)
+	btfsc	STATUS,Z	; } while (1); // job is runnable (or unf was 0)
 	bra	loop		;}
 	endm
 	
@@ -262,9 +263,7 @@ ZOS_PIE	 equ	PIE0-1
 ZOS_PE0	 equ	PIE1-1
 ZOS_PIE	 equ	INTCON-1
 #endif
-#ifdef PIE1
 ZOS_MAX	set	PIE1
-#endif
 #ifdef PIE2
 ZOS_MAX	set	PIE2
 #endif
@@ -303,14 +302,12 @@ ZOS_MAX	set	PIE9
 	goto	zos_swj
 
 	org	0x0004
-	;; find first handler for an enabled and flagged interrupt
+	;; find first willing handler for an enabled interrupt matching _MSK bit
 zos_004
-	movlw	low ZOS_PIE	;void __isr zos_004(void) {
+	movlw	low ZOS_PIE	;__isr void zos_004(void) {
 	movwf	FSR1L		; // TMR0,PEIE may be outside INTCON or not
 	movlw	high ZOS_PIE	;
 	movwf	FSR1H		; fsr1 = ZOS_PIE; // -1 + either INTCON or PEIE
-
-		
 	movlw	ZOS_NUM+1	;
 	movwf	ZOS_JOB		; ZOS_JOB = ZOS_NUM+1;// search from high to low
 	ZOS_MEM	FSR0,ZOS_JOB,0	; fsr0 = 0x10 * (1 + ZOS_JOB);
@@ -343,8 +340,8 @@ zos_cmp
 	clrf	ZOS_MSK		;   ZOS_MSK = 0; // indicates HWI (not SWI) type 
 	moviw	ZOS_ISH[FSR0]	;
 	movwf	PCLATH		;   *(ZOS_ISR[fsr0])();
-	moviw	ZOS_ISR[FSR0]	;  }
-	movwf	PCL		; }
+	moviw	ZOS_ISR[FSR0]	;  } // handler refused, so loop to the next job
+	movwf	PCL		; } // if this line reached, no runnable handler
 	
 	;; scheduler
 zos_sch
