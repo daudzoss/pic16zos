@@ -1,14 +1,14 @@
 ;;; ZOSMACRO.INC
-;;; potentially useful (but not mandatory) macros for ZOS
+;;; potentially useful (but not mandatory) macros for zOS
 ;;;
 ;;; memory footprint:
 ;;; no memory words used upon inclusion (before expansion of a macro)
-;;; _ 14-bit words if only ZOS_CON() job is started to accept console output
-;;; _ words if full-featured monitor and job manager shell ZOS_MON() instead
+;;; _ 14-bit words if only zOS_CON() job is started to accept console output
+;;; _ words if full-featured monitor and job manager shell zOS_MON() instead
 	
-#define ZOS_ME BSR,w		; // "movf/andwf/xorwf ZOS_ME" can't clobber BSR
+#define zOS_ME BSR,w		; // "movf/andwf/xorwf zOS_ME" can't clobber BSR
 
-ZOS_MY2	macro	fsrnum
+zOS_MY2	macro	fsrnum
 	local	fsrn
 	if (fsrnum & 3)
 fsrn set 1
@@ -22,22 +22,22 @@ fsrn set 0
 	clrf	FSR#v(fsrn)H
 	endm
 
-ZOS_SWI	macro	type
+zOS_SWI	macro	type
 	movlw	type
 	movlp	0x00
 	call	0x02
 	endm
 
-ZOS_ARG	macro	argnum
+zOS_ARG	macro	argnum
 	local num
 num set (argnum & 0x03)
 	if (num == 0)
 	 bcf	INTCON,GIE
 	endif
-	movwf	ZOS_AR#v(num)
+	movwf	zOS_AR#v(num)
 	endm
 
-ZOS_RUN	macro	t0enable
+zOS_RUN	macro	t0enable
 	;; start a TMR0 interrupt since none found (most in INTCON, others PIE0)
 	if (t0enable)
 	 banksel t0enable
@@ -61,7 +61,7 @@ loop
 	endm
 
 ;;; simple output-only console job with circular buffer
-ZOS_CON	macro	port,bps	;inline int8_t ZOS_CON(int8_t port, int8_t bps){
+zOS_CON	macro	port,bps	;inline int8_t zOS_CON(int8_t port, int8_t bps){
 	local task,decl,isr
 	bra	decl		;task:
 task
@@ -77,17 +77,17 @@ max equ 0x70
 	movwf	p0		; static char *p0, *p1, buf[max - buf];
 	movwf	p1		; p1 = p2 = buf; // won't need context again
 ;;; FIXME: need to remember the value of port, store useful record of it in h:l
-	ZOS_SWI	ZOS_SLP		; ZOS_SWI(ZOS_SLP);
+	zOS_SWI	zOS_SLP		; zOS_SWI(zOS_SLP);
 isr
 	;; make sure the task is sleeping or else the above initialization unrun
 	local hw,done
-	ZOS_MEM	FSR0,ZOS_JOB,0
-	moviw	ZOS_PCH[FSR0]	;isr:
-	btfss	WREG,ZOS_WAI	; fsr0 = 0x10 * (1+zos_job);
-	bra	done		; if (ZOS_PCH[fsr0] & (1<<ZOS_WAI)) {
+	zOS_MEM	FSR0,zOS_JOB,0
+	moviw	zOS_PCH[FSR0]	;isr:
+	btfss	WREG,zOS_WAI	; fsr0 = 0x10 * (1+zos_job);
+	bra	done		; if (zOS_PCH[fsr0] & (1<<zOS_WAI)) {
 	
-	;; for speed, check for validated SWI first since it will be in ZOS_MSK
-	movf	ZOS_MSK,f	;
+	;; for speed, check for validated SWI first since it will be in zOS_MSK
+	movf	zOS_MSK,f	;
 	btfss	STATUS,Z	;
 	bra	hw		;  if (zos_msk) {
 	
@@ -98,24 +98,24 @@ hw
 	bra
 	.
 done
-	ZOS_RFI
+	zOS_RFI
 decl
 	movlw	low task	; } else {
 ;;; FIXME: need to set up the hardware port at the requested bps rate here first
 	movwf	FSR0L		;
 	movlw	high task	;
 	movwf	FSR0H		;  FSR0 = task & 0x7fff; //MSB 0 => unprivileged
-	bcf	FSR0H,ZOS_PRB	;
-	movlw	low isr		;  w = ZOS_ARG(0, isr & 0x00ff);
-	ZOS_ARG	0
-	movlw	high isr	;  w = ZOS_ARG(1, isr>>8);
-	ZOS_ARG	1
-	movlw	1<<TXIF		;  w = ZOS_ARG(2, 1<<TXIF); // OK ready for more
-	ZOS_ARG	2
+	bcf	FSR0H,zOS_PRB	;
+	movlw	low isr		;  w = zOS_ARG(0, isr & 0x00ff);
+	zOS_ARG	0
+	movlw	high isr	;  w = zOS_ARG(1, isr>>8);
+	zOS_ARG	1
+	movlw	1<<TXIF		;  w = zOS_ARG(2, 1<<TXIF); // OK ready for more
+	zOS_ARG	2
 	endm			; }
 
-;;; like ZOS_CON, but also accepts console input for a full job-management shell
-ZOS_MON	macro	port,bps,hb,pin	;
+;;; like zOS_CON, but also accepts console input for a full job-management shell
+zOS_MON	macro	port,bps,hb,pin	;
 	local task,decl,isr
 	bra	decl		;
 task
@@ -128,20 +128,20 @@ loop
 isr
 	.
 	.
-	ZOS_RFI
+	zOS_RFI
 decl
 	movlw	low task	; } else {
-	movwf	FSR0L		;  //job#0 means ZOS_RUN not encountered yet 
+	movwf	FSR0L		;  //job#0 means zOS_RUN not encountered yet 
 	movlw	high task	;
 	andlw	0x7f		;
 	movwf	FSR0H		;  FSR0 = isr & 0x7fff; //MSB 0 => unprivileged
-	movlw	low isr		;  w = ZOS_ARG(0, isr & 0x00ff)
-	ZOS_ARG	0
-	movlw	high isr	;  w = ZOS_ARG(1, isr >> 8);
-	ZOS_ARG	1
+	movlw	low isr		;  w = zOS_ARG(0, isr & 0x00ff)
+	zOS_ARG	0
+	movlw	high isr	;  w = zOS_ARG(1, isr >> 8);
+	zOS_ARG	1
 	movlw	1<<RCIF		;
-	iorlw	1<<TXIF		;  w = ZOS_ARG(2, (1<<RCIF) | (1<<TXIF));
-	ZOS_ARG	2
+	iorlw	1<<TXIF		;  w = zOS_ARG(2, (1<<RCIF) | (1<<TXIF));
+	zOS_ARG	2
 	endm
 	
 
