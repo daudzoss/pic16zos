@@ -258,30 +258,32 @@ zOS_PIE	 equ	PIE0-1
 zOS_PE0	 equ	PIE1-1
 zOS_PIE	 equ	INTCON-1
 #endif
+	
 zOS_MAX	set	PIE1
+	
 #ifdef PIE2
-zOS_MAX	set	PIE2
+zOS_MAX	 set	PIE2
 #endif
 #ifdef PIE3
-zOS_MAX	set	PIE3
+zOS_MAX	 set	PIE3
 #endif
 #ifdef PIE4
-zOS_MAX	set	PIE4
+zOS_MAX	 set	PIE4
 #endif
 #ifdef PIE5
-zOS_MAX	set	PIE5
+zOS_MAX	 set	PIE5
 #endif
 #ifdef PIE6
-zOS_MAX	set	PIE6
+zOS_MAX	 set	PIE6
 #endif
 #ifdef PIE7
-zOS_MAX	set	PIE7
+zOS_MAX	 set	PIE7
 #endif
 #ifdef PIE8
-zOS_MAX	set	PIE8
+zOS_MAX	 set	PIE8
 #endif
 #ifdef PIE9
-zOS_MAX	set	PIE9
+zOS_MAX	 set	PIE9
 #endif
 
 	;; a job switch is attempted with every incoming interrupt
