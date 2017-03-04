@@ -132,10 +132,10 @@ rtsflag	  set	TXIF
 	endif
 loop
 	zOS_SWI	zOS_SLP
-	movlw	high rts	; do { // wait for SWI to store char(s) in buf[]
+	movlw	high rts	; do {
 	movwf	FSR1H		;  zOS_SWI(zOS_SLP);
-	movlw	low rts		;
-	movwf	FSR1L		;  
+	movlw	low rts		;  // wait for SWI to store char(s) in buf[]
+	movwf	FSR1L		;  // or HWI to indicate the last one got sent
 	btfss	INDF1,rtsflag	;  if ((fsr1 = rts) & (1<<rtsflag) == 0)
 	bra	loop		;   continue; // sleep (sending previous char)
 	rrf	zOS_ME 		;  // READY TO SEND, AND...
@@ -153,7 +153,7 @@ loop
 	btfss	STATUS,Z	;
 	bra	loop		;
 	movf	wrap,w		;
-	movwf	p0		;  p0 = fsr1 & 0x00ff);
+	movwf	p0		;  p0 = fsr1 & 0x00ff); // wrap around to buf+0
 	bra	loop		; } while (1)
 
 isr
