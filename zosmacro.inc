@@ -89,24 +89,86 @@ zOS_HEA	macro	base,size
 	end
 	
 ;;; simple output-only console job with circular buffer
-zOS_CON	macro	port,bps,hb,pin	;inline int8_t zOS_CON(int8_t port, int8_t bps,
-	local task,decl,isr	;                      int8_t hb, int8_t pin) {
-	bra	decl		;task:
-task
-	local p0,p1,l,h,buf,max	;
+zOS_CON	macro	p,bps,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t bps,int8_t
+	local	task,loop,decl,isr,spin
+	bra	decl		;                    rts,int8_t* hb,int8_t pin){
+task	
+	;; initialize constants and variables
+	local	p0,p1,wrap,buf,max
+p0	equ	0x20
+p1	equ	0x21
+wrap	equ	0x22	
+buf	equ	0x23
+max	equ	0x70
+	movlw	high SSP#v(p)CON;
+	movwf	FSR0H		; goto decl;
+	movlw	low SSP#v(p)CON	;task:
+	andlw	0x80		; const int8_t* SSP = (p==1)? SSP1CON : SSP2CON;
+	movwf	FSR0L		; const int8_t* fsr0 = SSP & 0xff80; 
+	rrf	zOS_ME		;
+	clrw			; const char* max = 0x70;
+	rrf	WREG,w		; static char *p0, *p1, buf[]; //po:task, p1:ISR
+	iorlw	buf		; char* fsr1;
+	movwf	wrap		; const char* wrap = ((bsr&1)<<7) | buf;
+	movwf	p0		;
+	movwf	p1		; p0 = p1 = wrap; // reset value if they max out
+	
+	local	sspbase,sspcon,sspstat,rtsflag
+sspbase	equ	SSP#v(p)CON & 0xff80
+sspcon	equ	SSP1CON & 0x1f
+sspstat	equ	SSP1STAT & 0x1f
+	if (p == 1)
+	 ifdef (TX#v(p)REG)
+sspxmit	  set	TX#v(p)REG	
+	 else
+sspxmit	  set	TXIF
+	 endif
+	 ifdef (TX#v(p)IF)
+rtsflag	  set	TX#v(p)IF
+	 else
+rtsflag	  set	TXIF
+	 endif
+	endif
+loop
+	zOS_SWI	zOS_SLP
+	movlw	high rts	; do { // wait for SWI to store char(s) in buf[]
+	movwf	FSR1H		;  zOS_SWI(zOS_SLP);
+	movlw	low rts		;
+	movwf	FSR1L		;  for (fsr1 = (char*) rts;
+spin
+	clrwdt			;
+	btfss	INDF1,rtsflag	;  while (*fsr1 & (1<<rtsflag) == 0)
+	bra	spin		;   clrwdt();
+	rrf	zOS_ME 		;
+	movwf	FSR1H		;  for (fsr1 = p0; p0 != p1; p0 = fsr1&0x00ff) {
+	
+	movf	p0,w		;       
+	movwf	FSR1L		;
+	xorwf	p1,w		;
+	btfsc	STATUS,Z	;
+	bra	loop		;
+	moviw	FSR1++		;
+	movwi	sspxmit[FSR0]	;  
+	
 
-p0 set 0x20
-p1 set 0x21
-l set 0x22
-h set 0x23
-buf equ 0x24
-max equ 0x70
-	movlw	buf		; const char* max = 0x70;
-	movwf	p0		; static char *p0, *p1, buf[max - buf];
-	movwf	p1		; p1 = p2 = buf; // won't need context again
-;;; need to remember the value of port, store 0xff80&page in fsr
-	zOS_SWI	zOS_SLP		; zOS_SWI(zOS_SLP);
+
+
+
+
+
+
+
+
+
+	
+
 isr
+	;; SWI will be coming from a device that wants to send a character
+	;; HWI will be coming from a tmr0 expiration for the blinking heartbeat
+	;; (no HWI will come from the SSP peripheral indicating ready-to-send)
+;;; FIXME : SWI has to clear the sleep bit!!!!!!!!!!!
+
+
 	;; make sure the task is sleeping or else the above initialization unrun
 	local hw,done
 	zOS_MEM	FSR0,zOS_JOB,0
@@ -127,13 +189,12 @@ hw
 	.
 done
 	zOS_RFI	zOS_HIM		;
-decl
-	movlw	low task	; } else {
 	
-
-
 ;;; FIXME: need to set up the hardware port at the requested bps rate here first
-	movwf	FSR0L		;
+	
+	;; intialize the 
+decl
+	movwf	FSR0L		;decl:
 	movlw	high task	;
 	movwf	FSR0H		;  FSR0 = task & 0x7fff;// MSB 0 => unprivileged
 	bcf	FSR0H,zOS_PRB	;

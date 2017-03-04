@@ -19,20 +19,20 @@ include zosmacro.inc
 ;;; hardwired into zosmacro.inc library and any available line may be chosen:
 OUTCHAR	equ	zOS_SI3
 	
-	zOS_MON	1,9600,PORTA,RA0
+	zOS_MON	1,9600,PIR1,PORTA,RA0
 	movlw	OUTCHAR		;void main(void) {
 	zOS_ARG	3
 retry1
 	zOS_SWI	zOS_NEW
-	btfsc	STATUS,Z	; zOS_MON(/*SSP*/1, 9600, PORTA, RA0/*hbeat*/);
+	btfsc	STATUS,Z	; zOS_MON(/*SSP*/1,9600,PIR1,PORTA,RA0/*beat*/);
 	bra	retry1		; zOS_ARG(3, OUTCHAR);//handles without knowing!
+	nop		    	; do {} while (zOS_SWI(zOS_NEW) == 0); // 1?
 	
-	movlw	low spitjob	; do {} while (zOS_SWI(zOS_NEW) == 0); // 1?
-	movwf	FSR0L		; fsr0 = spitjob; // takes no interrupts
-	movlw	high spitjob	; zOS_ARG(0, 0);
-	movwf	FSR0H		; zOS_ARG(1, 0);
-	clrw			; zOS_ARG(2, 0);
-	nop			; zOS_ARG(3, 0);
+	movlw	low spitjob	; fsr0 = spitjob; // takes no interrupts
+	movwf	FSR0L		; zOS_ARG(0, 0);
+	movlw	high spitjob	; zOS_ARG(1, 0);
+	movwf	FSR0H		; zOS_ARG(2, 0);
+	clrw			; zOS_ARG(3, 0);
 	zOS_ARG	0
 	zOS_ARG	1
 	zOS_ARG	2

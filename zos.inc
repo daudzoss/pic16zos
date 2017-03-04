@@ -26,7 +26,7 @@
 #else
 zOS_NUM	set	5
 #endif
-	
+
 ;;; you may redefine the location of the scratch space for restoring the stack
 ;;; after each context switch (by default it is 0x20 in bank zOS_NUM+1, but must
 ;;; be pulled in on small devices or pushed out for a heap-management job space)
@@ -335,7 +335,7 @@ zos_cmp
 	btfsc	STATUS,Z	;
 	bra	zos_nhw		;  if (zOS_MSK) {
 
-	clrf	zOS_MSK		;   zOS_MSK = 0; // indicates HWI (not SWI) type 
+	clrf	zOS_MSK		;   zOS_MSK = 0; // indicates HWI (not SWI) type
 	moviw	zOS_ISH[FSR0]	;
 	movwf	PCLATH		;   *(zOS_ISR[fsr0])();
 	moviw	zOS_ISR[FSR0]	;  } // handler refused, so loop to the next job
