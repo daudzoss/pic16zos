@@ -54,11 +54,12 @@ zOS_RUN	macro	t0enable
 	movwf	STKPTR		; STKPTR = zOS_BOS; // every job bottom of stack
 	
 	;; set the active job to the first (and potentially only)
-	movlb	1		; for (bsr = 1;;) {} // start with running job 1
+	movlb	1		; for (bsr = 1;;) // start with running job 1
 
 	;; wait for stuff to happen
 	local loop
 loop
+	clrwdt			;  clrwdt();
 	bra	loop		;}
 	endm
 
@@ -134,38 +135,34 @@ loop
 	movlw	high rts	; do { // wait for SWI to store char(s) in buf[]
 	movwf	FSR1H		;  zOS_SWI(zOS_SLP);
 	movlw	low rts		;
-	movwf	FSR1L		;  for (fsr1 = (char*) rts;
-spin
-	clrwdt			;
-	btfss	INDF1,rtsflag	;  while (*fsr1 & (1<<rtsflag) == 0)
-	bra	spin		;   clrwdt();
-	rrf	zOS_ME 		;
-	movwf	FSR1H		;  for (fsr1 = p0; p0 != p1; p0 = fsr1&0x00ff) {
-	
+	movwf	FSR1L		;  
+	btfss	INDF1,rtsflag	;  if ((fsr1 = rts) & (1<<rtsflag) == 0)
+	bra	loop		;   continue; // sleep (sending previous char)
+	rrf	zOS_ME 		;  // READY TO SEND, AND...
+	movwf	FSR1H		;
 	movf	p0,w		;       
 	movwf	FSR1L		;
-	xorwf	p1,w		;
-	btfsc	STATUS,Z	;
+	xorwf	p1,w		;  fsr1 = (bsr<<7) | p0;
+	btfsc	STATUS,Z	;  if (p0 == p1)
+	bra	loop		;   continue; // nothing to do, somehow
+	moviw	FSR1++		;  // ...WE HAVE SOMETHING IN THE BUFFER TO SEND
+	movwi	sspxmit[FSR0]	;  sspxmit[fsr0] = *fsr1++; // send a character
+	movf	FSR1L,w		;
+	movwf	p0		;
+	xorlw	max		;
+	btfss	STATUS,Z	;
 	bra	loop		;
-	moviw	FSR1++		;
-	movwi	sspxmit[FSR0]	;  
-	
-
-
-
-
-
-
-
-
-
-
-	
+	movf	wrap,w		;
+	movwf	p0		;  p0 = fsr1 & 0x00ff);
+	bra	loop		; } while (1)
 
 isr
 	;; SWI will be coming from a device that wants to send a character
-	;; HWI will be coming from a tmr0 expiration for the blinking heartbeat
-	;; (no HWI will come from the SSP peripheral indicating ready-to-send)
+	;;  in which case the ISR stores it, advances p1 and clears zOS_WAI bit
+	;;  and thus should just keep task asleep if rtsflag not set
+	;; HWI will be coming from the SSP peripheral indicating ready-to-send
+	;;  in which case ISR clears the job's zOS_WAI bit to get scheduled
+	;; (or HWI will come from a tmr0 expiration for the blinking heartbeat)
 ;;; FIXME : SWI has to clear the sleep bit!!!!!!!!!!!
 
 
