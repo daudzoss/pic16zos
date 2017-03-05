@@ -15,7 +15,7 @@ fsrn set 1
 	else
 fsrn set 0
 	endif
-	movlw	0x0f		;// change to 0x1f if PIC16 SRAM ever >4096 byte
+	movlw	0x1f		;// documentation suggest 0f but BSR now 6 bits!
 	andwf	FSR#v(fsrn)H,f	;inline void zOS_MY2(int8_t* *fsrnum) {
 	rlf	zOS_ME		;
 	andlw	0x0e		; int8_t w = bsr << 1;
@@ -92,7 +92,7 @@ zOS_HEA	macro	base,size
 	
 ;;; simple output-only console job with circular buffer
 zOS_CON	macro	p,bps,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t bps,int8_t
-	local	task,loop,decl,isr,spin
+	local	task,loop,decl,isr
 	bra	decl		;                    rts,int8_t* hb,int8_t pin){
 task	
 	;; initialize constants and variables
@@ -172,7 +172,7 @@ isr
 ;;; FIXME : SWI has to clear the sleep bit!!!!!!!!!!!
 
 
-	;; make sure the task is sleeping or else the above initialization unrun
+	;; make sure the task is sleeping (else the above initialization unrun!)
 	local hw,done
 	zOS_MEM	FSR0,zOS_JOB,0
 	moviw	zOS_PCH[FSR0]	;isr:
