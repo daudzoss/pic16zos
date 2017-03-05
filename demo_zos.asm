@@ -48,9 +48,19 @@ retry3
 	zOS_RUN
 	
 spitjob	
-	movf	zOS_ME		;void spitjob(void) {
-	addlw	'0'		; do {
+#if 0
+	clrw			;// print as hexadecimal integer: OUTCHAR 0 int
 	zOS_ARG	0
+#else	
+	movlw	'0'		;// print as ascii digit: OUTCHAR '0'+int
+#endif	
+	addwf	zOS_ME		;void spitjob(void) {
+	movf	zOS_ME		; do {
+#if 0
+	zOS_ARG	1
+#else
+	zOS_ARG	0
+#endif
 	zOS_SWI	OUTCHAR
 #if 0
 i	equ	0x20
