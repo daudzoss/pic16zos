@@ -246,24 +246,43 @@ isr
 	xorwf	hb,f		;   hb ^= 1 << pin;
 	bra	done		; } else {
 	
-	;; get fsr0 pointing to sspbase again, point fsr1 to bottom of local mem
+	;; get fsr0 pointing to sspbase again, point fsr1 to p0
 nottmr
-	zOS_LOC	FSR1,zOS_JOB,0
-	movlw	low sspbase	;  fsr1 = (zOS_JOB << 7) | t0scale; // not bsr?!?
+	zOS_LOC	FSR1,zOS_JOB,p0
+	movlw	low sspbase	;  fsr1 = (zOS_JOB << 7); // not bsr?!?
 	movwf	FSR0L		;
 	movlw	high sspbase	;
 	movwf	FSR0H		;  fsr0 = sspbase;
 	
-	;; for speed, check for validated SWI first since it will be in zOS_MSK
+	;; check for validated SWI first since it will be in zOS_MSK, else a HWI
 	movf	zOS_MSK,w	;
 	btfss	STATUS,Z	;
 	bra	hw		;  if (zos_msk) {
 	
-	movlw	high SSP#v(p)CON;
-	movwf	FSR0H		;
-	movlw	low SSP#v(p)CON	;
-	andlw	0x80		; const int8_t* SSP = (p==1)? SSP1CON : SSP2CON;
-	movwf	FSR0L		; const int8_t* fsr0 = SSP & 0xff80; 
+	;; check to make sure there are at least 2 characters free in the buffer
+	mov
+	movwf	FSR
+
+	movf	zOS_AR0,w	;
+	btfss	STATUS,Z	;
+	bra	ascii		;
+	
+
+	swapf	zOS_AR1,w	;
+	andlw	0x0f
+
+
+	movwi	FSR1++		;
+	movlw	0x0f
+
+	andwf	zOS_AR1,w	;
+
+
+
+ascii	movwi	FSR1++		;
+	movf	FSR1L		;
+	movw	
+
 	
 hw
 	banksel	PIR1
@@ -271,7 +290,9 @@ hw
 	bra
 	.
 done
-	zOS_RFI	zOS_HIM		;
+	zOS_RFI	zOS_HIM
+err
+	zOS_RFI ?
 	
 ;;; FIXME: need to set up the hardware port at the requested bps rate here first
 	
