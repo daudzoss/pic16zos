@@ -27,9 +27,27 @@ fsrn set 0
 	movwf	FSR#v(fsrn)L	;}
 	endm
 	
-zOS_MY2	macro	fsrnum		;inline int8_t zOS_MY2(int8_t *fsrnum){
+zOS_MY2	macro	fsrnum		;inline int8_t zOS_MY2(int8_t**fsrnum){
 	zOS_GLO	fsrnum,0	; return zOS_GLO(fsrnum, 0);
 	endm			;}
+	
+zOS_LOC macro	fsrnum,job,offset
+	local	fsrn
+	if (fsrnum & 3)
+fsrn set 1
+	else
+fsrn set 0
+	endif
+	if (offset)
+	 movlw	offset<<1	;inline int8_t zOS_LOC(int8_t* *fsrnum,
+	 movwf	FSR#v(fsrn)L	;        int8_t* job, uint8_t offset) {
+	else
+	 clrf	FSR#v(fsrn)L	;
+	endif
+	rrf	zOS_ME		;
+	movwf	FSR#v(fsrn)H	; return (*fsrnum=(job<<7)|offset)>>8;
+	rrf	FSR#v(fsrn)L	;}
+	endm
 	
 zOS_SWI	macro	type		;inline void zOS_SWI(const int8_t type) {
 	movlw	type		;
@@ -106,29 +124,15 @@ zOS_CON	macro	p,bps,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t bps,int8_t
 	bra	decl		;                    rts,int8_t* hb,int8_t pin){
 task	
 	;; initialize constants and variables
-	local	p0,p1,wrap,buf,max
+	local	t0div,t0rst,p0,p1,wrap,buf,max
+t0div	equ	0
+t0rst	equ	1
 p0	equ	0x20
 p1	equ	0x21
 t0scale	equ	0x22
 wrap	equ	0x23
 buf	equ	0x24
 max	equ	0x70
-	movlw	high SSP#v(p)CON;
-	movwf	FSR0H		; goto decl;
-	zOS_MY2	FSR0L		;task:
-	movlw	0xff		; fsr0 = 0x70 + (bsr<<1);
-	movwf	0[fsr0]		; 0[fsr0] = 0xff; // live TMR0 postscaler divider
-	movwf	1[fsr0]		; 1[fsr0] = 0xff; // reset value for TMR0
-	movlw	low SSP#v(p)CON	;
-	andlw	0x80		; const int8_t* SSP = (p==1)? SSP1CON : SSP2CON;
-	movwf	FSR0L		; const int8_t* fsr0 = SSP & 0xff80; 
-	rrf	zOS_ME		;
-	clrw			; const char* max = 0x70;
-	rrf	WREG,w		; static char *p0, *p1, buf[]; //po:task, p1:ISR
-	iorlw	buf		; char* fsr1;
-	movwf	wrap		; const char* wrap = ((bsr&1)<<7) | buf;
-	movwf	p0		;
-	movwf	p1		; p0 = p1 = wrap; // reset value if they max out
 	
 	local	sspbase,sspcon,sspstat,rtsflag
 sspbase	equ	SSP#v(p)CON & 0xff80
@@ -146,6 +150,23 @@ rtsflag	  set	TX#v(p)IF
 rtsflag	  set	TXIF
 	 endif
 	endif
+
+	movlw	high sspbase
+	movwf	FSR0H		; goto decl;
+	zOS_MY2	FSR0		;task:
+	movlw	0xff		; fsr0 = 0x70 + (bsr<<1);//global always visible
+	movwf	t0div[fsr0]	; 0[fsr0] = 0xff;// live TMR0 postscaler divider
+	movwf	t0rst[fsr0]	; 1[fsr0] = 0xff; // live reset value for TMR0
+	movlw	low sspbase	; const int8_t* sspbase = sspcon& 0xff80;
+	movwf	FSR0L		; const int8_t* sspcon = (p==1)?SSP1CON:SSP2CON;
+	rrf	zOS_ME		; const int8_t*sspstat=(p==1)?SSP1STAT:SSP2STAT;
+	clrw			; const char* max = 0x70;
+	rrf	WREG,w		; static char *p0, *p1, buf[]; //po:task, p1:ISR
+	iorlw	buf		; const char* wrap = ((bsr&1)<<7) | buf;
+	movwf	wrap		;
+	movwf	p0		; fsr0 = sspbase;
+	movwf	p1		; p0 = p1 = wrap; // reset value if they max out
+	
 loop
 	zOS_SWI	zOS_SLP
 	movlw	high rts	; do {
@@ -173,7 +194,6 @@ loop
 	movwf	p0		;
 	bra	loop		; } while (1);
 
-isr
 	;; SWI will be coming from a device that wants to send a character
 	;;  in which case the ISR stores it, advances p1 and clears zOS_WAI bit
 	;;  and thus should just keep task asleep if rtsflag not set
@@ -181,7 +201,9 @@ isr
 	;;  in which case ISR clears the job's zOS_WAI bit to get scheduled
 	;; (or HWI will come from a tmr0 expiration for the blinking heartbeat)
 ;;; FIXME : SWI has to clear the sleep bit!!!!!!!!!!!
-
+	;; Note: caller needs to make sure to check status of return value for
+	;; != 0, just in case job is in between sleeps or with a full buffer
+isr
 	;; get fsr0 pointing to tmr0 postscaler/reset value, fsr1 to job struct;
 	;; make sure the task is sleeping (else the above initialization unrun!)
 	local err,done,hw,ascii,nottmr
@@ -193,48 +215,49 @@ isr
 	movwf	FSR0H;[sic]	;
 #if 0
 	movf	zOS_ME		; // need to be sure in correct bank for zOS_JOB
+	movwf	zOS_JOB		;
 	movwf	BSR
 #endif
-	zOS_MY2	FSR0L		; fsr0 = (bsr << 1);
+	zOS_MY2	FSR0L		; fsr0 = 0x70 | (bsr << 1);
 
 	;; if it's a simple and frequent timer overflow interrupt finish quickly
 #if 0
 	banksel	zOS_T0E
 	btfss	zOS_T0E,T0IE	;
-	bra	nottmr		;
+	bra	nottmr		; // TMR0 should always be enabled, by zOS_RUN()
 #endif
 	banksel	zOS_T0F
 	btfss	zOS_T0F,T0IF	; if ((zOS_T0E & (1<<T0IE)) &&
 	bra	nottmr		;     (zOS_T0F & (1<<T0IF))) { // timer overflow
 	bcf	zOS_T0F,T0IF	;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
-	decfsz	INDF0,f		;
-	bra	done		;  if (++(*fsr0) & 0xff == 0)
-	
-	;; get fsr_ pointing to _ and fsr_ pointing to _
 
-	movlw	(1<<pin)	;
+	;; with fsr0 pointing to global pair, point fsr1 to local mem ("t0scale")
+	zOS_LOC	FSR1,zOS_JOB,t0scale
+	banksel	TMR0
+	moviw	t0rst[fsr0]	;  fsr1 = (zOS_JOB << 7) | t0scale; // not bsr?!?
+	movwf	TMR0		;  bsr = TMR0 >> 7; //now invalid for this branch
+	decfsz	INDF1,f		;  TMR0 = t0rst[fsr0]; // reset TMR0
+	bra	done		;  if (--*fsr1 == 0) {
+
 	banksel	hb
+	movf	INDF0,w		;
+	movwf	INDF1		;   *fsr1 /*countdown*/ = *fsr0 /*postscaler*/;
+	movlw	(1<<pin)	;
 	xorwf	hb,f		;   hb ^= 1 << pin;
-	banksel	
-	moviw	1[fsr0]		;
-	movwf	TMR0		;  TMR0 = 1[fsr0];
-	bra	done		; } else
+	bra	done		; } else {
 	
-	;; get fsr0 pointing to sspbase again and fsr1 pointing to p1
+	;; get fsr0 pointing to sspbase again, point fsr1 to bottom of local mem
 nottmr
-	movlw	0xff		; fsr0 = 0x70 + (bsr<<1);
-	movwf	0[fsr0]		; 0[fsr0] = 0xff; // live TMR0 postscaler divider
-	movwf	1[fsr0]		; 1[fsr0] = 0xff; // reset value for TMR0
-	movlw	low SSP#v(p)CON	;
-	andlw	0x80		; const int8_t* SSP = (p==1)? SSP1CON : SSP2CON;
-	movwf	FSR0L		; const int8_t* fsr0 = SSP & 0xff80; 
-
-
+	zOS_LOC	FSR1,zOS_JOB,0
+	movlw	low sspbase	;  fsr1 = (zOS_JOB << 7) | t0scale; // not bsr?!?
+	movwf	FSR0L		;
+	movlw	high sspbase	;
+	movwf	FSR0H		;  fsr0 = sspbase;
+	
 	;; for speed, check for validated SWI first since it will be in zOS_MSK
 	movf	zOS_MSK,w	;
 	btfss	STATUS,Z	;
 	bra	hw		;  if (zos_msk) {
-	
 	
 	movlw	high SSP#v(p)CON;
 	movwf	FSR0H		;

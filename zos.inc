@@ -444,6 +444,7 @@ zos_swj
 	movf	FSR1H,w		;
 	movwf	FSR1H_SHAD	; FSR1H_SHAD = FSR1H;
 
+;;;FIXME: clarify what is set to the job# into an SWI: BSR? zOS_JOB?
 	;; see if the interrupt type is a system one (<8)
 	pagesel	zos_swh
 	movlw	zOS_SI7|zOS_SI6|zOS_SI5|zOS_SI4|zOS_SI3
