@@ -310,6 +310,7 @@ zos_004
 	zOS_MEM	FSR0,zOS_JOB,0	; fsr0 = 0x10 * (1 + zOS_JOB);
 zos_nhw	
 ;;;FIXME: get rid of costly loop, don't need FSR to be pointing at suspected PIE
+;;;FIXME: use more decfsz when searching high-to-low?
 	zOS_LIV	FSR0,zOS_JOB,0,zos_sch
 	moviw	zOS_HIM[FSR0]	; while (zOS_LIV(&fsr0, &zOS_JOB, 0)) {
 	movwf	zOS_MSK		;

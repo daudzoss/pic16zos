@@ -8,7 +8,7 @@
 	
 #define zOS_ME BSR,w		; // "movf/andwf/xorwf zOS_ME" can't clobber BSR
 
-zOS_MY2	macro	fsrnum
+zOS_GLO	macro	fsrnum,job
 	local	fsrn
 	if (fsrnum & 3)
 fsrn set 1
@@ -16,13 +16,21 @@ fsrn set 1
 fsrn set 0
 	endif
 	movlw	0x1f		;// documentation suggest 0f but BSR now 6 bits!
-	andwf	FSR#v(fsrn)H,f	;inline void zOS_MY2(int8_t* *fsrnum) {
-	rlf	zOS_ME		;
-	andlw	0x0e		; int8_t w = bsr << 1;
-	iorlw	0x70		; *fsrnum = 0x70 | (w & 0x0e);
+	andwf	FSR#v(fsrn)H,f	;inline int8_t zOS_GLO(int8_t* *fsrnum,
+	if (job)
+	 rlf	job,w		;                      int8_t* job) {
+	else
+	 rlf	zOS_ME		; int8_t w = 0x70| ((job?*job:bsr)<<1);
+	endif
+	andlw	0x0e		; *fsrnum = (*fsrnum & 0x1f00) | w;
+	iorlw	0x70		; return w;
 	movwf	FSR#v(fsrn)L	;}
 	endm
-
+	
+zOS_MY2	macro	fsrnum		;inline int8_t zOS_MY2(int8_t *fsrnum){
+	zOS_GLO	fsrnum,0	; return zOS_GLO(fsrnum, 0);
+	endm			;}
+	
 zOS_SWI	macro	type		;inline void zOS_SWI(const int8_t type) {
 	movlw	type		;
 	movlp	0x00		; zos_swj(type);
@@ -101,8 +109,9 @@ task
 	local	p0,p1,wrap,buf,max
 p0	equ	0x20
 p1	equ	0x21
-wrap	equ	0x22
-buf	equ	0x23
+t0scale	equ	0x22
+wrap	equ	0x23
+buf	equ	0x24
 max	equ	0x70
 	movlw	high SSP#v(p)CON;
 	movwf	FSR0H		; goto decl;
@@ -175,28 +184,37 @@ isr
 
 	;; get fsr0 pointing to tmr0 postscaler/reset value, fsr1 to job struct;
 	;; make sure the task is sleeping (else the above initialization unrun!)
-	local hw,done,ascii,nottmr
+	local err,done,hw,ascii,nottmr
 	zOS_MEM	FSR1,zOS_JOB,0
 	moviw	zOS_PCH[FSR1]	;isr:
 	btfss	WREG,zOS_WAI	; fsr1 = 0x10 * (1+zos_job);
-	bra	done		; if (zOS_PCH[fsr1] & (1<<zOS_WAI) == 0)
+	bra	err		; if (zOS_PCH[fsr1] & (1<<zOS_WAI) == 0)
 	movlw	high SSP#v(p)CON;  goto done;
-	movwf	FSR0H		;
+	movwf	FSR0H;[sic]	;
+#if 0
+	movf	zOS_ME		; // need to be sure in correct bank for zOS_JOB
+	movwf	BSR
+#endif
 	zOS_MY2	FSR0L		; fsr0 = (bsr << 1);
 
 	;; if it's a simple and frequent timer overflow interrupt finish quickly
+#if 0
 	banksel	zOS_T0E
 	btfss	zOS_T0E,T0IE	;
 	bra	nottmr		;
+#endif
 	banksel	zOS_T0F
 	btfss	zOS_T0F,T0IF	; if ((zOS_T0E & (1<<T0IE)) &&
 	bra	nottmr		;     (zOS_T0F & (1<<T0IF))) { // timer overflow
 	bcf	zOS_T0F,T0IF	;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
-	incfsz	INDF0,f		;
+	decfsz	INDF0,f		;
 	bra	done		;  if (++(*fsr0) & 0xff == 0)
+	
+	;; get fsr_ pointing to _ and fsr_ pointing to _
+
 	movlw	(1<<pin)	;
 	banksel	hb
-	xorwf	hb,f		;   hb ^= 1<<pin;
+	xorwf	hb,f		;   hb ^= 1 << pin;
 	banksel	
 	moviw	1[fsr0]		;
 	movwf	TMR0		;  TMR0 = 1[fsr0];
