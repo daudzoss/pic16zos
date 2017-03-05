@@ -38,11 +38,13 @@ num set (arg & 0x03)
 	movwf	zOS_AR#v(num)	;{if (!arg) INTCON &= 1<<GIE; zOS_AR0[arg] = w;}
 	endm
 
-zOS_RUN	macro	t0enable
+zOS_RUN	macro	t0enable,t0flags
 	;; start a TMR0 interrupt since none found (most in INTCON, others PIE0)
-	if (t0enable)
-	 banksel t0enable
-	 bsf	t0enable,T0IE	;inline void zOS_RUN(uint8_t* t0enable) {
+zOS_T0E	equ	t0enable
+zOS_T0F	equ	t0flags	
+	if (zOS_T0E)
+	 banksel zOS_T0E
+	 bsf	zOS_T0E,T0IE	;inline void zOS_RUN(uint8_t* t0enable) {
 	
 ;;FIXME: set the prescaler appropriately so that the IRQ frequency isn't crazy
 
@@ -171,16 +173,47 @@ isr
 	;; (or HWI will come from a tmr0 expiration for the blinking heartbeat)
 ;;; FIXME : SWI has to clear the sleep bit!!!!!!!!!!!
 
-
+	;; get fsr0 pointing to tmr0 postscaler/reset value, fsr1 to job struct;
 	;; make sure the task is sleeping (else the above initialization unrun!)
-	local hw,done
-	zOS_MEM	FSR0,zOS_JOB,0
-	moviw	zOS_PCH[FSR0]	;isr:
-	btfss	WREG,zOS_WAI	; fsr0 = 0x10 * (1+zos_job);
-	bra	done		; if (zOS_PCH[fsr0] & (1<<zOS_WAI)) {
+	local hw,done,ascii,nottmr
+	zOS_MEM	FSR1,zOS_JOB,0
+	moviw	zOS_PCH[FSR1]	;isr:
+	btfss	WREG,zOS_WAI	; fsr1 = 0x10 * (1+zos_job);
+	bra	done		; if (zOS_PCH[fsr1] & (1<<zOS_WAI) == 0)
+	movlw	high SSP#v(p)CON;  goto done;
+	movwf	FSR0H		;
+	zOS_MY2	FSR0L		; fsr0 = (bsr << 1);
+
+	;; if it's a simple and frequent timer overflow interrupt finish quickly
+	banksel	zOS_T0E
+	btfss	zOS_T0E,T0IE	;
+	bra	nottmr		;
+	banksel	zOS_T0F
+	btfss	zOS_T0F,T0IF	; if ((zOS_T0E & (1<<T0IE)) &&
+	bra	nottmr		;     (zOS_T0F & (1<<T0IF))) { // timer overflow
+	bcf	zOS_T0F,T0IF	;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
+	incfsz	INDF0,f		;
+	bra	done		;  if (++(*fsr0) & 0xff == 0)
+	movlw	(1<<pin)	;
+	banksel	hb
+	xorwf	hb,f		;   hb ^= 1<<pin;
+	banksel	
+	moviw	1[fsr0]		;
+	movwf	TMR0		;  TMR0 = 1[fsr0];
+	bra	done		; } else
 	
+	;; get fsr0 pointing to sspbase again and fsr1 pointing to p1
+nottmr
+	movlw	0xff		; fsr0 = 0x70 + (bsr<<1);
+	movwf	0[fsr0]		; 0[fsr0] = 0xff; // live TMR0 postscaler divider
+	movwf	1[fsr0]		; 1[fsr0] = 0xff; // reset value for TMR0
+	movlw	low SSP#v(p)CON	;
+	andlw	0x80		; const int8_t* SSP = (p==1)? SSP1CON : SSP2CON;
+	movwf	FSR0L		; const int8_t* fsr0 = SSP & 0xff80; 
+
+
 	;; for speed, check for validated SWI first since it will be in zOS_MSK
-	movf	zOS_MSK,f	;
+	movf	zOS_MSK,w	;
 	btfss	STATUS,Z	;
 	bra	hw		;  if (zos_msk) {
 	
