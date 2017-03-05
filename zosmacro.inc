@@ -15,11 +15,12 @@ fsrn set 1
 	else
 fsrn set 0
 	endif
-	rlf	zOS_ME		;inline void zOS_MY2(int8_t* *fsrnum) {
+	movlw	0x0f		;// change to 0x1f if PIC16 SRAM ever >4096 byte
+	andwf	FSR#v(fsrn)H,f	;inline void zOS_MY2(int8_t* *fsrnum) {
+	rlf	zOS_ME		;
 	andlw	0x0e		; int8_t w = bsr << 1;
-	iorlw	0x70		;
-	movwf	FSR#v(fsrn)L	; *fsrnum = 0x70 | (w & 0x0e);
-	clrf	FSR#v(fsrn)H	;}
+	iorlw	0x70		; *fsrnum = 0x70 | (w & 0x0e);
+	movwf	FSR#v(fsrn)L	;}
 	endm
 
 zOS_SWI	macro	type		;inline void zOS_SWI(const int8_t type) {
@@ -98,12 +99,16 @@ task
 	local	p0,p1,wrap,buf,max
 p0	equ	0x20
 p1	equ	0x21
-wrap	equ	0x22	
+wrap	equ	0x22
 buf	equ	0x23
 max	equ	0x70
 	movlw	high SSP#v(p)CON;
 	movwf	FSR0H		; goto decl;
-	movlw	low SSP#v(p)CON	;task:
+	zOS_MY2	FSR0L		;task:
+	movlw	0xff		; fsr0 = 0x70 + (bsr<<1);
+	movwf	0[fsr0]		; 0[fsr0] = 0xff; // live TMR0 postscaler divider
+	movwf	1[fsr0]		; 1[fsr0] = 0xff; // reset value for TMR0
+	movlw	low SSP#v(p)CON	;
 	andlw	0x80		; const int8_t* SSP = (p==1)? SSP1CON : SSP2CON;
 	movwf	FSR0L		; const int8_t* fsr0 = SSP & 0xff80; 
 	rrf	zOS_ME		;
@@ -116,8 +121,8 @@ max	equ	0x70
 	
 	local	sspbase,sspcon,sspstat,rtsflag
 sspbase	equ	SSP#v(p)CON & 0xff80
-sspcon	equ	SSP1CON & 0x1f
-sspstat	equ	SSP1STAT & 0x1f
+sspcon	equ	SSP#v(p)CON & 0x1f
+sspstat	equ	SSP#v(p)STAT & 0x1f
 	if (p == 1)
 	 ifdef (TX#v(p)REG)
 sspxmit	  set	TX#v(p)REG	
@@ -136,7 +141,7 @@ loop
 	movwf	FSR1H		;  zOS_SWI(zOS_SLP);
 	movlw	low rts		;  // wait for SWI to store char(s) in buf[]
 	movwf	FSR1L		;  // or HWI to indicate the last one got sent
-	btfss	INDF1,rtsflag	;  if ((fsr1 = rts) & (1<<rtsflag) == 0)
+	btfss	INDF1,rtsflag	;  if (*(fsr1 = rts) & (1<<rtsflag) == 0)
 	bra	loop		;   continue; // sleep (sending previous char)
 	rrf	zOS_ME 		;  // READY TO SEND, AND...
 	movwf	FSR1H		;
@@ -144,17 +149,18 @@ loop
 	movwf	FSR1L		;
 	xorwf	p1,w		;  fsr1 = (bsr<<7) | p0;
 	btfsc	STATUS,Z	;  if (p0 == p1)
-	bra	loop		;   continue; // nothing to do, somehow
+	bra	loop		;   continue; // nothing to do, somehow (!)
 	moviw	FSR1++		;  // ...WE HAVE SOMETHING IN THE BUFFER TO SEND
 	movwi	sspxmit[FSR0]	;  sspxmit[fsr0] = *fsr1++; // send a character
 	movf	FSR1L,w		;
-	movwf	p0		;
+	movwf	p0		;  p0 = fsr1 & 0x00ff); // wrap around to buf+0
+	andlw	0x7f		;
 	xorlw	max		;
 	btfss	STATUS,Z	;
 	bra	loop		;
 	movf	wrap,w		;
-	movwf	p0		;  p0 = fsr1 & 0x00ff); // wrap around to buf+0
-	bra	loop		; } while (1)
+	movwf	p0		;
+	bra	loop		; } while (1);
 
 isr
 	;; SWI will be coming from a device that wants to send a character
@@ -178,6 +184,12 @@ isr
 	btfss	STATUS,Z	;
 	bra	hw		;  if (zos_msk) {
 	
+	
+	movlw	high SSP#v(p)CON;
+	movwf	FSR0H		;
+	movlw	low SSP#v(p)CON	;
+	andlw	0x80		; const int8_t* SSP = (p==1)? SSP1CON : SSP2CON;
+	movwf	FSR0L		; const int8_t* fsr0 = SSP & 0xff80; 
 	
 hw
 	banksel	PIR1
