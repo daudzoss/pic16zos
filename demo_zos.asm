@@ -1,7 +1,7 @@
 	processor 16f1847
 include p16f1847.inc
 	
-__CONFIG
+;__CONFIG
 
 ;;; uncomment to reduce zOS footprint by 100 words (at cost of zOS_FRK/EXE/FND):
 ;
@@ -19,7 +19,7 @@ include zosmacro.inc
 ;;; hardwired into zosmacro.inc library and any available line may be chosen:
 OUTCHAR	equ	zOS_SI3
 	
-	zOS_MON	1,9600,PIR1,PORTA,RA0
+	zOS_CON	1,9600,PIR1,PORTA,RA0
 	movlw	OUTCHAR		;void main(void) {
 	zOS_ARG	3
 retry1
@@ -45,7 +45,7 @@ retry3
 	zOS_SWI	zOS_NEW
 	btfsc	STATUS,Z	; zOS_RUN();
 	bra	retry3		;}
-	zOS_RUN
+	zOS_RUN	INTCON,INTCON
 	
 spitjob	
 #if 0
@@ -54,8 +54,7 @@ spitjob
 #else	
 	movlw	'0'		;// print as ascii digit: OUTCHAR '0'+int
 #endif	
-	addwf	zOS_ME		;void spitjob(void) {
-	movf	zOS_ME		; do {
+	addwf	zOS_ME		;void spitjob(void) { do {
 #if 0
 	zOS_ARG	1
 #else

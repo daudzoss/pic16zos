@@ -46,7 +46,7 @@ fsrn set 0
 	endif
 	rrf	zOS_ME		;
 	movwf	FSR#v(fsrn)H	; return (*fsrnum=(job<<7)|offset)>>8;
-	rrf	FSR#v(fsrn)L	;}
+	rrf	FSR#v(fsrn)L,f	;}
 	endm
 	
 zOS_SWI	macro	type		;inline void zOS_SWI(const int8_t type) {
@@ -104,21 +104,47 @@ loop
 	andlw	0x0f		;  STKPTR++; 
 	btfss	STATUS,Z	; }
 	bra	loop		;}
-	end
+	endm
 
 #ifdef	PID1CON
 ;;; 16x16bit multiply zOS_AR1:0 by zOS_AR3:2, core yielded during 7.5ms CIP math
 zOS_MUL	macro
-	end
+	endm
 #endif
 
 ;;; SWI behavior is malloc() with pointer (0 if too big) returned in zOS_AR1:0
 ;;;  if they were zero upon invoke, otherwise is a free() of memory it refers to
 ;;; (typically instantiated with base=zOS_STK+30, size = memory size - base)
 zOS_HEA	macro	base,size
-	end
+	endm
 	
 ;;; simple output-only console job with circular buffer
+zOS_HEX	macro
+	andlw	0x0f		;
+	addlw	0x06		;
+	btfsc	WREG,4		; inline char zOS_HEX(uint8_t w) { 
+	addlw	0x07		;  return (w & 0x0f > 9) ? '0'+w : 'A'+w-10;
+	addlw	0x2a		; }
+	endm
+	
+zOS_PUT	macro	max
+	movwi	FSR0++		; inline void zOS_PUT(char* max, char w) {
+	movf	FSR0L,w		;  *fsr0++ = w;
+	andlw	0x7f		;
+	xorlw	max		;
+	btfss	STATUS,Z	;
+	bra	$+3		;  if (fsr0 & 0x7f == max)
+	moviw	2[FSR1]		;
+	movwf	FSR0L		;   fsr0 = 2[fsr1] /*wrap*/;
+	movf	FSR0L,w		;  1[fsr1] /*p1*/ = fsr0 & 0x00ff;
+	movwi	1[FSR1]		; }
+	endm
+
+zOS_UNW	macro	job		; inline void zOS_UNW(int8_t job) { }
+	zOS_MEM	FSR0,job,zOS_PCH;  fsr0 = 0x10 * (1 + job) + zOS_PCH;
+	bcf	INDF0,zOS_WAI	;  *fsr0 &= ~(1 << zOS_WAI); // now runnable
+	endm			; }
+	
 zOS_CON	macro	p,bps,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t bps,int8_t
 	local	task,loop,decl,isr
 	bra	decl		;                    rts,int8_t* hb,int8_t pin){
@@ -129,34 +155,26 @@ t0div	equ	0
 t0rst	equ	1
 p0	equ	0x20
 p1	equ	0x21
-t0scale	equ	0x22
-wrap	equ	0x23
+wrap	equ	0x22
+t0scale	equ	0x23
 buf	equ	0x24
 max	equ	0x70
 	
 	local	sspbase,sspcon,sspstat,rtsflag
-sspbase	equ	SSP#v(p)CON & 0xff80
-sspcon	equ	SSP#v(p)CON & 0x1f
+sspbase	equ	SSP#v(p)CON1 & 0xff80
+sspcon	equ	SSP#v(p)CON1 & 0x1f
 sspstat	equ	SSP#v(p)STAT & 0x1f
 	if (p == 1)
-	 ifdef (TX#v(p)REG)
-sspxmit	  set	TX#v(p)REG	
-	 else
-sspxmit	  set	TXIF
-	 endif
-	 ifdef (TX#v(p)IF)
-rtsflag	  set	TX#v(p)IF
-	 else
-rtsflag	  set	TXIF
-	 endif
+sspxmit	 set	TXIF
+rtsflag	 set	TXIF
 	endif
 
 	movlw	high sspbase
 	movwf	FSR0H		; goto decl;
 	zOS_MY2	FSR0		;task:
 	movlw	0xff		; fsr0 = 0x70 + (bsr<<1);//global always visible
-	movwf	t0div[fsr0]	; 0[fsr0] = 0xff;// live TMR0 postscaler divider
-	movwf	t0rst[fsr0]	; 1[fsr0] = 0xff; // live reset value for TMR0
+	movwi	t0div[FSR0]	; 0[fsr0] = 0xff;// live TMR0 postscaler divider
+	movwi	t0rst[FSR0]	; 1[fsr0] = 0xff; // live reset value for TMR0
 	movlw	low sspbase	; const int8_t* sspbase = sspcon& 0xff80;
 	movwf	FSR0L		; const int8_t* sspcon = (p==1)?SSP1CON:SSP2CON;
 	rrf	zOS_ME		; const int8_t*sspstat=(p==1)?SSP1STAT:SSP2STAT;
@@ -185,33 +203,35 @@ loop
 	moviw	FSR1++		;  // ...WE HAVE SOMETHING IN THE BUFFER TO SEND
 	movwi	sspxmit[FSR0]	;  sspxmit[fsr0] = *fsr1++; // send a character
 	movf	FSR1L,w		;
-	movwf	p0		;  p0 = fsr1 & 0x00ff); // wrap around to buf+0
+	movwf	p0		;  p0 = fsr1 & 0x00ff; // wrap around to buf+0
 	andlw	0x7f		;
 	xorlw	max		;
 	btfss	STATUS,Z	;
-	bra	loop		;
-	movf	wrap,w		;
+	bra	loop		;  if (p0 & 0x7f == max) // ignore low bank bit
+	movf	wrap,w		;   p0 = wrap; // =buf xor the lowest bank bit
 	movwf	p0		;
 	bra	loop		; } while (1);
 
-	;; SWI will be coming from a device that wants to send a character
+	;; SWI will be coming from a job that wants to send a character
 	;;  in which case the ISR stores it, advances p1 and clears zOS_WAI bit
-	;;  and thus should just keep task asleep if rtsflag not set
+	;;  and thus afer clearing zOS_WAI the job just re-sleeps if rtsflag==0
+	;; 
 	;; HWI will be coming from the SSP peripheral indicating ready-to-send
 	;;  in which case ISR clears the job's zOS_WAI bit to get scheduled
 	;; (or HWI will come from a tmr0 expiration for the blinking heartbeat)
-;;; FIXME : SWI has to clear the sleep bit!!!!!!!!!!!
+	;; 
 	;; Note: caller needs to make sure to check status of return value for
 	;; != 0, just in case job is in between sleeps or with a full buffer
 isr
 	;; get fsr0 pointing to tmr0 postscaler/reset value, fsr1 to job struct;
-	;; make sure the task is sleeping (else the above initialization unrun!)
 	local err,done,hw,ascii,nottmr
 	zOS_MEM	FSR1,zOS_JOB,0
 	moviw	zOS_PCH[FSR1]	;isr:
+	
+	;; make sure the task is sleeping (else the above initialization unrun!)
 	btfss	WREG,zOS_WAI	; fsr1 = 0x10 * (1+zos_job);
 	bra	err		; if (zOS_PCH[fsr1] & (1<<zOS_WAI) == 0)
-	movlw	high SSP#v(p)CON;  goto done;
+	movlw	high sspcon	;  goto done;
 	movwf	FSR0H;[sic]	;
 #if 0
 	movf	zOS_ME		; // need to be sure in correct bank for zOS_JOB
@@ -234,7 +254,7 @@ isr
 	;; with fsr0 pointing to global pair, point fsr1 to local mem ("t0scale")
 	zOS_LOC	FSR1,zOS_JOB,t0scale
 	banksel	TMR0
-	moviw	t0rst[fsr0]	;  fsr1 = (zOS_JOB << 7) | t0scale; // not bsr?!?
+	moviw	t0rst[FSR0]	;  fsr1 = (zOS_JOB << 7) | t0scale; // not bsr?!?
 	movwf	TMR0		;  bsr = TMR0 >> 7; //now invalid for this branch
 	decfsz	INDF1,f		;  TMR0 = t0rst[fsr0]; // reset TMR0
 	bra	done		;  if (--*fsr1 == 0) {
@@ -260,39 +280,65 @@ nottmr
 	bra	hw		;  if (zos_msk) {
 	
 	;; check to make sure there are at least 2 characters free in the buffer
-	mov
-	movwf	FSR
+	moviw	1[FSR1]		;   char* p1plus2 = 2 + (1[fsr1] /*p1*/ & 0x7f);
+	andlw	0x7f		;
+	addlw	0x12		;
+	btfss	WREG,7		;   if (p1plus2 >= max)
+	addlw	0x90+buf	;    p1plus2 -= (max - buf);
+	addlw	0-0x10		;
+	bcf	INDF1,7		;
+	subwf	INDF1,w		;   char* w = p1plus2 - (0[fsr1] /*p0*/&= 0x7f);
+	
+	incf	FSR1L,f		;   // don't clobber w: OK if it's not 0 or 1
+	btfsc	INDF1,7		;
+	bra	$+4		;   if (1[fsr1++] /*p1*/ & 0x80) {
+	decf	FSR1L,f		;    0[--fsr1] /*p0*/ |= 0x80; // p0 restored
+	bsf	INDF1,7		;    fsr1++; // cancels the above decrement
+	incf	FSR1L,f		;   }
+	decf	FSR1L,f		;   fsr1--; // cancels increment from the "if"
 
-	movf	zOS_AR0,w	;
+	iorlw	0x00		;
+	btfsc	STATUS,Z	;
+	bra	err		;   if (w == 0)
+	decf	WREG,w		;    goto err;// would wrap around, appear empty
+	btfsc	STATUS,Z	;   else if (w == 1)
+	bra	err		;    goto err; // would wrap around to be size 1
+
+	moviw	1[FSR1]		;   fsr0 = 1[fsr1]; // stop examining p1 and use
+	movwf	FSR0L		;
+	movf	zOS_AR0,w	;   // we're now certain we won't exceed the buf
 	btfss	STATUS,Z	;
-	bra	ascii		;
+	bra	ascii		;   if (zOS_AR0 == 0) { // print zOS_AR1 as hex
 	
-
-	swapf	zOS_AR1,w	;
-	andlw	0x0f
-
-
-	movwi	FSR1++		;
-	movlw	0x0f
-
-	andwf	zOS_AR1,w	;
-
-
-
-ascii	movwi	FSR1++		;
-	movf	FSR1L		;
-	movw	
-
-	
+	swapf	zOS_AR1,w	;    zOS_PUT(max, zOS_HEX(zOS_AR1 >> 4));
+	zOS_HEX
+	zOS_PUT	max
+	movf	zOS_AR1,w	;    zOS_PUT(max, zOS_HEX(zOS_AR1 >> 0));
+	zOS_HEX
+	zOS_PUT	max
+	movlw	2		;    w = 2;
+	bra	done		;   } else {
+ascii
+	zOS_PUT	max		;    zOS_PUT(max, zOS_AR0);
+	movlw	1		;    w = 1;
+	bra	done		;   }
 hw
+
+#if 0
+
 	banksel	PIR1
 	btfs_	PIR1,TXIF
 	bra
-	.
-done
-	zOS_RFI	zOS_HIM
+
+#endif
+
+	
 err
-	zOS_RFI ?
+	clrw			; } } } }
+done
+	zOS_UNW	zOS_JOB
+	zOS_RFI	WREG
+
 	
 ;;; FIXME: need to set up the hardware port at the requested bps rate here first
 	
@@ -310,20 +356,18 @@ decl
 	zOS_ARG	2
 	endm			; }
 
+#if 0
 ;;; like zOS_CON, but also accepts console input for a full job-management shell
 zOS_MON	macro	port,bps,hb,pin	;
 	local task,decl,isr
 	bra	decl		;
 task
-	.
-	.
+
 loop
-	.
-	.
+
 	bra 	loop
 isr
-	.
-	.
+
 	zOS_RFI
 decl
 	movlw	low task	; } else {
@@ -339,5 +383,5 @@ decl
 	iorlw	1<<TXIF		;  w = zOS_ARG(2, (1<<RCIF) | (1<<TXIF));
 	zOS_ARG	2
 	endm
-	
+#endif	
 

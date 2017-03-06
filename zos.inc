@@ -206,9 +206,10 @@ zOS_RET	macro
 	endm
 
 ;;; at the end of any interupt handler, goes back to scheduler without stack hit
-zOS_RFI	macro	
-	pagesel	zos_sch
-	goto	zos_sch		;#define zOS_RFI() goto zos_sch
+zOS_RFI	macro	retreg
+	pagesel	zos_sch		;inline void zOS_RFI(int8_t* retreg) {
+	movf	retreg,w	; w = *retreg; goto zos_sch;
+	goto	zos_sch		;}
 	endm
 
 ;;; find something runnable (i.e. PCH != 0, but sleep MSB is OK), at job+/-1
@@ -344,7 +345,8 @@ zos_cmp
 	
 	;; scheduler
 zos_sch
-	banksel	BSR_SHAD
+	banksel	WREG_SHAD
+	movwf	WREG_SHAD	; zos_sch: WREG_SHAD = w; // sent via ZOS_RET()
 	movf	BSR_SHAD,w	; zOS_JOB = BSR_SHAD; // current/interrupted job
 	movwf	zOS_JOB		; do { // might loop until an interrupt comes in
 	zOS_MEM	FSR0,zOS_JOB,0
@@ -486,7 +488,7 @@ zos_dup
 	bra	zos_swk		;   }
 zos_err	
 	clrf	zOS_JOB		;   zos_job = 0;
-	zOS_RFI	zOS_JOB		;   zOS_RFI(); // perms error or no empty slots
+	zOS_RFI	zOS_JOB		;   zOS_RFI(zOS_JOB); // perms error or no empty
 	
 	;; see if we're not running inside a job context (1 <= job# <= zOS_NUM)
 	;; in which case need to grab the targeted job from AR0 (if not zOS_NEW)
@@ -526,26 +528,15 @@ zos_sw0
 	movwi	zOS_HIM[FSR1]	;   zOS_HIM[fsr1] = zOS_AR2;
 	movf	zOS_AR3,w	;
 	movwi	zOS_SIM[FSR1]	;   zOS_SIM[fsr1] = zOS_AR3;
-#if 0
-	moviw	zOS_HDL[FSR1]	;   // retain HDL MSB (which indicate privilege)
-	movwi	zOS_PCL[FSR1]	;   zOS_PCL[fsr1] = zOS_HDL[fsr1];
-	moviw	zOS_HDH[FSR1]	;
-	andlw	0x7f		;   // clear PC MSB (which indicates sleepiness)
-	movwi	zOS_PCH[FSR1]	;   zOS_PCH[fsr1] = zOS_HDH[fsr1] & 0x7f;
-	movlw	zOS_BOS		;
-	movwi	zOS_SSP[FSR1]	;   zOS_SSP[fsr1] = zOS_BOS;
-	zOS_RFI	BSR
-#else
 	bra	zos_sw3		;   goto zos_sw3;
-#endif
 zos_sw1
 	moviw	zOS_PCH[FSR1]	;  case zOS_SLP:
 	iorlw	0x80		;   zOS_PCH[fsr1] |= 0x80;
-	movwi	zOS_PCH[FSR1]	;   zOS_RFI();
+	movwi	zOS_PCH[FSR1]	;   zOS_RFI(BSR);
 	zOS_RFI	BSR
 zos_sw2
 	clrw			;  case zOS_END: zOS_PCH[fsr1] = 0;
-	movwi	zOS_PCH[FSR1]	;   zOS_RFI(); // killing is so quick
+	movwi	zOS_PCH[FSR1]	;   zOS_RFI(BSR); // killing is so quick
 	zOS_RFI	BSR
 zos_sw3
 	moviw	zOS_HDL[FSR1]	;  case zOS_RST: zos_sw3:
@@ -553,8 +544,8 @@ zos_sw3
 	moviw	zOS_HDH[FSR1]	;   zOS_PCL[fsr1] = zOS_HDL[fsr1];
 	andlw	0x7f		;   // clear PC MSB (which indicates sleepiness)
 	movwi	zOS_PCH[FSR1]	;   zOS_PCH[fsr1] = zOS_HDH[fsr1] & 0x7f;
-	movlw	zOS_BOS		;
-	movwi	zOS_SSP[FSR1]	;   zOS_SSP[fsr1] = zOS_BOS;
+	movlw	zOS_BOS		;   zOS_SSP[fsr1] = zOS_BOS;
+	movwi	zOS_SSP[FSR1]	;   zOS_RFI(BSR);
 zos_sw4
 
 #ifdef zOS_MIN
@@ -564,7 +555,6 @@ zos_sw7
 	zOS_RFI	BSR
 #else
 	zOS_RFI	BSR
-
 zos_sw5
 	;; copy job BSR's 0x20-0x6f into every non-running bank first
 	clrf	FSR1L		;  case zOS_FRK:
@@ -682,13 +672,13 @@ zos_swl
 	btfsc	STATUS,Z	;
 	bra	zos_swl		;  else if ((zos_msk &= zOS_SIM[fsr0]) != 0)
 	moviw	zOS_ISH[FSR0]	;
-	movwf	PCLATH		;
-	moviw	zOS_ISR[FSR0]	;   goto (void*)(zOS_ISR[fsr0]); // will zOS_RFI
-	movwf	PCL		; }
+	movwf	PCLATH		;   goto (void*)(zOS_ISR[fsr0]); // will zOS_RFI
+	moviw	zOS_ISR[FSR0]	; }
+	movwf	PCL		; zOS_RFI(WREG = 0);
 	
 	;; no registered SWI handler: jump into the hardware interrupt scheduler
 zos_swm
-	zOS_RFI	BSR
+	zOS_RFI	WREG
 
 zos_ini
 	;; clear out page 0 to reflect no  running tasks
