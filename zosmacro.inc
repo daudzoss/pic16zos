@@ -148,7 +148,7 @@ zOS_UNW	macro	job		; inline void zOS_UNW(int8_t job) { }
 zOS_CON	macro	p,bps,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t bps,int8_t
 	local	task,loop,decl,isr
 	bra	decl		;                    rts,int8_t* hb,int8_t pin){
-task	
+task
 	;; initialize constants and variables
 	local	t0div,t0rst,p0,p1,wrap,buf,max
 t0div	equ	0
@@ -277,7 +277,7 @@ nottmr
 	;; check for validated SWI first since it will be in zOS_MSK, else a HWI
 	movf	zOS_MSK,w	;
 	btfss	STATUS,Z	;
-	bra	hw		;  if (zos_msk) {
+	bra	done		;  if (zos_msk) {
 	
 	;; check to make sure there are at least 2 characters free in the buffer
 	moviw	1[FSR1]		;   char* p1plus2 = 2 + (1[fsr1] /*p1*/ & 0x7f);
@@ -322,39 +322,28 @@ ascii
 	zOS_PUT	max		;    zOS_PUT(max, zOS_AR0);
 	movlw	1		;    w = 1;
 	bra	done		;   }
-hw
-
-#if 0
-
-	banksel	PIR1
-	btfs_	PIR1,TXIF
-	bra
-
-#endif
-
-	
 err
-	clrw			; } } } }
+	clrw			;  } zOS_UNW (zOS_JOB); zOS_RFI (WREG); }
 done
 	zOS_UNW	zOS_JOB
 	zOS_RFI	WREG
 
 	
-;;; FIXME: need to set up the hardware port at the requested bps rate here first
-	
-	;; intialize the 
+	;; intialize the UART peripheral, job handle and first three arguments
 decl
-	movwf	FSR0L		;decl:
+;;; FIXME: need to set up the hardware port at the requested bps rate here first
+	movlw	low task	;decl:
+	movwf	FSR0L		;
 	movlw	high task	;
-	movwf	FSR0H		;  FSR0 = task & 0x7fff;// MSB 0 => unprivileged
-	bcf	FSR0H,zOS_PRB	;
-	movlw	low isr		;  w = zOS_ARG(0, isr & 0x00ff);
+	movwf	FSR0H		; FSR0 = task & 0x7fff;// MSB 0 => unprivileged
+	bcf	FSR0H,zOS_PRB	; w = zOS_ARG(0, isr & 0x00ff);
+	movlw	low isr		; w = zOS_ARG(1, isr>>8);
 	zOS_ARG	0
-	movlw	high isr	;  w = zOS_ARG(1, isr>>8);
+	movlw	high isr	; w = zOS_ARG(2, (1<<TXIF)|(1<<T0IE));
 	zOS_ARG	1
-	movlw	1<<TXIF		;  w = zOS_ARG(2, 1<<TXIF);// OK, ready for more
+	movlw	(1<<TXIF)|(1<<T0IE)
 	zOS_ARG	2
-	endm			; }
+	endm			;}
 
 #if 0
 ;;; like zOS_CON, but also accepts console input for a full job-management shell
