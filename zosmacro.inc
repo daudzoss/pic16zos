@@ -104,7 +104,8 @@ loop
 	movwf	STKPTR		;
 	andlw	0x0f		;  STKPTR++; 
 	btfss	STATUS,Z	; }
-	bra	loop		;}
+	bra	loop		; // still in job "0"
+	movlb	0		;}
 	endm
 
 #ifdef	PID1CON
