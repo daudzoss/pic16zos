@@ -101,6 +101,7 @@ loop
 	clrf	TOSH		;      w < 16; w++){
 	movwf	TOSL		;  TOSH = 0;
 	incf	STKPTR,w	;  TOSL = w;
+	movwf	STKPTR		;
 	andlw	0x0f		;  STKPTR++; 
 	btfss	STATUS,Z	; }
 	bra	loop		;}
