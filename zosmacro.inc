@@ -107,44 +107,71 @@ loop
 	endm
 
 #ifdef	PID1CON
-;;; 16x16bit multiply zOS_AR1:0 by zOS_AR3:2, core yielded during 7.5ms CIP math
+;;; 16x16bit signed multiply zOS_AR1:0 * zOS_AR3:2, core yielded during 7ms math
 zOS_MUL	macro	fsrnum
-	local fsrn,dif,spinmul
-dif	set	PID1DIF
+	local fn,in,fac0L,fac0H,fac1L,fac1H,zeroH,start,con,setup,enb,bsy
 	if (fsrnum & 3)
-fsrn	 set 1
+fn	 set 1
 	else
-fsrn	 set 0
+fn	 set 0
 	endif
-	movlw	low PID1???+4	;
-	movwf	fsr#v(fsrn)L	;
-	movlw	low PID1???+4	;
-	movwf	fsr#v(fsrn)H	;
-	
-	movlw	low PIR5	;
-	movwf	FSR#v(fsrn)L	;
-	movlw	high PIR5	;
-	movwf	FSR#v(fsrn)H	;
-	bcf	INDF#v(fsrn),DIF;
+inout	set	0x1f80 & PID1SETL
+fac0L	set	0x1f & PID1K1L
+fac0H	set	0x1f & PID1K1H
+fac1L	set	0x1f & PID1SETL 
+fac1H 	set	0x1f & PID1SETH 
+zeroH	set     0x1f & PID1INH
+start	set	0x1f & PID1INL
+con	set	0x1f & PID1CON	
+out0	set	0x1f & PID1OUTLL
+out1	set	0x1f & PID1OUTLH
+out2	set	0x1f & PID1OUTHL
+out3	set	0x1f & PID1OUTHH
+setup	set	(1<<PID1MODE1)
+enb	set	PID1EN	
+bsy	set	PID1BUSY
+	local spinget,spinmul
+	bcf	INTCON,GIE	;
+	movlw	low PID1CON	;
+	movwf	fsr#v(fn)L	;
+	movlw	high PID1CON	;
+	movwf	fsr#v(fn)H	;
+	movlw	setup		;
+	movwf	indf#v(fn)	;
+	bsf	indf#v(fn),enb	;
+spinget
+	btfsc	INDF#v(fn),bsy	;
+	bra	spinget		;
+	movlw	low in		;
+	movwf	fsr#v(fn)L	;
+	movlw	high in		;
+	movwf	fsr#v(fn)H	;
+	movf	zOS_AR3,w	;
+	movwi	fac0L[FSR#v(fn)];
+	movf	zOS_AR2,w	;
+	movwi	fac0H[FSR#v(fn)];
+	movf	zOS_AR1,w	;
+	movwi	fac1L[FSR#v(fn)];
+	movf	zOS_AR0,w	;
 	bsf	INTCON,GIE	;
-	
+	movwi	fac1H[FSR#v(fn)];
+	clrw
+	movwi	zeroH[FSR#v(fn)];
+	movwi	start[FSR#v(fn)];
 spinmul
 	zOS_SWI	zOS_YLD
-	btfss	INDF#v(fsrn),DIF;
+	btfss	INDF#v(fn),bsy	;
 	bra	spinmul		;
 	bcf	INTCON,GIE	;
-	movlw	low PID1ACC+4	;
-	movwf	FSR#v(fsrn)L	;
-	movlw	high PID1ACC+4	;
-	movwf	FSR#v(fsrn)H	;
-	moviw	--FSR#v(fsrn)	;
+	moviw	out3[FSR#v(fn)]	;
 	movwf	zOS_AR3		;
-	moviw	--FSR#v(fsrn)	;
+	moviw	out2[FSR#v(fn)]	;
 	movwf	zOS_AR2		;
-	moviw	--FSR#v(fsrn)	;
+	moviw	out1[FSR#v(fn)]	;
 	movwf	zOS_AR1		;
-	moviw	--FSR#v(fsrn)	;
+	moviw	out0[FSR#v(fn)]	;
 	movwf	zOS_AR0		;
+	bcf	INTCON,GIE	;
 	endm
 #endif
 
@@ -187,19 +214,19 @@ zOS_CON	macro	p,bps,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t bps,int8_t
 task
 	;; initialize constants and variables
 	local	t0div,t0rst,p0,p1,wrap,buf,max
-t0div	equ	0
-t0rst	equ	1
-p0	equ	0x20
-p1	equ	0x21
-wrap	equ	0x22
-t0scale	equ	0x23
-buf	equ	0x24
-max	equ	0x70
+t0div	set	0
+t0rst	set	1
+p0	set	0x20
+p1	set	0x21
+wrap	set	0x22
+t0scale	set	0x23
+buf	set	0x24
+max	set	0x70
 	
 	local	sspbase,sspcon,sspstat,rtsflag
-sspbase	equ	SSP#v(p)CON1 & 0xff80
-sspcon	equ	SSP#v(p)CON1 & 0x1f
-sspstat	equ	SSP#v(p)STAT & 0x1f
+sspbase	set	SSP#v(p)CON1 & 0xff80
+sspcon	set	SSP#v(p)CON1 & 0x1f
+sspstat	set	SSP#v(p)STAT & 0x1f
 	if (p == 1)
 sspxmit	 set	TXIF
 rtsflag	 set	TXIF

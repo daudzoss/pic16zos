@@ -263,90 +263,11 @@ FSR1	 equ	FSR1L
 	org	0x0002
 	pagesel	zos_swj
 	goto	zos_swj
-	
 
-
-
-
-
-
-
-
-#if 0
-#ifdef PIE0
-zOS_PE0	 equ	PIE0
-zOS_PIE	 equ	PIE0-1
-#else
-zOS_PE0	 equ	PIE1-1
-zOS_PIE	 equ	INTCON-1
-#endif
-
-zOS_MAX	set	PIE1
-	
-#ifdef PIE2
-zOS_MAX	 set	PIE2
-#endif
-#ifdef PIE3
-zOS_MAX	 set	PIE3
-#endif
-#ifdef PIE4
-zOS_MAX	 set	PIE4
-#endif
-#ifdef PIE5
-zOS_MAX	 set	PIE5
-#endif
-#ifdef PIE6
-zOS_MAX	 set	PIE6
-#endif
-#ifdef PIE7
-zOS_MAX	 set	PIE7
-#endif
-#ifdef PIE8
-zOS_MAX	 set	PIE8
-#endif
-#ifdef PIE9
-zOS_MAX	 set	PIE9
-#endif
-	movlw	low zOS_PIE	;__isr void zos_004(void) {
-	movwf	FSR1L		; // TMR0,PEIE may be outside INTCON or not
-	movlw	high zOS_PIE	;
-	movwf	FSR1H		; fsr1 = zOS_PIE; // -1 + either INTCON or PEIE
-	movlw	zOS_NUM+1	;
-	movwf	zOS_JOB		; zOS_JOB = zOS_NUM+1;// search from high to low
-	zOS_MEM	FSR0,zOS_JOB,0	; fsr0 = 0x10 * (1 + zOS_JOB);
-zos_nhw	
-;;;FIXME: get rid of costly loop, don't need FSR to be pointing at suspected PIE
 ;;;FIXME: use more decfsz when searching high-to-low?
-	zOS_LIV	FSR0,zOS_JOB,0,zos_sch
-	moviw	zOS_HIM[FSR0]	; while (zOS_LIV(&fsr0, &zOS_JOB, 0)) {
-	movwf	zOS_MSK		;
-	moviw	++FSR1		;                  /*job#*/   /*PIE#*/
-	andwf	zOS_MSK,f	;  zOS_MSK = zOS_HIM[fsr0] & *++fsr1;
-	movlw	high zOS_PE0	;
-	subwf	FSR1H,w		;
-	btfsc	WREG,7		;
-	bra	zos_cmp		;
-	movlw	low zOS_PE0	;
-	subwf	FSR1L,w		;
-	btfsc	WREG,7		;
-	bra	zos_cmp		;
-	movlw	low PIE1	;
-	movwf	FSR1L		;
-	movlw	high PIE1	;  if (fsr1 < zOS_PE0+1)
-	movwf	FSR1H		;   fsr1 = PIE1;//handle the INTCON+1->PIE1 jump
 
 	;; enter handler which will zOS_RFI() to zos_sch if it's the correct one
 	;; (after clearing the interrupt flag) else zOS_RET() back up to zos_nhw
-zos_cmp
-	movf	zOS_MSK,w	;
-	btfsc	STATUS,Z	;
-	bra	zos_nhw		;  if (zOS_MSK) {
-#endif	
-	
-
-
-
-
 
 	org	0x0004
 	;; find first willing handler for an enabled interrupt matching _xIM bit
@@ -356,14 +277,14 @@ zOS_PIE	 equ	PIE0
 zOS_PIE	 equ	INTCON
 #endif
 zos_004
-	movlw	zOS_NUM+1	; zOS_JOB = zOS_NUM+1;// search from high to low
-	movwf	zOS_JOB		; fsr0 = 0x10 * (1 + zOS_JOB);
-	zOS_MEM	FSR0,zOS_JOB,0	; int8_t w = 0;
+	movlw	zOS_NUM+1	;__isr void zos_004(void) {
+	movwf	zOS_JOB		; zOS_JOB = zOS_NUM+1;// search from high to low
+	zOS_MEM	FSR0,zOS_JOB,0	; fsr0 = 0x10 * (1 + zOS_JOB);
 zos_nhw
 	zOS_LIV	FSR0,zOS_JOB,0,zos_sch
 	banksel	PIE1
-	moviw	zOS_HIM[FSR0]	; while (zOS_LIV(&fsr0, &zOS_JOB, 0)) {
-	andwf	zOS_PIE,w	;
+	moviw	zOS_HIM[FSR0]	; int8_t w = 0; 
+	andwf	zOS_PIE,w	; while (zOS_LIV(&fsr0, &zOS_JOB, 0)) {
 	btfss	STATUS,Z	;  if ((w = zOS_HIM[fsr0] & zOS_PIE))
 	bra	zos_cmp		;   break;
 #ifdef PIE1
