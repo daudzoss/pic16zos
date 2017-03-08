@@ -1,4 +1,4 @@
-;;; zOS.INC
+;;; zos.inc
 ;;; a lightweight, small-footprint, preemptively multitasking RTOS for Microchip
 ;;;  Technology's entire enhanced midrange 8-bit PIC microcontroller family:
 ;;;
@@ -252,6 +252,27 @@ FSR0	 equ	FSR0L
 FSR1	 equ	FSR1L
 #endif
 
+	;; a job switch is attempted with every incoming interrupt
+	;; user jobs are responsible for processing their own interrupts
+	;; with an interrupt handler registered at the time of creation
+
+	org	0x0000
+	pagesel	zos_ini
+	goto	zos_ini
+
+	org	0x0002
+	pagesel	zos_swj
+	goto	zos_swj
+	
+
+
+
+
+
+
+
+
+#if 0
 #ifdef PIE0
 zOS_PE0	 equ	PIE0
 zOS_PIE	 equ	PIE0-1
@@ -259,7 +280,7 @@ zOS_PIE	 equ	PIE0-1
 zOS_PE0	 equ	PIE1-1
 zOS_PIE	 equ	INTCON-1
 #endif
-	
+
 zOS_MAX	set	PIE1
 	
 #ifdef PIE2
@@ -286,22 +307,6 @@ zOS_MAX	 set	PIE8
 #ifdef PIE9
 zOS_MAX	 set	PIE9
 #endif
-
-	;; a job switch is attempted with every incoming interrupt
-	;; user jobs are responsible for processing their own interrupts
-	;; with an interrupt handler registered at the time of creation
-
-	org	0x0000
-	pagesel	zos_ini
-	goto	zos_ini
-
-	org	0x0002
-	pagesel	zos_swj
-	goto	zos_swj
-
-	org	0x0004
-	;; find first willing handler for an enabled interrupt matching _MSK bit
-zos_004
 	movlw	low zOS_PIE	;__isr void zos_004(void) {
 	movwf	FSR1L		; // TMR0,PEIE may be outside INTCON or not
 	movlw	high zOS_PIE	;
@@ -336,13 +341,93 @@ zos_cmp
 	movf	zOS_MSK,w	;
 	btfsc	STATUS,Z	;
 	bra	zos_nhw		;  if (zOS_MSK) {
+#endif	
+	
 
-	clrf	zOS_MSK		;   zOS_MSK = 0; // indicates HWI (not SWI) type
-	moviw	zOS_ISH[FSR0]	;
+
+
+
+
+	org	0x0004
+	;; find first willing handler for an enabled interrupt matching _xIM bit
+#ifdef PIE0
+zOS_PIE	 equ	PIE0
+#else
+zOS_PIE	 equ	INTCON
+#endif
+zos_004
+	movlw	zOS_NUM+1	; zOS_JOB = zOS_NUM+1;// search from high to low
+	movwf	zOS_JOB		; fsr0 = 0x10 * (1 + zOS_JOB);
+	zOS_MEM	FSR0,zOS_JOB,0	; int8_t w = 0;
+zos_nhw
+	zOS_LIV	FSR0,zOS_JOB,0,zos_sch
+	banksel	PIE1
+	moviw	zOS_HIM[FSR0]	; while (zOS_LIV(&fsr0, &zOS_JOB, 0)) {
+	andwf	zOS_PIE,w	;
+	btfss	STATUS,Z	;  if ((w = zOS_HIM[fsr0] & zOS_PIE))
+	bra	zos_cmp		;   break;
+#ifdef PIE1
+	moviw	zOS_HIM[FSR0]	;
+	andwf	PIE1,w		;
+	btfss	STATUS,Z	;  if ((w = zOS_HIM[fsr0] & zOS_PIE1))
+	bra	zos_cmp		;   break;
+#endif
+#ifdef PIE2
+	moviw	zOS_HIM[FSR0]	;
+	andwf	PIE2,w		;
+	btfss	STATUS,Z	;  if ((w = zOS_HIM[fsr0] & zOS_PIE2))
+	bra	zos_cmp		;   break;
+#endif
+#ifdef PIE3
+	moviw	zOS_HIM[FSR0]	;
+	andwf	PIE3,w		;
+	btfss	STATUS,Z	;  if ((w = zOS_HIM[fsr0] & zOS_PIE3))
+	bra	zos_cmp		;   break;
+#endif
+#ifdef PIE4
+	moviw	zOS_HIM[FSR0]	;
+	andwf	PIE4,w		;
+	btfss	STATUS,Z	;  if ((w = zOS_HIM[fsr0] & zOS_PIE4))
+	bra	zos_cmp		;   break;
+#endif
+#ifdef PIE5
+	moviw	zOS_HIM[FSR0]	;
+	andwf	PIE5,w		;
+	btfss	STATUS,Z	;  if ((w = zOS_HIM[fsr0] & zOS_PIE5))
+	bra	zos_cmp		;   break;
+#endif
+#ifdef PIE6
+	moviw	zOS_HIM[FSR0]	;
+	andwf	PIE6,w		;
+	btfss	STATUS,Z	;  if ((w = zOS_HIM[fsr0] & zOS_PIE6))
+	bra	zos_cmp		;   break;
+#endif
+#ifdef PIE7
+	moviw	zOS_HIM[FSR0]	;
+	andwf	PIE7,w		;
+	btfss	STATUS,Z	;  if ((w = zOS_HIM[fsr0] & zOS_PIE7))
+	bra	zos_cmp		;   break;
+#endif
+#ifdef PIE8
+	moviw	zOS_HIM[FSR0]	;
+	andwf	PIE8,w		;
+	btfss	STATUS,Z	;  if ((w = zOS_HIM[fsr0] & zOS_PIE8))
+	bra	zos_cmp		;   break;
+#endif
+#ifdef PIE9
+	moviw	zOS_HIM[FSR0]	;
+	andwf	PIE9,w		;
+	btfss	STATUS,Z	;  if ((w = zOS_HIM[fsr0] & zOS_PIE9))
+	bra	zos_cmp		;   break;
+#endif
+	bra	zos_nhw		; }
+zos_cmp
+	clrf	zOS_MSK		; if (w) {
+	moviw	zOS_ISH[FSR0]	;   zOS_MSK = 0; // indicates HWI (not SWI) type
 	movwf	PCLATH		;   *(zOS_ISR[fsr0])();
 	moviw	zOS_ISR[FSR0]	;  } // handler refused, so loop to the next job
 	movwf	PCL		; } // if this line reached, no runnable handler
-	
+
 	;; scheduler
 zos_sch
 	banksel	WREG_SHAD

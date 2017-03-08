@@ -17,9 +17,9 @@ include zosmacro.inc
 ;;; while SWI handlers normally know what line the interupts will come in on,
 ;;; for flexibility of incorporation into any application this choice is not
 ;;; hardwired into zosmacro.inc library and any available line may be chosen:
-OUTCHAR	equ	zOS_SI3
 	
 	zOS_CON	1,9600,PIR1,PORTA,RA0
+OUTCHAR	equ	zOS_SI3
 	movlw	OUTCHAR		;void main(void) {
 	zOS_ARG	3
 retry1
@@ -43,7 +43,7 @@ retry2
 	bra	retry2		; do {} while (zOS_SWI(zOS_NEW) == 0); // 3?
 retry3
 	zOS_SWI	zOS_NEW
-	btfsc	STATUS,Z	; zOS_RUN();
+	btfsc	STATUS,Z	; zOS_RUN(/*T0IE in*/INTCON, /*T0IF in*/INTCON);
 	bra	retry3		;}
 	zOS_RUN	INTCON,INTCON
 	

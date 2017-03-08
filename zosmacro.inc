@@ -1,4 +1,4 @@
-;;; ZOSMACRO.INC
+;;; zosmacro.inc
 ;;; potentially useful (but not mandatory) macros for zOS
 ;;;
 ;;; memory footprint:
@@ -79,11 +79,11 @@ zOS_T0F	equ	t0flags
 	;; advance the stack pointer to allow 5 stacks of 3 each (+1 if running)
 	banksel	STKPTR		; if (t0enable)
 	movlw	zOS_BOS		;  *t0enable |= 1<<T0IE; // guarantee interrupts
-	bsf	INTCON,GIE	; INTCON |= 1<<GIE;
 	movwf	STKPTR		; STKPTR = zOS_BOS; // every job bottom of stack
 	
-	;; set the active job to the first (and potentially only)
+	;; set the active job to the first (and potentially only), interrupts ON
 	movlb	1		; for (bsr = 1;;) // start with running job 1
+	bsf	INTCON,GIE	; INTCON |= 1<<GIE;
 
 	;; wait for stuff to happen
 	local loop
@@ -108,7 +108,43 @@ loop
 
 #ifdef	PID1CON
 ;;; 16x16bit multiply zOS_AR1:0 by zOS_AR3:2, core yielded during 7.5ms CIP math
-zOS_MUL	macro
+zOS_MUL	macro	fsrnum
+	local fsrn,dif,spinmul
+dif	set	PID1DIF
+	if (fsrnum & 3)
+fsrn	 set 1
+	else
+fsrn	 set 0
+	endif
+	movlw	low PID1???+4	;
+	movwf	fsr#v(fsrn)L	;
+	movlw	low PID1???+4	;
+	movwf	fsr#v(fsrn)H	;
+	
+	movlw	low PIR5	;
+	movwf	FSR#v(fsrn)L	;
+	movlw	high PIR5	;
+	movwf	FSR#v(fsrn)H	;
+	bcf	INDF#v(fsrn),DIF;
+	bsf	INTCON,GIE	;
+	
+spinmul
+	zOS_SWI	zOS_YLD
+	btfss	INDF#v(fsrn),DIF;
+	bra	spinmul		;
+	bcf	INTCON,GIE	;
+	movlw	low PID1ACC+4	;
+	movwf	FSR#v(fsrn)L	;
+	movlw	high PID1ACC+4	;
+	movwf	FSR#v(fsrn)H	;
+	moviw	--FSR#v(fsrn)	;
+	movwf	zOS_AR3		;
+	moviw	--FSR#v(fsrn)	;
+	movwf	zOS_AR2		;
+	moviw	--FSR#v(fsrn)	;
+	movwf	zOS_AR1		;
+	moviw	--FSR#v(fsrn)	;
+	movwf	zOS_AR0		;
 	endm
 #endif
 
@@ -191,11 +227,11 @@ loop
 	movwf	FSR1H		;  zOS_SWI(zOS_SLP);
 	movlw	low rts		;  // wait for SWI to store char(s) in buf[]
 	movwf	FSR1L		;  // or HWI to indicate the last one got sent
-	btfss	INDF1,rtsflag	;  if (*(fsr1 = rts) & (1<<rtsflag) == 0)
+	btfss	INDF1,rtsflag	;  if (*(fsr1 = rts) & (1<<rtsflag) == 0) //full
 	bra	loop		;   continue; // sleep (sending previous char)
-	rrf	zOS_ME 		;  // READY TO SEND, AND...
+	rrf	zOS_ME 		;
 	movwf	FSR1H		;
-	movf	p0,w		;       
+	movf	p0,w		;  // READY TO SEND, AND...       
 	movwf	FSR1L		;
 	xorwf	p1,w		;  fsr1 = (bsr<<7) | p0;
 	btfsc	STATUS,Z	;  if (p0 == p1)
@@ -224,7 +260,7 @@ loop
 	;; != 0, just in case job is in between sleeps or with a full buffer
 isr
 	;; get fsr0 pointing to tmr0 postscaler/reset value, fsr1 to job struct;
-	local err,done,hw,ascii,nottmr
+	local err,done,do_swi,ascii,nottmr
 	zOS_MEM	FSR1,zOS_JOB,0
 	moviw	zOS_PCH[FSR1]	;isr:
 	
@@ -276,10 +312,14 @@ nottmr
 	
 	;; check for validated SWI first since it will be in zOS_MSK, else a HWI
 	movf	zOS_MSK,w	;
-	btfss	STATUS,Z	;
-	bra	done		;  if (zos_msk) {
-	
+	btfsc	STATUS,Z	;  if (zOS_MSK == 0) { // not a SWI so check HWI
+	bra	do_swi		;   if (rts & (1<<rtsflag) == 0)
+	banksel	rts
+	btfsc	rts,rtsflag	;    zOS_RET(); // not the HWI we expected, ass
+	bra	done		;  } else {
+	zOS_RET
 	;; check to make sure there are at least 2 characters free in the buffer
+do_swi
 	moviw	1[FSR1]		;   char* p1plus2 = 2 + (1[fsr1] /*p1*/ & 0x7f);
 	andlw	0x7f		;
 	addlw	0x12		;
@@ -323,11 +363,10 @@ ascii
 	movlw	1		;    w = 1;
 	bra	done		;   }
 err
-	clrw			;  } zOS_UNW (zOS_JOB); zOS_RFI (WREG); }
+	clrw			;  }
 done
-	zOS_UNW	zOS_JOB
-	zOS_RFI	WREG
-
+	zOS_UNW	zOS_JOB		; goto done; err: w = 0;
+	zOS_RFI	WREG		; zOS_UNW(zOS_JOB); zOS_RFI (WREG); }
 	
 	;; intialize the UART peripheral, job handle and first three arguments
 decl
