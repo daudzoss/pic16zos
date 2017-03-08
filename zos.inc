@@ -355,7 +355,11 @@ zos_sch
 	movwf	WREG_SHAD	; zos_sch: WREG_SHAD = w; // sent via ZOS_RET()
 	movf	BSR_SHAD,w	; zOS_JOB = BSR_SHAD; // current/interrupted job
 	movwf	zOS_JOB		; do { // might loop until an interrupt comes in
+#if 0
 	zOS_MEM	FSR0,zOS_JOB,0
+#else
+	bra	1+zos_wra	;  zOS_MEM(fsr0,zOS_JOB,0)
+#endif
 zos_itr
 	zOS_LIV	FSR0,zOS_JOB,1,zos_wra
 	clrwdt			;  // zOS_LIV leaves PCH in WREG, test runnable?
