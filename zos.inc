@@ -545,12 +545,12 @@ zos_sw0
 zos_sw1
 	moviw	zOS_PCH[FSR1]	;  case zOS_SLP:
 	iorlw	0x80		;   zOS_PCH[fsr1] |= 0x80;
-	movwi	zOS_PCH[FSR1]	;   zOS_RFI(BSR);
-	zOS_RFI	BSR
+	movwi	zOS_PCH[FSR1]	;   zOS_RFI(zOS_JOB);
+	zOS_RFI	zOS_JOB
 zos_sw2
 	clrw			;  case zOS_END: zOS_PCH[fsr1] = 0;
-	movwi	zOS_PCH[FSR1]	;   zOS_RFI(BSR); // killing is so quick
-	zOS_RFI	BSR
+	movwi	zOS_PCH[FSR1]	;   zOS_RFI(zOS_JOB); // killing is so quick
+	zOS_RFI	zOS_JOB
 zos_sw3
 	moviw	zOS_HDL[FSR1]	;  case zOS_RST: zos_sw3:
 	movwi	zOS_PCL[FSR1]	;   // retain HDL MSB (which indicate privilege)
@@ -558,29 +558,27 @@ zos_sw3
 	andlw	0x7f		;   // clear PC MSB (which indicates sleepiness)
 	movwi	zOS_PCH[FSR1]	;   zOS_PCH[fsr1] = zOS_HDH[fsr1] & 0x7f;
 	movlw	zOS_BOS		;   zOS_SSP[fsr1] = zOS_BOS;
-	movwi	zOS_SSP[FSR1]	;   zOS_RFI(BSR);
+	movwi	zOS_SSP[FSR1]	;   zOS_RFI(zOS_JOB);
 zos_sw4
 
 #ifdef zOS_MIN
 zos_sw5
 zos_sw6
 zos_sw7
-	zOS_RFI	BSR
+	zOS_RFI	zOS_JOB
 #else
-	zOS_RFI	BSR
+	zOS_RFI	zOS_JOB
 zos_sw5
 	;; copy job BSR's 0x20-0x6f into every non-running bank first
 	clrf	FSR1L		;  case zOS_FRK:
 	clrf	FSR1H		;   fsr1 = 1 << 7;
 	clrf	zOS_JOB		;   for (zos_job = 1;
 zos_cp1
-	movlw	0x08		;        zos_job++ <= zOS_NUM; fsr1 += 0x80) {
-	andwf	FSR1L,f		;    fsr1 &= 0x80; // 
-	movlw	0x80		;
+	movlw	0x80		;        zos_job++ <= zOS_NUM; fsr1 += 0x80) {
+	andwf	FSR1L,f		;    fsr1 &= 0xff80;
 	addwf	FSR1L,f		;
 	clrw			;
-	btfsc	STATUS,C	;
-	addwfc	FSR1H,f		;
+	addwfc	FSR1H,f		;    fsr1 += 0x80;     
 	incf	zOS_JOB,f	;
 	movlw	0xff-zOS_NUM	;
 	addwf	zOS_JOB,w	;
@@ -695,8 +693,8 @@ zos_swm
 
 zos_ini
 	;; clear out page 0 to reflect no  running tasks
-	clrf	BSR		; "invalid" job# used to get perms for zOS_NEW
-	movlw	0x6f		; BSR = 0;
+	movlb	0		; "invalid" job# used to get perms for zOS_NEW
+	movlw	0x6f		; bsr = 0;
 	movwf	FSR0L		;
 	clrf	FSR0H		; for (fsr0 = 0x006f; fsr >= 0x0020; fsr--)
 zos_zer
