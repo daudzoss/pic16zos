@@ -135,9 +135,9 @@ bsy	set	PID1BUSY
 	local spinget,spinmul
 	bcf	INTCON,GIE	;
 	movlw	low PID1CON	;
-	movwf	fsr#v(fn)L	;
+	movwf	FSR#v(fn)L	;
 	movlw	high PID1CON	;
-	movwf	fsr#v(fn)H	;
+	movwf	FSR#v(fn)H	;
 	movlw	setup		;
 	movwf	indf#v(fn)	;
 	bsf	indf#v(fn),enb	;
@@ -145,9 +145,9 @@ spinget
 	btfsc	INDF#v(fn),bsy	;
 	bra	spinget		;
 	movlw	low in		;
-	movwf	fsr#v(fn)L	;
+	movwf	FSR#v(fn)L	;
 	movlw	high in		;
-	movwf	fsr#v(fn)H	;
+	movwf	FSR#v(fn)H	;
 	movf	zOS_AR3,w	;
 	movwi	fac0L[FSR#v(fn)];
 	movf	zOS_AR2,w	;
