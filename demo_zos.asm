@@ -24,6 +24,7 @@ OUTCHAR	equ	zOS_SI3
 	zOS_ARG	3
 retry1
 	zOS_SWI	zOS_NEW
+	movf	WREG,w		;
 	btfsc	STATUS,Z	; zOS_MON(/*SSP*/1,9600,PIR1,PORTA,RA0/*beat*/);
 	bra	retry1		; zOS_ARG(3, OUTCHAR);//handles without knowing!
 	
@@ -39,12 +40,18 @@ retry1
 	zOS_ARG 3
 retry2
 	zOS_SWI	zOS_NEW
+	movf	WREG,w		;
 	btfsc	STATUS,Z	; do {} while (zOS_SWI(zOS_NEW) == 0); // 2?
 	bra	retry2		; do {} while (zOS_SWI(zOS_NEW) == 0); // 3?
 retry3
 	zOS_SWI	zOS_NEW
+	movf	WREG,w		;
 	btfsc	STATUS,Z	; zOS_RUN(/*T0IE in*/INTCON, /*T0IF in*/INTCON);
 	bra	retry3		;}
+	
+	banksel	OPTION_REG
+	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
+;;FIXME: set the prescaler appropriately so that the IRQ frequency isn't crazy
 	zOS_RUN	INTCON,INTCON
 	
 spitjob	

@@ -71,9 +71,6 @@ zOS_T0F	equ	t0flags
 	if (zOS_T0E)
 	 banksel zOS_T0E
 	 bsf	zOS_T0E,T0IE	;inline void zOS_RUN(uint8_t* t0enable) {
-	
-;;FIXME: set the prescaler appropriately so that the IRQ frequency isn't crazy
-
 	endif
 	
 	;; advance the stack pointer to allow 5 stacks of 3 each (+1 if running)
