@@ -101,8 +101,8 @@ loop
 	clrf	TOSH		;      w < 16; w++){
 	movwf	TOSL		;  TOSH = 0;
 	incf	STKPTR,w	;  TOSL = w;
-	movwf	STKPTR		;
-	andlw	0x0f		;  STKPTR++; 
+	andlw	0x0f		;
+	movwf	STKPTR		;  STKPTR = (STKPTR + 1) % 16;
 	btfss	STATUS,Z	; }
 	bra	loop		; // still in job "0"
 	movlb	0		;}
