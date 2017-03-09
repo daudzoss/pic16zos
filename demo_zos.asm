@@ -1,5 +1,5 @@
 	processor 16f1847
-include p16f1847.inc
+	include p16f1847.inc
 	
 ;__CONFIG
 
@@ -7,8 +7,8 @@ include p16f1847.inc
 ;
 zOS_MIN	equ	1
 	
-include zos.inc
-include zosmacro.inc
+	include zos.inc
+	include zosmacro.inc
 	
 ;;; uncomment to pre-load stack positions with indices (for debugging ZOS_ROL):
 ;
@@ -28,11 +28,11 @@ retry1
 	bra	retry1		; zOS_ARG(3, OUTCHAR);//handles without knowing!
 	
 	movlw	low spitjob	; do {} while (zOS_SWI(zOS_NEW) == 0);
-	movwf	FSR0L		; fsr0 = spitjob & 0x7fff;// takes no interrupts
+	movwf	FSR0L		; fsr0 = spitjob & 0x7fff;
 	movlw	high spitjob	; zOS_ARG(0, 0);
 	andlw	0x7f		; zOS_ARG(1, 0);
 	movwf	FSR0H		; zOS_ARG(2, 0);
-	clrw			; zOS_ARG(3, 0);
+	clrw			; zOS_ARG(3, 0);// takes no interrupts
 	zOS_ARG	0
 	zOS_ARG	1
 	zOS_ARG	2

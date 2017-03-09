@@ -403,6 +403,7 @@ decl
 	movlw	low task	;decl:
 	movwf	FSR0L		;
 	movlw	high task	;
+	andlw	0x7f		;
 	movwf	FSR0H		; FSR0 = task & 0x7fff;// MSB 0 => unprivileged
 	bcf	FSR0H,zOS_PRB	; w = zOS_ARG(0, isr & 0x00ff);
 	movlw	low isr		; w = zOS_ARG(1, isr>>8);
