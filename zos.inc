@@ -236,7 +236,7 @@ loop
 	else
 	 decf	job,f		;   goto unf; // Z was set
 	endif
-	btfss	STATUS,Z	;  } else if (zOS_PCH[fsrnum]) // found runnable
+	btfsc	STATUS,Z	;  } else if (zOS_PCH[fsrnum]) // found runnable
 	bra	unf		;   return w = zOS_PCH[fsrnum]; // Z was cleared
 	moviw	zOS_PCH[FSR#v(fsrn)]
 	btfsc	STATUS,Z	; } while (1); // job is runnable (or unf was 0)
