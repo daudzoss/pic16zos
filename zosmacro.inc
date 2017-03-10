@@ -310,8 +310,9 @@ zOS_POP	macro	reg
 	endm
 	
 zOS_STR	macro	swinum,string
-	local start,out,loop,done
-	if (zero-start) < 255
+	local dif,start,out,loop,done
+dif	set zero-start	
+	if dif < 255
 	 bra	out
 	else
 	 pagesel out
@@ -320,7 +321,7 @@ zOS_STR	macro	swinum,string
 start
 	da	string
 zero
-	if (zero-start)
+	if dif
 	 da	0
 	endif
 out
@@ -329,7 +330,7 @@ out
 #ifdef EEADRL
 	zOS_PSH	BSR
 	banksel	EEADRL
-	if (zero-start)
+	if dif
 	 movlw	low start	;
 	 movwf	EEADRL		;
 	 movlw	high start	;

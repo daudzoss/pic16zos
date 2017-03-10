@@ -14,43 +14,9 @@ zOS_MIN	equ	1
 ;	
  zOS_DBG
 
-;;; while SWI handlers normally know what line the interupts will come in on,
-;;; for flexibility of incorporation into any application this choice is not
-;;; hardwired into zosmacro.inc library and any available line may be chosen:
-	
-OUTCHAR	equ	zOS_SI3
-	zOS_CON	1,9600,PIR1,PORTB,RB5
-	movlw	OUTCHAR		;void main(void) {
-	zOS_ARG	3		; zOS_CON(/*SSP*/1,9600,PIR1,PORTB,RB5/*beat*/);
-	zOS_LAU	WREG		; zOS_ARG(3, OUTCHAR);//handles without knowing!
-	
-	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler for splash
-	zOS_ADR	splash,zOS_UNP	; zOS_ADR(fsr0 = splash-zOS_PRV);//unprivileged
-	zOS_LAU	FSR1L		; zOS_LAU(&fsr1); // stash ID in FSR1L until end
-	
-	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler either
-	zOS_ADR	spitjob,zOS_UNP	; zOS_ADR(fsr0 = spitjob-zOS_PRV);//unprivileged
-	zOS_LAU	FSR1H		; zOS_LAU(1 + &fsr1); // launch two copies...
-	zOS_LAU	WREG		; zOS_LAU(&w);// remembering job# in FSR1H, WREG
-	
-	zOS_GLO	FSR0,WREG	; zOS_GLO(&fsr0, w); // mailboxes for spitjob()
-	movf	FSR1L,w		;
-	movwi	FSR0++		; fsr0 = fsr1; // this spitjob() waits for GO!
-	clrf	INDF0		; *fsr0 = 0; // by watching splash()'s global#0
-	
-	zOS_GLO	FSR0,FSR1H	; zOS_GLO(&fsr0, *(1 + &fsr1));
-	movf	FSR1L,w		;
-	movwi	FSR0++		; fsr0 = fsr1; // this spitjob() waits for GO!
-	clrf	INDF0		; *fsr0 = 0; // by watching splash()'s global#0
-	
-	clrf	FSR1H		;
-	clrf	INDF1		; *fsr1 = 0; // ...change from this 0 to nonzero
-	
-	banksel	OPTION_REG
-	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
-;;;FIXME: set the prescaler appropriately so that the IRQ frequency isn't crazy
-	zOS_RUN	INTCON,INTCON	; zOS_RUN(/*T0IE in*/INTCON, /*T0IF in*/INTCON);
-	nop			;}
+	pagesel	main
+	goto	main
+
 
 put_str
 	zOS_STR	OUTCHAR,""	;void put_str(const char*){zOS_STR(OUTCHAR,"");}
@@ -121,6 +87,45 @@ loop
 	bra	loop		; } while (1);
 #endif
 	bra	awaitgo		;}
+	
+;;; while SWI handlers normally know what line the interupts will come in on,
+;;; for flexibility of incorporation into any application this choice is not
+;;; hardwired into zosmacro.inc library and any available line may be chosen:
+	
+OUTCHAR	equ	zOS_SI3
+main	
+	zOS_CON	1,9600,PIR1,PORTB,RB5
+	movlw	OUTCHAR		;void main(void) {
+	zOS_ARG	3		; zOS_CON(/*SSP*/1,9600,PIR1,PORTB,RB5/*beat*/);
+	zOS_LAU	WREG		; zOS_ARG(3, OUTCHAR);//handles without knowing!
+	
+	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler for splash
+	zOS_ADR	splash,zOS_UNP	; zOS_ADR(fsr0 = splash-zOS_PRV);//unprivileged
+	zOS_LAU	FSR1L		; zOS_LAU(&fsr1); // stash ID in FSR1L until end
+	
+	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler either
+	zOS_ADR	spitjob,zOS_UNP	; zOS_ADR(fsr0 = spitjob-zOS_PRV);//unprivileged
+	zOS_LAU	FSR1H		; zOS_LAU(1 + &fsr1); // launch two copies...
+	zOS_LAU	WREG		; zOS_LAU(&w);// remembering job# in FSR1H, WREG
+	
+	zOS_GLO	FSR0,WREG	; zOS_GLO(&fsr0, w); // mailboxes for spitjob()
+	movf	FSR1L,w		;
+	movwi	FSR0++		; fsr0 = fsr1; // this spitjob() waits for GO!
+	clrf	INDF0		; *fsr0 = 0; // by watching splash()'s global#0
+	
+	zOS_GLO	FSR0,FSR1H	; zOS_GLO(&fsr0, *(1 + &fsr1));
+	movf	FSR1L,w		;
+	movwi	FSR0++		; fsr0 = fsr1; // this spitjob() waits for GO!
+	clrf	INDF0		; *fsr0 = 0; // by watching splash()'s global#0
+	
+	clrf	FSR1H		;
+	clrf	INDF1		; *fsr1 = 0; // ...change from this 0 to nonzero
+	
+	banksel	OPTION_REG
+	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
+;;;FIXME: set the prescaler appropriately so that the IRQ frequency isn't crazy
+	zOS_RUN	INTCON,INTCON	; zOS_RUN(/*T0IE in*/INTCON, /*T0IF in*/INTCON);
+	nop			;}
 	
 	end
 	
