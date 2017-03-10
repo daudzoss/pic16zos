@@ -160,7 +160,7 @@ loop
 #ifdef	PID1CON
 ;;; 16x16bit signed multiply zOS_AR1:0 * zOS_AR3:2, core yielded during 7ms math
 zOS_MUL	macro	fsrnum
-	local fn,in,fac0L,fac0H,fac1L,fac1H,zeroH,start,con,setup,enb,bsy
+	local fn,inout,fac0L,fac0H,fac1L,fac1H,zeroH,start,con,setup,enb,bsy
 	if (fsrnum & 3)
 fn	 set 1
 	else
@@ -182,47 +182,61 @@ setup	set	(1<<PID1MODE1)
 enb	set	PID1EN	
 bsy	set	PID1BUSY
 	local spinget,spinmul
-	bcf	INTCON,GIE	;
+	bcf	INTCON,GIE	;void zOS_MUL(int16_t** fsr) {
+	movlw	low PID1CON	; INTCON &= ~(1<<GIE);
+	movwf	FSR#v(fn)L	; // begin critical section accessing PID/zOS_AR
+	movlw	high PID1CON	;
+	movwf	FSR#v(fn)H	; *fsr = &PID1CON;
+	movlw	setup		;
+	movwf	indf#v(fn)	; **fsr = 1<<PIDMODE1; // unsigned mult no accum
+	bsf	indf#v(fn),enb	; **fsr |= 1<<PID1EN;
+spinget
+	btfsc	INDF#v(fn),bsy	; do {
+	bra	spinget		;  do {} while (**fsr & 1<<PID1BUSY);
+	movf	zOS_ME		;
+	movwi	-1[FSR#v(fn)]	;  -1[*fsr] = bsr;// stamping PID1ACCU claims it
+	movlw	low inout	;
+	movwf	FSR#v(fn)L	;
+	movlw	high inout	;
+	movwf	FSR#v(fn)H	;  *fsr = &PID1SETL & 0x1f80; // just bank bits
+	movf	zOS_AR3,w	;
+	movwi	fac0H[FSR#v(fn)];  (0x1f & PID1K1H)[*fsr] = zOS_AR3;
+	movf	zOS_AR2,w	;
+	movwi	fac0L[FSR#v(fn)];  (0x1f & PID1K1L)[*fsr] = zOS_AR2;
+	movf	zOS_AR1,w	;
+	movwi	fac1H[FSR#v(fn)];  (0x1f & PID1SETH)[*fsr] = zOS_AR1;
+	movf	zOS_AR0,w	;
+	movwi	fac1L[FSR#v(fn)];  (0x1f & PID1SETL)[*fsr] = zOS_AR0;
+	clrw			;  (0x1f & PID1INH)[*fsr] = 0;
+	movwi	zeroH[FSR#v(fn)];  (0x1f & PID1INL)[*fsr] = 0; // start multiply
+	movwi	start[FSR#v(fn)];  // end critical section accessing PID/zOS_ARx
+	bsf	INTCON,GIE	;  INTCON |= 1<<GIE;
 	movlw	low PID1CON	;
 	movwf	FSR#v(fn)L	;
 	movlw	high PID1CON	;
-	movwf	FSR#v(fn)H	;
-	movlw	setup		;
-	movwf	indf#v(fn)	;
-	bsf	indf#v(fn),enb	;
-spinget
-	btfsc	INDF#v(fn),bsy	;
-	bra	spinget		;
-	movlw	low in		;
-	movwf	FSR#v(fn)L	;
-	movlw	high in		;
-	movwf	FSR#v(fn)H	;
-	movf	zOS_AR3,w	;
-	movwi	fac0L[FSR#v(fn)];
-	movf	zOS_AR2,w	;
-	movwi	fac0H[FSR#v(fn)];
-	movf	zOS_AR1,w	;
-	movwi	fac1L[FSR#v(fn)];
-	movf	zOS_AR0,w	;
-	bsf	INTCON,GIE	;
-	movwi	fac1H[FSR#v(fn)];
-	clrw
-	movwi	zeroH[FSR#v(fn)];
-	movwi	start[FSR#v(fn)];
+	movwf	FSR#v(fn)H	;  *fsr = &PID1CON;
 spinmul
 	zOS_SWI	zOS_YLD
-	btfss	INDF#v(fn),bsy	;
-	bra	spinmul		;
-	bcf	INTCON,GIE	;
-	moviw	out3[FSR#v(fn)]	;
+	btfss	INDF#v(fn),bsy	;  do {
+	bra	spinmul		;   zOS_YLD();
+	bcf	INTCON,GIE	;  } while (**fsr & 1<<PID1BUSY);
+	moviw	-1[FSR#v(fn)]	;  INTCON &= ~(1<<GIE);
+	xorwf	zOS_ME		;  // begin critical section accessing PID/zOS_A
+	btfss	STATUS,Z	;
+	bra	spinget		; } while (-1[*fsr] != bsr);
+	movlw	low inout	;
+	movwf	FSR#v(fn)L	;
+	movlw	high inout	;
+	movwf	FSR#v(fn)H	;  *fsr = &PID1SETL & 0x1f80; // just bank bits
+	moviw	out3[FSR#v(fn)]	; zOS_AR3 = (0x1f & PID1OUTHH)[*fsr];
 	movwf	zOS_AR3		;
-	moviw	out2[FSR#v(fn)]	;
+	moviw	out2[FSR#v(fn)]	; zOS_AR2 = (0x1f & PID1OUTHL)[*fsr];
 	movwf	zOS_AR2		;
-	moviw	out1[FSR#v(fn)]	;
+	moviw	out1[FSR#v(fn)]	; zOS_AR1 = (0x1f & PID1OUTLH)[*fsr];
 	movwf	zOS_AR1		;
-	moviw	out0[FSR#v(fn)]	;
-	movwf	zOS_AR0		;
-	bcf	INTCON,GIE	;
+	moviw	out0[FSR#v(fn)]	; zOS_AR0 = (0x1f & PID1OUTLL)[*fsr];
+	movwf	zOS_AR0		; INTCON |= 1<<GIE;
+	bsf	INTCON,GIE	;}
 	endm
 #endif
 
@@ -263,49 +277,49 @@ zOS_OUT	macro	swinum,string	; // 8 words per byte (+1) to avoid using stack
 	local start,out
 	if (out-start) > 255
 	 pagesel out
-	 goto	out		;
+	 goto	out		;inline void zOS_OUT(int8_t swinum,
 	else
-	 bra	out		;
+	 bra	out		; const char* string){//unpacked (dt) with retlw
 	endif
 start
 	dt	string
 out		
 	variable i
 i = 0
-	while i < (out-start)
+	while i < (out-start)	; for (int i = 0; i < strlen(string); i++) {
 	pagesel	i+start
-	call	i+start
-	zOS_ARG	0
-	zOS_SWI	swinum
+	call	i+start		;  zOS_ARG(0, *(string[i])());
+	zOS_ARG	0		;  zOS_SWI(swinum);
+	zOS_SWI	swinum		; }
 i += 1
-	endw
-	endm
+	endw			;
+	endm			;}
 
 zOS_PSH	macro	reg
-	movf	zOS_ME		;
+	movf	zOS_ME		;inline void zOS_PSH(uint8_t* reg) {
 	;; bcf	INTCON,GIE
 	banksel	TOSH
-	movwf	TOSH		;
+	movwf	TOSH		; TOSH = bsr;// must store bsr so we can go back
 	if (reg-BSR)
-	 movf	reg,w		;
-	 mowwf	TOSL		;
-	 movf	TOSH,w		;
+	 movf	reg,w		; if (reg != &bsr)
+	 mowwf	TOSL		;  TOSL = *reg;
+	 movf	TOSH,w		; STKPTR++;
 	endif
-	incf	STKPTR,f	;
-	movwf	BSR		;
+	incf	STKPTR,f	; bsr = TOSH;
+	movwf	BSR		;} // caller should have turned interrupts off
 	;; bsf	INTCON,GIE
 	endm
 
 zOS_POP	macro	reg
 	;; bcf	INTCON,GIE
 	banksel	STKPTR
-	decf	STKPTR,f	;
+	decf	STKPTR,f	;inline void zOS_POP(uint8_t* reg) {
 	if (reg-BSR)
-	 movf	TOSL,w		;
-	 movwf	reg		;
+	 movf	TOSL,w		; STKPTR--;
+	 movwf	reg		; if (reg != &bsr) *reg = TOSL;
 	endif
-	movf	TOSH,w		;
-	movwf	BSR		;
+	movf	TOSH,w		; bsr = TOSH;
+	movwf	BSR		;} // caller should have turned interrupts off
 	;; bsf	INTCON,GIE
 	endm
 	
@@ -326,7 +340,7 @@ zero
 	endif
 out
 	bcf	INTCON,GIE	;
-;;; FIXME: need to autodetect TBLPTR vs EECON1 vs PMCON1
+;;; FIXME: need to autodetect TBLPTR vs EECON1 vs PMCON1 for the various methods
 #ifdef EEADRL
 	zOS_PSH	BSR
 	banksel	EEADRL
@@ -347,16 +361,17 @@ loop
 	bsf	EECON1,RD	;
 	nop			;
 	nop			;
-	movf	EEDATH,w	;
+	rlf	EEDATL,w	;
+	rlf	EEDATH,w	;
 	btfsc	STATUS,Z	;
 	bra	done
 	movwf	zOS_AR0		;
 	zOS_POP	BSR
 	zOS_SWI swinum
-;;; FIXME: need to bit-correct per section 4.14 of 33014L.pdf
 	bcf	INTCON,GIE	;
 	zOS_PSH	BSR
 	movf	EEDATL,w	;
+	andlw	0x7f		;
 	btfsc	STATUS,Z	;
 	bra	done		;
 	movwf	zOS_AR0		;
