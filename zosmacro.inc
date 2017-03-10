@@ -48,7 +48,52 @@ fsrn set 0
 	movwf	FSR#v(fsrn)H	; return (*fsrnum=(job<<7)|offset)>>8;
 	rrf	FSR#v(fsrn)L,f	;}
 	endm
-	
+
+zOS_ADR	macro	a
+	if (a)
+	 movlw	low a		;inline void zOS_ADR(void* a) {
+	 movwf	FSR0L		; // can be a -zOS_PRV or a |zOS_PRV for clarity
+	 movlw	high a		; // at time of call
+	 movwf	FSR0H		;
+	else
+	 clrf	FSR0L		; fsr0 = a;
+	 clrf	FSR0H		;}
+	endif
+	endm
+
+zOS_INT	macro	lhw,lsw
+	if (lhw|lsw)
+	movf	FSR0L,w		;inline void zOS_INT(const lhw, const lsw) {
+	zOS_ARG	0
+	movf	FSR0H,w		; if (lhw == 0 && lsw == 0) fsr0 = 0;
+	zOS_ARG	1
+	movlw	lhw		; zOS_ARG(0, fsr0 & 0x00ff);
+	zOS_ARG 2
+	movlw	lsw		; zOS_ARG(1, fsr0 >> 8);
+	zOS_ARG 3
+	else
+	clrw			; zOS_ARG(2, lhw);
+	movwf	FSR0L		; zOS_ARG(3, lsw);
+	movwf	FSR0H		;}
+	zOS_ARG	0
+	zOS_ARG	1
+	zOS_ARG	2
+	zOS_ARG	3
+	endif
+	endm
+
+zOS_LAU	macro	stash
+	local retry
+retry
+	zOS_SWI	zOS_NEW
+	movf	WREG,w
+	btfsc	STATUS,Z
+	bra	retry
+	if (stash - WREG)
+	 movwf	stash
+	endif
+	endm
+
 zOS_SWI	macro	type		;inline void zOS_SWI(const int8_t type) {
 	movlw	type		;
 	movlp	0x00		; zos_swj(type);

@@ -62,7 +62,7 @@ zOS_NEW	equ	0x00		; create a job (FSR0==addr,AR1:0==isr,AR3:2==IM)
 zOS_HDL	equ	0x00		; handle, the start address of the job
 zOS_HDH	equ	0x01		;
 zOS_PRB	equ	7		;  MSB of HDL indicates privilege(manage others)
-zOS_PRV	equ	(1<<zOS_PRB)	;
+zOS_PRV	equ	(1<<zOS_PRB)<<8	;
 zOS_PCL	equ	0x02		; address to resume execution
 zOS_PCH	equ	0x03		;  "impossible" PCH 0x00==not runnable
 zOS_WAI	equ	7		;  MSB of PCH indicates sleeping (wait for int)
@@ -496,7 +496,7 @@ zos_dup
 	btfsc	STATUS,Z	;     goto zos_swk; // job#0 (launcher) has perm
 	bra	zos_swk		;    fsr0 = 0x10 * (1+bsr); // struct for caller
 	zOS_MEM	FSR0,BSR,0
-	moviw	zOS_HDH[FSR0]	;    if (zOS_HDH[fsr0] & zOS_PRV)
+	moviw	zOS_HDH[FSR0]	;    if (zOS_HDH[fsr0] & (1<<zOS_PRB))
 	btfsc	WREG,zOS_PRB	;     goto zos_swk; // job has privileged perms
 	bra	zos_swk		;   }
 zos_err	
@@ -512,7 +512,7 @@ zos_swp
 	btfsc	STATUS,Z	;   if (bsr != 0) {
 	bra	zos_elv		;    fsr1 = 0x10 * (1+bsr); // struct for job
 	zOS_MEM	FSR1,BSR,0
-	moviw	zOS_HDH[FSR1]	;    if (zOS_HDH[fsr1] & zOS_PRV == 0)
+	moviw	zOS_HDH[FSR1]	;    if (zOS_HDH[fsr1] & (1<<zOS_PRB) == 0)
 	btfss	WREG,zOS_PRB	;     goto zos_swk; // disallowed job in zOS_AR0
 	bra	zos_swk		;   }
 	

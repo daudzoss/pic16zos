@@ -11,75 +11,83 @@ zOS_MIN	equ	1
 	include zosmacro.inc
 	
 ;;; uncomment to pre-load stack positions with indices (for debugging ZOS_ROL):
-;
-	zOS_DBG
+;	
+ zOS_DBG
 
 ;;; while SWI handlers normally know what line the interupts will come in on,
 ;;; for flexibility of incorporation into any application this choice is not
 ;;; hardwired into zosmacro.inc library and any available line may be chosen:
 	
-	zOS_CON	1,9600,PIR1,PORTB,RB5
 OUTCHAR	equ	zOS_SI3
+	zOS_CON	1,9600,PIR1,PORTB,RB5
 	movlw	OUTCHAR		;void main(void) {
-	zOS_ARG	3
-retry1
-	zOS_SWI	zOS_NEW
-	movf	WREG,w		;
-	btfsc	STATUS,Z	; zOS_MON(/*SSP*/1,9600,PIR1,PORTA,RA0/*beat*/);
-	bra	retry1		; zOS_ARG(3, OUTCHAR);//handles without knowing!
+	zOS_ARG	3		; zOS_CON(/*SSP*/1,9600,PIR1,PORTB,RB5/*beat*/);
+	zOS_LAU	WREG		; zOS_ARG(3, OUTCHAR);//handles without knowing!
 	
-	movlw	low splash	; do {} while (zOS_SWI(zOS_NEW) == 0);
-	movwf	FSR0L		; fsr0 = splash & 0x7fff;
-	movlw	high splash	; zOS_ARG(0, 0);
-	andlw	0x7f		; zOS_ARG(1, 0);
-	movwf	FSR0H		; zOS_ARG(2, 0);
-	clrw			; zOS_ARG(3, 0);// takes no interrupts
-	zOS_ARG	0
-	zOS_ARG	1
-	zOS_ARG	2
-	zOS_ARG 3
-retry2
-	zOS_SWI	zOS_NEW
-	movf	WREG,w		;
-	btfsc	STATUS,Z	; do {} while (zOS_SWI(zOS_NEW) == 0); // 2?
-	bra	retry2		;
+	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler for splash
+	zOS_ADR	splash -zOS_PRV	; zOS_ADR(splash -zOS_PRV); // unprivileged job
+	zOS_LAU	FSR1L		; zOS_LAU(&fsr1); // stash ID in FSR1L until end
 	
-	movlw	low spitjob	; do {} while (zOS_SWI(zOS_NEW) == 0);
-	movwf	FSR0L		; fsr0 = spitjob & 0x7fff;
-	movlw	high spitjob	; zOS_ARG(0, 0);
-	andlw	0x7f		; zOS_ARG(1, 0);
-	movwf	FSR0H		; zOS_ARG(2, 0);
-	clrw			; zOS_ARG(3, 0);// FIXME: needs interrupt to GO!
-	zOS_ARG	0
-	zOS_ARG	1
-	zOS_ARG	2
-	zOS_ARG 3
-retry3
-	zOS_SWI	zOS_NEW
-	movf	WREG,w		;
-	btfsc	STATUS,Z	; do {} while (zOS_SWI(zOS_NEW) == 0); // 2?
-	bra	retry3		; do {} while (zOS_SWI(zOS_NEW) == 0); // 3?
-retry4
-	zOS_SWI	zOS_NEW
-	movf	WREG,w		;
-	btfsc	STATUS,Z	; zOS_RUN(/*T0IE in*/INTCON, /*T0IF in*/INTCON);
-	bra	retry4		;}
+	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler either
+	zOS_ADR	spitjob -zOS_PRV; zOS_ADR(spitjob -zOS_PRV);// unprivileged jobs
+	zOS_LAU	FSR1H		; zOS_LAU(1 + &fsr1); // launch two copies...
+	zOS_LAU	WREG		; zOS_LAU(&w);// remembering job# in FSR1H, WREG
+	
+	zOS_GLO	FSR0,WREG	; zOS_GLO(&fsr0, w); // mailboxes for spitjob()
+	movf	FSR1L,w		;
+	movwi	FSR0++		; fsr0 = fsr1; // this spitjob() waits for GO!
+	clrf	INDF0		; *fsr0 = 0; // by watching splash()'s global#0
+	
+	zOS_GLO	FSR0,FSR1H	; zOS_GLO(&fsr0, *(1 + &fsr1));
+	movf	FSR1L,w		;
+	movwi	FSR0++		; fsr0 = fsr1; // this spitjob() waits for GO!
+	clrf	INDF0		; *fsr0 = 0; // by watching splash()'s global#0
+	
+	clrf	FSR1H		;
+	clrf	INDF1		; *fsr1 = 0; // ...change from this 0 to nonzero
 	
 	banksel	OPTION_REG
 	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
-;;FIXME: set the prescaler appropriately so that the IRQ frequency isn't crazy
-	zOS_RUN	INTCON,INTCON
+;;;FIXME: set the prescaler appropriately so that the IRQ frequency isn't crazy
+	zOS_RUN	INTCON,INTCON	; zOS_RUN(/*T0IE in*/INTCON, /*T0IF in*/INTCON);
+	nop			;}
 	
 splash
-	zOS_STR	OUTCHAR,"hello!\r\n"
-	zOS_SWI	zOS_END
+	zOS_MY2	FSR0		;void splash(void) {
+	zOS_STR	OUTCHAR,"Hi\r\n"; zOS_MY2(&fsr0);
+	movlw	1		; zOS_STR(OUTCHAR, "Hi\r\n");
+	comf	INDF0,f		; *fsr0 = 1; // will cause spitjob()s to unstick
+#if 0
+	movf	zOS_ME ;implicit
+	zOS_ARG	0
+#endif	
+	zOS_SWI	zOS_END		; zOS_END(); // unschedule self
+	nop			;}
 	
 spitjob	
+	zOS_MY2	FSR0
+	moviw	0[FSR0],w	;void splash(void) {
+	movwf	FSR1L		;
+	moviw	1[FSR0],w	; zOS_MY2(&fsr0);
+	movwf	FSR1H		; fsr1 = *fsr0;
+	movf	zOS_ME		; zOS_ME(&w); // shouldn't be clobbered by below
+awaitgo
 #if 0
-	clrw			;// print as hexadecimal integer: OUTCHAR 0 int
+	zOS_ARG	0
+	;; being nice is optional
+	zOS_SWI	zOS_YLD		;
+#endif	
+	movf	INDF1,f		;
+	btfss	awaitgo		;
+	
+	btfss
+
+
+#if 0
+	clrw			;// if even, print as hexadecimal integer: OUTCHAR 0 int
 	zOS_ARG	0
 #else	
-	movlw	'0'		;// print as ascii digit: OUTCHAR '0'+int
+	movlw	'0'		;// if odd, print as ascii digit: OUTCHAR '0'+int
 #endif	
 	addwf	zOS_ME		;void spitjob(void) { do {
 #if 0
