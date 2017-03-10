@@ -325,25 +325,26 @@ zOS_POP	macro	reg
 	
 zOS_STR	macro	swinum,string
 	local dif,start,out,loop,done
-dif	set zero-start	
-	if dif < 255
-	 bra	out
-	else
+;dif	set zero-start	
+;	if dif < 255
+;	 bra	out
+;	else
 	 pagesel out
 	 goto	out		; // 0.5 words per byte (+62), use if strlen > 9
-	endif
+;	endif
 start
 	da	string
 zero
-	if dif
+;	if dif
 	 da	0
-	endif
+;	endif
 out
 	bcf	INTCON,GIE	;
 ;;; FIXME: need to autodetect TBLPTR vs EECON1 vs PMCON1 for the various methods
 #ifdef EEADRL
 	zOS_PSH	BSR
 	banksel	EEADRL
+;;; FIXME: works in gpasm but mpasm can't resolve dif, need runtime check of *start != '\0'
 	if dif
 	 movlw	low start	;
 	 movwf	EEADRL		;
