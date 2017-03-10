@@ -252,7 +252,7 @@ zOS_UNW	macro	job		; inline void zOS_UNW(int8_t job) { }
 	bcf	INDF0,zOS_WAI	;  *fsr0 &= ~(1 << zOS_WAI); // now runnable
 	endm			; }
 	
-zOS_OUT	macro	swinum,string	; // 7 words per byte (+1) to avoid using EECON!
+zOS_OUT	macro	swinum,string	; // 8 words per byte (+1) to avoid using stack
 	local start,out
 	if (out-start) > 255
 	 pagesel out
@@ -266,6 +266,7 @@ out
 	variable i
 i = 0
 	while i < (out-start)
+	pagesel	i+start
 	call	i+start
 	zOS_ARG	0
 	zOS_SWI	swinum
@@ -293,7 +294,7 @@ zOS_POP	macro	reg
 	banksel	STKPTR
 	decf	STKPTR,f	;
 	if (reg-BSR)
-	 movf	TOSL,f		;
+	 movf	TOSL,w		;
 	 movwf	reg		;
 	endif
 	movf	TOSH,w		;
@@ -303,7 +304,7 @@ zOS_POP	macro	reg
 	
 zOS_STR	macro	swinum,string
 	local start,out,loop,done
-	if (out-start) < 255
+	if (zero-start) < 255
 	 bra	out
 	else
 	 pagesel out
@@ -317,6 +318,8 @@ zero
 	endif
 out
 	bcf	INTCON,GIE	;
+;;; FIXME: need to autodetect TBLPTR vs EECON1 vs PMCON1
+#ifdef EEADRL
 	zOS_PSH	BSR
 	banksel	EEADRL
 	if (zero-start)
@@ -337,15 +340,16 @@ loop
 	nop			;
 	nop			;
 	movf	EEDATH,w	;
-	btfss	STATUS,Z	;
+	btfsc	STATUS,Z	;
 	bra	done
 	movwf	zOS_AR0		;
 	zOS_POP	BSR
 	zOS_SWI swinum
+;;; FIXME: need to bit-correct per section 4.14 of 33014L.pdf
 	bcf	INTCON,GIE	;
 	zOS_PSH	BSR
 	movf	EEDATL,w	;
-	btfss	STATUS,Z	;
+	btfsc	STATUS,Z	;
 	bra	done		;
 	movwf	zOS_AR0		;
 	zOS_POP	BSR
@@ -358,6 +362,7 @@ loop
 	bra	loop		;
 done
 	zOS_POP	BSR
+#endif
 	bsf	INTCON,GIE	;
 	endm
 
