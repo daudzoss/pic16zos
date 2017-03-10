@@ -207,6 +207,115 @@ zOS_UNW	macro	job		; inline void zOS_UNW(int8_t job) { }
 	bcf	INDF0,zOS_WAI	;  *fsr0 &= ~(1 << zOS_WAI); // now runnable
 	endm			; }
 	
+zOS_OUT	macro	swinum,string	; // 7 words per byte (+1) to avoid using EECON!
+	local start,out
+	if (out-start) > 255
+	 pagesel out
+	 goto	out		;
+	else
+	 bra	out		;
+	endif
+start
+	dt	string
+out		
+	variable i
+i = 0
+	while i < (out-start)
+	call	i+start
+	zOS_ARG	0
+	zOS_SWI	swinum
+i += 1
+	endw
+	endm
+
+zOS_PSH	macro	reg
+	movf	zOS_ME		;
+	;; bcf	INTCON,GIE
+	banksel	TOSH
+	movwf	TOSH		;
+	if (reg-BSR)
+	 movf	reg,w		;
+	 mowwf	TOSL		;
+	 movf	TOSH,w		;
+	endif
+	incf	STKPTR,f	;
+	movwf	BSR		;
+	;; bsf	INTCON,GIE
+	endm
+
+zOS_POP	macro	reg
+	;; bcf	INTCON,GIE
+	banksel	STKPTR
+	decf	STKPTR,f	;
+	if (reg-BSR)
+	 movf	TOSL,f		;
+	 movwf	reg		;
+	endif
+	movf	TOSH,w		;
+	movwf	BSR		;
+	;; bsf	INTCON,GIE
+	endm
+	
+zOS_STR	macro	swinum,string
+	local start,out,loop,done
+	if (out-start) < 255
+	 bra	out
+	else
+	 pagesel out
+	 goto	out		; // 0.5 words per byte (+62), use if strlen > 9
+	endif
+start
+	da	string
+zero
+	if (zero-start)
+	 da	0
+	endif
+out
+	bcf	INTCON,GIE	;
+	zOS_PSH	BSR
+	banksel	EEADRL
+	if (zero-start)
+	 movlw	low start	;
+	 movwf	EEADRL		;
+	 movlw	high start	;
+	 movwf	EEADRH		;
+	else
+	 movf	FSR0L,w		;
+	 movwf	EEADRL		;
+	 movf	FSR0H,w		;
+	 movwf	EEADRH		;
+	endif
+loop	
+	bcf	EECON1,CFGS	;
+	bsf	EECON1,EEPGD	;
+	bsf	EECON1,RD	;
+	nop			;
+	nop			;
+	movf	EEDATH,w	;
+	btfss	STATUS,Z	;
+	bra	done
+	movwf	zOS_AR0		;
+	zOS_POP	BSR
+	zOS_SWI swinum
+	bcf	INTCON,GIE	;
+	zOS_PSH	BSR
+	movf	EEDATL,w	;
+	btfss	STATUS,Z	;
+	bra	done		;
+	movwf	zOS_AR0		;
+	zOS_POP	BSR
+	zOS_SWI	swinum
+	bcf	INTCON,GIE	;
+	zOS_PSH	BSR
+	incf	EEADRL,f	;
+	btfsc	STATUS,Z	;
+	incf	EEADRH,f	;
+	bra	loop		;
+done
+	zOS_POP	BSR
+	bsf	INTCON,GIE	;
+	endm
+
 zOS_CON	macro	p,bps,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t bps,int8_t
 	local	task,loop,decl,isr
 	bra	decl		;                    rts,int8_t* hb,int8_t pin){
