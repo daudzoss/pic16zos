@@ -25,11 +25,11 @@ OUTCHAR	equ	zOS_SI3
 	zOS_LAU	WREG		; zOS_ARG(3, OUTCHAR);//handles without knowing!
 	
 	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler for splash
-	zOS_ADR	splash -zOS_PRV	; zOS_ADR(fsr0 = splash -zOS_PRV);//unprivileged
+	zOS_ADR	splash,zOS_UNP	; zOS_ADR(fsr0 = splash-zOS_PRV);//unprivileged
 	zOS_LAU	FSR1L		; zOS_LAU(&fsr1); // stash ID in FSR1L until end
 	
 	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler either
-	zOS_ADR	spitjob -zOS_PRV; zOS_ADR(fsr0 = spitjob-zOS_PRV);//unprivileged
+	zOS_ADR	spitjob,zOS_UNP	; zOS_ADR(fsr0 = spitjob-zOS_PRV);//unprivileged
 	zOS_LAU	FSR1H		; zOS_LAU(1 + &fsr1); // launch two copies...
 	zOS_LAU	WREG		; zOS_LAU(&w);// remembering job# in FSR1H, WREG
 	
@@ -62,7 +62,7 @@ crlf
 	da	"\r\n",0
 splash
 	zOS_MY2	FSR1		;void splash(void) {
-	zOS_ADR	greet
+	zOS_ADR	greet,zOS_FLA	;
 	pagesel	put_str		; zOS_MY2(&fsr1);
 	call	put_str		; zOS_ADR(fsr0 ="Demo application for zOS\r\n");
 	movlw	1		; put_str(fsr0);
@@ -106,7 +106,7 @@ asascii
 	zOS_ARG	0		;  }
 print
 	zOS_SWI	OUTCHAR		;  zOS_SWI(OUTCHAR);
-	zOS_ADR	crlf		;  zOS_ADR(fsr0 = "\r\n");
+	zOS_ADR	crlf,zOS_FLA	;  zOS_ADR(fsr0 = "\r\n");
 	pagesel	put_str	
 	call	put_str		;  put_str(fsr0);
 #if 1

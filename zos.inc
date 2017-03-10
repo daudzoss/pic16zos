@@ -62,7 +62,10 @@ zOS_NEW	equ	0x00		; create a job (FSR0==addr,AR1:0==isr,AR3:2==IM)
 zOS_HDL	equ	0x00		; handle, the start address of the job
 zOS_HDH	equ	0x01		;
 zOS_PRB	equ	7		;  MSB of HDL indicates privilege(manage others)
-zOS_PRV	equ	(1<<zOS_PRB)<<8	;
+zOS_PRV	equ	(1<<zOS_PRB)	;
+zOS_RAM	equ	0		;
+zOS_FLA	equ	1		;
+zOS_UNP	equ	0		;
 zOS_PCL	equ	0x02		; address to resume execution
 zOS_PCH	equ	0x03		;  "impossible" PCH 0x00==not runnable
 zOS_WAI	equ	7		;  MSB of PCH indicates sleeping (wait for int)

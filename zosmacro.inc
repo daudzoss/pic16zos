@@ -49,11 +49,18 @@ fsrn set 0
 	rrf	FSR#v(fsrn)L,f	;}
 	endm
 
-zOS_ADR	macro	a
-	if (a)
-	 movlw	low (a)		;inline void zOS_ADR(void* a) {
+zOS_ADR	macro	adr,msb
+	local top,adj
+top	set high adr
+	if msb
+adj	 set 0x80|top
+	else
+adj	 set 0x7f&top
+	endif
+	if adr
+	 movlw	low adj		;inline void zOS_ADR(void* a) {
 	 movwf	FSR0L		; // can be a -zOS_PRV or a |zOS_PRV for clarity
-	 movlw	high (a)	; // at time of call
+	 movlw	high adj	; // at time of call
 	 movwf	FSR0H		;
 	else
 	 clrf	FSR0L		; fsr0 = a;
