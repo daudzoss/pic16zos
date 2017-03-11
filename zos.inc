@@ -126,6 +126,7 @@ fsrn set 0
 	clrf	FSR#v(fsrn)H	;}
 	endm
 
+;;; FIXME:doesn't seem to work!
 ;;; macro to wind the circular stack around from the running job# to the new job
 ;;; (before restoring the new job's STKPTR and copying its return address there)
 ;;; typically: zOS_ROL BSR_SHAD,JOB_NUM(BSR?),zOS_TMP,FSR0,zOS_STK

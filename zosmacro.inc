@@ -323,72 +323,61 @@ zOS_POP	macro	reg
 	;; bsf	INTCON,GIE
 	endm
 	
-zOS_STR	macro	swinum,string
-	local dif,start,out,loop,done
-;dif	set zero-start	
-;	if dif < 255
-;	 bra	out
-;	else
-	 pagesel out
-	 goto	out		; // 0.5 words per byte (+62), use if strlen > 9
-;	endif
-start
-	da	string
-zero
-;	if dif
-	 da	0
-;	endif
-out
-	bcf	INTCON,GIE	;
 ;;; FIXME: need to autodetect TBLPTR vs EECON1 vs PMCON1 for the various methods
 #ifdef EEADRL
+zOS_ADL	equ	EEADRL
+zOS_ADH	equ	EEADRH
+zOS_RDL	equ	EEDATL
+zOS_RDH	equ	EEDATH
+zOS_RDF macro
+	bcf	EECON1,CFGS	;inline void zOS_RDF(void) {
+	bsf	EECON1,EEPGD	; EECON1 &= ~(1<<CFGS);
+	bsf	EECON1,RD	; EECON1 |= 1<<EEPGD;
+	nop			; EECON1 |= 1<<RD;
+	nop			;}
+	endm
+#endif
+	
+zOS_STR	macro	swinum
+	local loop,readl,readh,done
+	bcf	INTCON,GIE	;inline void zOS_STR(const char* fsr0,
 	zOS_PSH	BSR
-	banksel	EEADRL
-;;; FIXME: works in gpasm but mpasm can't resolve dif, need runtime check of *start != '\0'
-	if dif
-	 movlw	low start	;
-	 movwf	EEADRL		;
-	 movlw	high start	;
-	 movwf	EEADRH		;
-	else
-	 movf	FSR0L,w		;
-	 movwf	EEADRL		;
-	 movf	FSR0H,w		;
-	 movwf	EEADRH		;
-	endif
+	banksel	zOS_ADL
+	movf	FSR0L,w		;                    uint8_t swinum) {
+	movwf	zOS_ADL		; INTCON &= ~(1<<GIE);
+	movf	FSR0H,w		; zOS_PSH(&bsr); // need a bank change for reads
+	movwf	zOS_ADH		; for (zOS_AD = fsr0; *zOS_AD; zOS_AD++) {
 loop	
-	bcf	EECON1,CFGS	;
-	bsf	EECON1,EEPGD	;
-	bsf	EECON1,RD	;
-	nop			;
-	nop			;
-	rlf	EEDATL,w	;
-	rlf	EEDATH,w	;
+	zOS_RDF
+	rlf	zOS_RDL,w	;  zOS_RDF(); // read packed 14-bit contents
+	rlf	zOS_RDH,w	;
 	btfsc	STATUS,Z	;
-	bra	done
-	movwf	zOS_AR0		;
+	bra	done		;  if ((w = (zOS_RDH<<1)|(zOS_RDL>>7)) != '\0'){
+	movwf	zOS_AR0		;   zOS_ARG(0, w);
 	zOS_POP	BSR
-	zOS_SWI swinum
-	bcf	INTCON,GIE	;
+	zOS_SWI swinum	   	;
+	bcf	INTCON,GIE	;   zOS_POP(&bsr); // back to the expected bank
 	zOS_PSH	BSR
-	movf	EEDATL,w	;
-	andlw	0x7f		;
-	btfsc	STATUS,Z	;
-	bra	done		;
-	movwf	zOS_AR0		;
+	banksel	zOS_ADL
+	movf	zOS_RDL,w	;   zOS_SWI(swinum);; // print the ASCII char
+	andlw	0x7f		;   INTCON &= ~(1<<GIE); // undo SWI GIE toggle
+	btfsc	STATUS,Z	;   zOS_PSH(&bsr);
+	bra	done		;   if ((w = zOS_RDL & 0x7f) != '\0') {
+	movwf	zOS_AR0		;    zOS_ARG(0, w);
 	zOS_POP	BSR
 	zOS_SWI	swinum
-	bcf	INTCON,GIE	;
+	bcf	INTCON,GIE	;    zOS_POP(&bsr); // back to the expected bank
 	zOS_PSH	BSR
-	incf	EEADRL,f	;
-	btfsc	STATUS,Z	;
-	incf	EEADRH,f	;
-	bra	loop		;
+	banksel	zOS_ADL
+	incf	zOS_ADL,f	;    zOS_SWI(swinum); // print the ASCII char
+	btfsc	STATUS,Z	;    INTCON &= ~(1<<GIE); // undo SWI GIE toggle
+	incf	zOS_ADH,f	;    zOS_PSH(&bsr);
+	bra	loop		;   } else break;
 done
-	zOS_POP	BSR
+	zOS_POP	BSR		;  } else break;
 #endif
-	bsf	INTCON,GIE	;
-	endm
+	bsf	INTCON,GIE	; } zOS_POP(&bsr); INTCON |= 1<<GIE;
+	endm			;}
 
 zOS_CON	macro	p,bps,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t bps,int8_t
 	local	task,loop,decl,isr
