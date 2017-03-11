@@ -3,8 +3,8 @@
 ;;;
 ;;; memory footprint:
 ;;; no memory words used upon inclusion (before expansion of a macro)
-;;; _ 14-bit words if only zOS_CON() job is started to accept console output
-;;; _ words if full-featured monitor and job manager shell zOS_MON() instead
+;;;  14-bit words if only zOS_CON() job is started to accept console output
+;;;  words if full-featured monitor and job manager shell zOS_MON() instead
 	
 #define zOS_ME BSR,w		; // "movf/andwf/xorwf zOS_ME" can't clobber BSR
 
@@ -15,12 +15,13 @@ fsrn set 1
 	else
 fsrn set 0
 	endif
-	movlw	0x1f		;// documentation suggest 0f but BSR now 6 bits!
-	andwf	FSR#v(fsrn)H,f	;inline int8_t zOS_GLO(int8_t* *fsrnum,
+	bcf	FSR#v(fsrn)H,7	;// documentation suggests 5 but BSR now 6 bits!
+	bcf	FSR#v(fsrn)H,6	;
+	bcf	FSR#v(fsrn)H,5	;inline int8_t zOS_GLO(int8_t* *fsrnum,
 	if (job)
 	 rlf	job,w		;                      int8_t* job) {
 	else
-	 rlf	zOS_ME		; int8_t w = 0x70| ((job?*job:bsr)<<1);
+	 rlf	zOS_ME		; int8_t w = 0x70 | ((job ? *job : bsr) << 1);
 	endif
 	andlw	0x0e		; *fsrnum = (*fsrnum & 0x1f00) | w;
 	iorlw	0x70		; return w;
@@ -45,7 +46,7 @@ fsrn set 0
 	 clrf	FSR#v(fsrn)L	;
 	endif
 	rrf	zOS_ME		;
-	movwf	FSR#v(fsrn)H	; return (*fsrnum=(job<<7)|offset)>>8;
+	movwf	FSR#v(fsrn)H	; return (*fsrnum = (job<<7) | offset) >> 8;
 	rrf	FSR#v(fsrn)L,f	;}
 	endm
 
@@ -369,17 +370,16 @@ loop
 	bcf	INTCON,GIE	;    zOS_POP(&bsr); // back to the expected bank
 	zOS_PSH	BSR
 	banksel	zOS_ADL
-	incf	zOS_ADL,f	;    zOS_SWI(swinum); // print the ASCII char
-	btfsc	STATUS,Z	;    INTCON &= ~(1<<GIE); // undo SWI GIE toggle
+	incfsz	zOS_ADL,f	;    zOS_SWI(swinum); // print the ASCII char
+	bra	loop		;    INTCON &= ~(1<<GIE); // undo SWI GIE toggle
 	incf	zOS_ADH,f	;    zOS_PSH(&bsr);
 	bra	loop		;   } else break;
 done
 	zOS_POP	BSR		;  } else break;
-#endif
 	bsf	INTCON,GIE	; } zOS_POP(&bsr); INTCON |= 1<<GIE;
 	endm			;}
 
-zOS_CON	macro	p,bps,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t bps,int8_t
+zOS_CON	macro	p,rat,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t rat,int8_t
 	local	task,loop,decl,isr
 	bra	decl		;                    rts,int8_t* hb,int8_t pin){
 task
@@ -569,23 +569,71 @@ done
 	;; intialize the UART peripheral, job handle and first three arguments
 decl
 ;;; FIXME: need to set up the hardware port at the requested bps rate here first
-	movlw	low task	;decl:
-	movwf	FSR0L		;
-	movlw	high task	;
-	andlw	0x7f		;
-	movwf	FSR0H		; FSR0 = task & 0x7fff;// MSB 0 => unprivileged
+	banksel	RCSTA
+#if 0
+	;; wait out inevitable garbage TX (not sure why this delay is necessary)
+	clrf	0x20
+	clrf	0x21
+	pagesel	delay0
+delay0
+	incfsz	0x21,f
+	goto	delay0
+	incfsz	0x20,f
+	goto	delay0
+#endif
+	bcf	RCSTA,SPEN	;decl:
+	bcf	RCSTA,CREN	; RCSTA &= ~((1<<SPEN)|(1<<CREN));
+	banksel	TXSTA
+	bcf	TXSTA,TXEN	; TXSTA &= ~(1<<TXEN);
+	local brgval,brgvalm,brgvalh,brgvall
+#ifdef BRG16
+brgval	equ	rat>>2
+brgvalm	equ	brgval-1
+brgvalh	equ	high brgvalm
+brgvall	equ	low brgvalm
+	banksel	BAUDCON
+	bsf	BAUDCON,BRG16	; // section 26.1.2.8 of 16F1847 steps below:
+	banksel	TXSTA
+	bcf	TXSTA,SYNC	; // (1) "Initialize..the desired baud rate"
+	bsf	TXSTA,BRGH	; BAUDCON |= 1<<BRG16; // 16-bit generator
+	movlw	brgvall		; TXSTA &= ~(1<<SYNC); // async mode
+	movwf	SPBRGL		; TXSTA |= 1<<BRGH;    // high speed
+	movlw	brfvalh		;
+	movwf	SPBRGH		; SPBRG = (rat/4) - 1;
+	bcf	BAUDCON,SCKP	; BAUDCON &= ~(1<<SCKP); // "SCKP..if inverted"
+#else	
+brgval	equ	rat>>4
+brgvalm	equ	brgval-1
+brgvalh	equ	0
+brgvall	equ	low brgvalm
+	bsf	TXSTA,BRGH	; TXSTA |= 1<<BRGH; // (1) the desired baud rate
+	banksel	SPBRG
+	movlw	brgvall		;
+	movwf	SPBRG		; SPBRG = (rat/16) - 1;
+#endif
+	banksel	RCSTA
+	bsf	RCSTA,SPEN	; // (3) "Enable..by setting..SPEN"
+	bcf	RCSTA,RX9	; RCSTA &= ~(1<<RX9);  // (5) "9-bit..set..RX9"
+	bsf	RCSTA,CREN	; RCSTA |= (1<<SPEN) | (1<<CREN); // (6) "CREN" 
+	banksel	TXSTA
+	bsf	TXSTA,TXEN	; TXSTA |= 1<<TXEN; // (5) "Enable..by..TXEN"
+	banksel	PIE1
+	bsf	PIE1,RCIE	; PIE1 |= 1<<RCIE; //(4) "Set..RCIE..and..PEIE"
+#endif
 	bcf	FSR0H,zOS_PRB	; w = zOS_ARG(0, isr & 0x00ff);
 	movlw	low isr		; w = zOS_ARG(1, isr>>8);
 	zOS_ARG	0
 	movlw	high isr	; w = zOS_ARG(2, (1<<TXIF)|(1<<T0IE));
-	zOS_ARG	1
+	zOS_INT
+	zOS_ADR	isr,zOS_UNP	; fsr0 = task & 0x7fff;// MSB 0 => unprivileged
+	zOS_ADR	task,zOS_UNP	; fsr0 = task & 0x7fff;// MSB 0 => unprivileged
 	movlw	(1<<TXIF)|(1<<T0IE)
 	zOS_ARG	2
 	endm			;}
 
 #if 0
 ;;; like zOS_CON, but also accepts console input for a full job-management shell
-zOS_MON	macro	port,bps,hb,pin	;
+zOS_MON	macro	port,rat,hb,pin	;
 	local task,decl,isr
 	bra	decl		;
 task
@@ -611,4 +659,3 @@ decl
 	zOS_ARG	2
 	endm
 #endif	
-

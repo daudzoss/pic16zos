@@ -79,11 +79,9 @@ print
 i	equ	0x20
 j	equ	0x21
 loop
-	incf	j,f		;
-	btfss	STATUS,Z	;
-	bra	loop		;  for (int i = 0; i & 0xff; i++)
-	incf	i,f		;   for (int j = 0; j & 0xff; j++)
-	btfss	STATUS,Z	;    ;
+	incfsz	j,f		;  for (int i = 0; i & 0xff; i++)
+	bra	loop		;   for (int j = 0; j & 0xff; j++)
+	incfsz	i,f		;    ;
 	bra	loop		; } while (1);
 #endif
 	bra	awaitgo		;}
@@ -94,17 +92,17 @@ loop
 	
 OUTCHAR	equ	zOS_SI3
 main	
-	zOS_CON	1,9600,PIR1,PORTB,RB5
+	zOS_CON	1,20000000/9600,PIR1,PORTB,RB5
 	movlw	OUTCHAR		;void main(void) {
-	zOS_ARG	3		; zOS_CON(/*SSP*/1,9600,PIR1,PORTB,RB5/*beat*/);
+	zOS_ARG	3		; zOS_CON(/*SSP*/1,20MHz/9600bps,PIR1,PORTB,5);
 	zOS_LAU	WREG		; zOS_ARG(3, OUTCHAR);//handles without knowing!
 	
 	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler for splash
-	zOS_ADR	splash,zOS_UNP	; zOS_ADR(fsr0 = splash-zOS_PRV);//unprivileged
+	zOS_ADR	splash,zOS_UNP	; zOS_ADR(fsr0 = splash&~zOS_PRV);//unprivileged
 	zOS_LAU	FSR1L		; zOS_LAU(&fsr1); // stash ID in FSR1L until end
 	
 	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler either
-	zOS_ADR	spitjob,zOS_UNP	; zOS_ADR(fsr0 = spitjob-zOS_PRV);//unprivileged
+	zOS_ADR	spitjob,zOS_UNP	; zOS_ADR(fsr0 = spitjob&~zOS_PRV);//unprivilege
 	zOS_LAU	FSR1H		; zOS_LAU(1 + &fsr1); // launch two copies...
 	zOS_LAU	WREG		; zOS_LAU(&w);// remembering job# in FSR1H, WREG
 	
