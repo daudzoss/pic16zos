@@ -337,6 +337,29 @@ zOS_RDF macro
 	nop			; EECON1 |= 1<<RD;
 	nop			;}
 	endm
+#else
+#ifdef PMADRL
+zOS_ADL	equ	PMADRL
+zOS_ADH	equ	PMADRH
+zOS_RDL	equ	PMDATL
+zOS_RDH	equ	PMDATH
+zOS_RDF macro
+	bcf	PMCON1,CFGS	;inline void zOS_RDF(void) {
+	bsf	PMCON1,RD	; PMCON1 &= ~(1<<CFGS);
+	nop			; PMCON1 |= 1<<RD;
+	nop			;}
+	endm
+#else	
+#ifdef
+zOS_ADL	equ	NVMADRL
+zOS_ADH	equ	NVMADRH
+zOS_RDL	equ	NVMDATL
+zOS_RDH	equ	NVMDATH
+zOS_RDF macro
+	bcf	NVMCON1,NVMREGS	;inline void zOS_RDF(void) { // no nop's needed!
+	bsf	NVMCON1,RD	; NVMCON1 &= ~(1<<CFGS); NVMCON1 |= 1<<RD; }
+#endif	
+#endif	
 #endif
 	
 zOS_STR	macro	swinum
@@ -598,7 +621,7 @@ brgvall	equ	low brgvalm
 	bsf	TXSTA,BRGH	; BAUDCON |= 1<<BRG16; // 16-bit generator
 	movlw	brgvall		; TXSTA &= ~(1<<SYNC); // async mode
 	movwf	SPBRGL		; TXSTA |= 1<<BRGH;    // high speed
-	movlw	brfvalh		;
+	movlw	brgvalh		;
 	movwf	SPBRGH		; SPBRG = (rat/4) - 1;
 	bcf	BAUDCON,SCKP	; BAUDCON &= ~(1<<SCKP); // "SCKP..if inverted"
 #else	
@@ -619,15 +642,13 @@ brgvall	equ	low brgvalm
 	bsf	TXSTA,TXEN	; TXSTA |= 1<<TXEN; // (5) "Enable..by..TXEN"
 	banksel	PIE1
 	bsf	PIE1,RCIE	; PIE1 |= 1<<RCIE; //(4) "Set..RCIE..and..PEIE"
-#endif
-	bcf	FSR0H,zOS_PRB	; w = zOS_ARG(0, isr & 0x00ff);
-	movlw	low isr		; w = zOS_ARG(1, isr>>8);
-	zOS_ARG	0
-	movlw	high isr	; w = zOS_ARG(2, (1<<TXIF)|(1<<T0IE));
-	zOS_INT
-	zOS_ADR	isr,zOS_UNP	; fsr0 = task & 0x7fff;// MSB 0 => unprivileged
+
 	zOS_ADR	task,zOS_UNP	; fsr0 = task & 0x7fff;// MSB 0 => unprivileged
-	movlw	(1<<TXIF)|(1<<T0IE)
+	movlw	low isr		; w = zOS_ARG(0, isr & 0x00ff);
+	zOS_ARG	0
+	movlw	high isr	; w = zOS_ARG(1, isr>>8);
+	zOS_ARG	1		; w = zOS_ARG(2, (1<<TXIF)|(1<<T0IE));
+	movlw (1<<TXIF)|(1<<T0IE)
 	zOS_ARG	2
 	endm			;}
 
