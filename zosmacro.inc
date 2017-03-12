@@ -324,7 +324,6 @@ zOS_POP	macro	reg
 	;; bsf	INTCON,GIE
 	endm
 	
-;;; FIXME: need to autodetect TBLPTR vs EECON1 vs PMCON1 for the various methods
 #ifdef EEADRL
 zOS_ADL	equ	EEADRL
 zOS_ADH	equ	EEADRH
@@ -349,8 +348,8 @@ zOS_RDF macro
 	nop			; PMCON1 |= 1<<RD;
 	nop			;}
 	endm
-#else	
-#ifdef
+#else
+#ifdef NVMADRL
 zOS_ADL	equ	NVMADRL
 zOS_ADH	equ	NVMADRH
 zOS_RDL	equ	NVMDATL
@@ -358,8 +357,8 @@ zOS_RDH	equ	NVMDATH
 zOS_RDF macro
 	bcf	NVMCON1,NVMREGS	;inline void zOS_RDF(void) { // no nop's needed!
 	bsf	NVMCON1,RD	; NVMCON1 &= ~(1<<CFGS); NVMCON1 |= 1<<RD; }
-#endif	
-#endif	
+#endif
+#endif
 #endif
 	
 zOS_STR	macro	swinum
