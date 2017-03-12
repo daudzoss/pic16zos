@@ -4,8 +4,7 @@
 ;__CONFIG
 
 ;;; uncomment to reduce zOS footprint by 100 words (at cost of zOS_FRK/EXE/FND):
-;
-zOS_MIN	equ	1
+;zOS_MIN	equ	1
 	
 	include zos.inc
 	include zosmacro.inc
@@ -19,7 +18,7 @@ zOS_MIN	equ	1
 
 
 put_str
-	zOS_STR	OUTCHAR,""	;void put_str(const char*){zOS_STR(OUTCHAR,"");}
+	zOS_STR	OUTCHAR		;void put_str(const char*){zOS_STR(OUTCHAR,"");}
 	return			;
 	
 greet
