@@ -51,18 +51,16 @@ fsrn set 0
 	endm
 
 zOS_ADR	macro	adr,msb
-	local top,adj
-top	set high adr
-	if msb
-adj	 set 0x80|top
-	else
-adj	 set 0x7f&top
-	endif
 	if adr
-	 movlw	low adj		;inline void zOS_ADR(void* a) {
+	 movlw	low adr		;inline void zOS_ADR(void* a) {
 	 movwf	FSR0L		; // can be a -zOS_PRV or a |zOS_PRV for clarity
-	 movlw	high adj	; // at time of call
+	 movlw	high adr	; // at time of call
 	 movwf	FSR0H		;
+	 if msb
+	  bsf	FSR0H,7
+	 else
+	  bcf	FSR0H,7
+	 endif
 	else
 	 clrf	FSR0L		; fsr0 = a;
 	 clrf	FSR0H		;}
@@ -324,42 +322,39 @@ zOS_POP	macro	reg
 	;; bsf	INTCON,GIE
 	endm
 	
+zOS_RDF macro
 #ifdef EEADRL
 zOS_ADL	equ	EEADRL
 zOS_ADH	equ	EEADRH
 zOS_RDL	equ	EEDATL
 zOS_RDH	equ	EEDATH
-zOS_RDF macro
 	bcf	EECON1,CFGS	;inline void zOS_RDF(void) {
 	bsf	EECON1,EEPGD	; EECON1 &= ~(1<<CFGS);
 	bsf	EECON1,RD	; EECON1 |= 1<<EEPGD;
 	nop			; EECON1 |= 1<<RD;
 	nop			;}
-	endm
 #else
 #ifdef PMADRL
 zOS_ADL	equ	PMADRL
 zOS_ADH	equ	PMADRH
 zOS_RDL	equ	PMDATL
 zOS_RDH	equ	PMDATH
-zOS_RDF macro
 	bcf	PMCON1,CFGS	;inline void zOS_RDF(void) {
 	bsf	PMCON1,RD	; PMCON1 &= ~(1<<CFGS);
 	nop			; PMCON1 |= 1<<RD;
 	nop			;}
-	endm
 #else
 #ifdef NVMADRL
 zOS_ADL	equ	NVMADRL
 zOS_ADH	equ	NVMADRH
 zOS_RDL	equ	NVMDATL
 zOS_RDH	equ	NVMDATH
-zOS_RDF macro
 	bcf	NVMCON1,NVMREGS	;inline void zOS_RDF(void) { // no nop's needed!
 	bsf	NVMCON1,RD	; NVMCON1 &= ~(1<<CFGS); NVMCON1 |= 1<<RD; }
 #endif
 #endif
 #endif
+	endm
 	
 zOS_STR	macro	swinum
 	local loop,readl,readh,done
