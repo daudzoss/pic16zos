@@ -599,10 +599,10 @@ delay0
 	bcf	TXSTA,TXEN	; TXSTA &= ~(1<<TXEN);
 	local brgval,brgvalm,brgvalh,brgvall
 #ifdef BRG16
-brgval	equ	rat>>2
-brgvalm	equ	brgval-1
-brgvalh	equ	high brgvalm
-brgvall	equ	low brgvalm
+brgval	set	rat>>2
+brgvalm	set	brgval-1
+brgvalh	set	high brgvalm
+brgvall	set	low brgvalm
 	banksel	BAUDCON
 	bsf	BAUDCON,BRG16	; // section 26.1.2.8 of 16F1847 steps below:
 	banksel	TXSTA
@@ -614,10 +614,10 @@ brgvall	equ	low brgvalm
 	movwf	SPBRGH		; SPBRG = (rat/4) - 1;
 	bcf	BAUDCON,SCKP	; BAUDCON &= ~(1<<SCKP); // "SCKP..if inverted"
 #else	
-brgval	equ	rat>>4
-brgvalm	equ	brgval-1
-brgvalh	equ	0
-brgvall	equ	low brgvalm
+brgval	set	rat>>4
+brgvalm	set	brgval-1
+brgvalh	set	0
+brgvall	set	low brgvalm
 	bsf	TXSTA,BRGH	; TXSTA |= 1<<BRGH; // (1) the desired baud rate
 	banksel	SPBRG
 	movlw	brgvall		;
