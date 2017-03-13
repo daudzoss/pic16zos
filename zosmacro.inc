@@ -147,7 +147,8 @@ loop
 	andlw	0x0f		;
 	movwf	STKPTR		;  STKPTR = (STKPTR + 1) % 16;
 	btfss	STATUS,Z	; }
-	bra	loop		; // still in job "0"
+	bra	loop		; STKPTR = -1;
+	decf	STKPTR,f	; // still in job "0"
 	movlb	0		;}
 	endm
 
@@ -489,7 +490,7 @@ isr
 	;; if it's a simple and frequent timer overflow interrupt finish quickly
 #if 0
 	banksel	zOS_T0E
-	btfss	zOS_T0E,T0IE	;
+	btfss	zOS_T0E,T0IE	;////FIXME: why was this commented out?!?
 	bra	nottmr		; // TMR0 should always be enabled, by zOS_RUN()
 #endif
 	banksel	zOS_T0F
@@ -639,6 +640,7 @@ brgvall	set	low brgvalm
 	zOS_ARG	1		; w = zOS_ARG(2, (1<<TXIF)|(1<<T0IE));
 	movlw (1<<TXIF)|(1<<T0IE)
 	zOS_ARG	2
+	movlb	0		; // still in job "0"
 	endm			;}
 
 #if 0

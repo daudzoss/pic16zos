@@ -115,7 +115,7 @@ main
 	movwi	FSR0++		; fsr0 = fsr1; // this spitjob() waits for GO!
 	clrf	INDF0		; *fsr0 = 0; // by watching splash()'s global#0
 	
-	clrf	FSR1H		;
+	zOS_GLO	FSR1,FSR1L	; zOS_GLO(&fsr1, fsr1>>8); // scary but it works
 	clrf	INDF1		; *fsr1 = 0; // ...change from this 0 to nonzero
 	
 	banksel	OPTION_REG
