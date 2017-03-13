@@ -100,9 +100,9 @@ main
 	
 	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler for splash
 	zOS_ADR	splash,zOS_UNP	; zOS_ADR(fsr0 = splash&~zOS_PRV);//unprivileged
-	zOS_LAU	FSR1L		; zOS_LAU(&fsr1); // stash ID in FSR1L until end
-	zOS_GLO	FSR1,FSR1L	; zOS_GLO(&fsr1, fsr1>>8); // scary but it works
+	zOS_LAU	FSR1L		; zOS_LAU(&fsr1);// stash job then addr in FSR1L
 	
+	zOS_GLO	FSR1,FSR1L	; zOS_GLO(&fsr1,fsr1&0xff);// scary but it works
 	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler either
 	zOS_ADR	spitjob,zOS_UNP	; zOS_ADR(fsr0 = spitjob&~zOS_PRV);//unprivilege
 	zOS_LAU	FSR1H		; zOS_LAU(1 + &fsr1); // launch two copies...
@@ -110,13 +110,13 @@ main
 	
 	zOS_GLO	FSR0,WREG	; zOS_GLO(&fsr0, w); // mailboxes for spitjob()
 	movf	FSR1L,w		;
-	movwi	FSR0++		; fsr0 = fsr1; // this spitjob() waits for GO!
-	clrf	INDF0		; *fsr0 = 0; // by watching splash()'s global#0
+	movwi	FSR0++		; // this spitjob() waits for "go" by watching
+	clrf	INDF0		; *fsr0 = fsr1; // splash()'s global#0
 	
 	zOS_GLO	FSR0,FSR1H	; zOS_GLO(&fsr0, *(1 + &fsr1));
 	movf	FSR1L,w		;
-	movwi	FSR0++		; fsr0 = fsr1; // this spitjob() waits for GO!
-	clrf	INDF0		; *fsr0 = 0; // by watching splash()'s global#0
+	movwi	FSR0++		; // this spitjob() waits for "go" by watching
+	clrf	INDF0		; *fsr0 = fsr1; // splash()'s global#0 also
 	
 	clrf	INDF1		; *fsr1 = 0; // ...change from this 0 to nonzero
 	
