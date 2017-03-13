@@ -91,6 +91,8 @@ loop
 	
 OUTCHAR	equ	zOS_SI3
 main	
+	banksel	TRISB
+	bcf	TRISB,RB5
 	zOS_CON	1,20000000/9600,PIR1,PORTB,RB5
 	movlw	OUTCHAR		;void main(void) {
 	zOS_ARG	3		; zOS_CON(/*SSP*/1,20MHz/9600bps,PIR1,PORTB,5);
@@ -99,6 +101,7 @@ main
 	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler for splash
 	zOS_ADR	splash,zOS_UNP	; zOS_ADR(fsr0 = splash&~zOS_PRV);//unprivileged
 	zOS_LAU	FSR1L		; zOS_LAU(&fsr1); // stash ID in FSR1L until end
+	zOS_GLO	FSR1,FSR1L	; zOS_GLO(&fsr1, fsr1>>8); // scary but it works
 	
 	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler either
 	zOS_ADR	spitjob,zOS_UNP	; zOS_ADR(fsr0 = spitjob&~zOS_PRV);//unprivilege
@@ -115,11 +118,13 @@ main
 	movwi	FSR0++		; fsr0 = fsr1; // this spitjob() waits for GO!
 	clrf	INDF0		; *fsr0 = 0; // by watching splash()'s global#0
 	
-	zOS_GLO	FSR1,FSR1L	; zOS_GLO(&fsr1, fsr1>>8); // scary but it works
 	clrf	INDF1		; *fsr1 = 0; // ...change from this 0 to nonzero
 	
+#if 1
 	banksel	OPTION_REG
+;;;TRYME: leave T0CS high to see if interrupts are happening, just overwhelming
 	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
+#endif
 ;;;FIXME: set the prescaler appropriately so that the IRQ frequency isn't crazy
 	zOS_RUN	INTCON,INTCON	; zOS_RUN(/*T0IE in*/INTCON, /*T0IF in*/INTCON);
 	nop			;}
