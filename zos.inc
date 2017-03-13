@@ -353,6 +353,7 @@ zos_cmp
 	movwf	PCLATH		;   *(zOS_ISR[fsr0])();
 	moviw	zOS_ISR[FSR0]	;  } // handler refused, so loop to the next job
 	movwf	PCL		; } // if this line reached, no runnable handler
+ nop; imposs	bra imposs ;<--never gets here, so why does it jump to zos_sch?
 
 	;; scheduler
 zos_sch
