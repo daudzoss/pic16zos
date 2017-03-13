@@ -143,8 +143,8 @@ fsrn set 0
 	movlw	high base	;                    int8_t* temp,
 	movwf	FSR#v(fsrn)H	;                    int16_t* *fsrnum,
 	movf	new,w		;                    int8_t* base) {
-	subwf	old,w		;
-	btfsc	STATUS,Z	; if (new == old) // nothing to do
+	subwf	old,w		; //responsibility of caller to banksel STKPTR
+	btfsc	STATUS,Z	; if (*new == *old) // nothing to do
 	bra	done		;  return;
 	decf	WREG,w		; w = new - old - 1;
 	btfsc	WREG,7		;
