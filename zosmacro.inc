@@ -488,11 +488,6 @@ isr
 	zOS_MY2	FSR0L		; fsr0 = 0x70 | (bsr << 1);
 
 	;; if it's a simple and frequent timer overflow interrupt finish quickly
-#if 0
-	banksel	zOS_T0E
-	btfss	zOS_T0E,T0IE	;////FIXME: why was this commented out?!?
-	bra	nottmr		; // TMR0 should always be enabled, by zOS_RUN()
-#endif
 	banksel	zOS_T0F
 	btfss	zOS_T0F,T0IF	; if ((zOS_T0E & (1<<T0IE)) &&
 	bra	nottmr		;     (zOS_T0F & (1<<T0IF))) { // timer overflow
