@@ -117,11 +117,13 @@ zOS_T0F	equ	t0flags
 	if (zOS_T0E)
 	 banksel zOS_T0E
 	 bsf	zOS_T0E,T0IE	;inline void zOS_RUN(uint8_t* t0enable) {
+	  if (zOS_T0E - INTCON)
+	   bsf	INTCON,PEIE	; if (t0enable) { *t0enable |= 1<<T0IE;
+	 endif
 	endif
-	
 	;; advance the stack pointer to allow 5 stacks of 3 each (+1 if running)
-	banksel	STKPTR		; if (t0enable)
-	movlw	zOS_BOS		;  *t0enable |= 1<<T0IE; // guarantee interrupts
+	banksel	STKPTR		;  if (t0enable !=  INTCON) INTCON |= 1<<PEIE;
+	movlw	zOS_BOS		; }
 	movwf	STKPTR		; STKPTR = zOS_BOS; // every job bottom of stack
 	
 	;; set the active job to the first (and potentially only), interrupts ON
@@ -510,7 +512,7 @@ isr
 
 	;; if it's a simple and frequent timer overflow interrupt finish quickly
 	banksel	zOS_T0F
-	btfss	zOS_T0F,T0IF	; if ((zOS_T0E & (1<<T0IE)) &&
+	btfss	zOS_T0F,T0IF	; if (/*presumed true: (zOS_T0E & (1<<T0IE)) &&*/
 	bra	nottmr		;     (zOS_T0F & (1<<T0IF))) { // timer overflow
 	bcf	zOS_T0F,T0IF	;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
 
