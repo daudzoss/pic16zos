@@ -121,9 +121,13 @@ main
 	clrf	INDF1		; *fsr1 = 0; // ...change from this 0 to nonzero
 	
 #if 1
+;;; normal mode: use tmr0 as OS timer rather than an external transition counter
 	banksel	OPTION_REG
-;;;TRYME: leave T0CS high to see if interrupts are happening, just overwhelming
 	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
+#else
+;;; leave T0CS high to see if interrupts are happening, just overwhelming
+	banksel	ANSELA		;
+	bcf	ANSELA,RA4	; ANSELA 
 #endif
 ;;;FIXME: set the prescaler appropriately so that the IRQ frequency isn't crazy
 	zOS_RUN	INTCON,INTCON	; zOS_RUN(/*T0IE in*/INTCON, /*T0IF in*/INTCON);
