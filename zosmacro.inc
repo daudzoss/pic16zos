@@ -83,6 +83,12 @@ zOS_INT	macro	lhw,lsw
 	endif
 	endm
 
+zOS_SWI	macro	type		;inline void zOS_SWI(const int8_t type) {
+	movlw	type		;
+	movlp	0x00		; zos_swj(type);
+	call	0x02		;}
+	endm
+
 zOS_LAU	macro	stash
 	local retry
 retry
@@ -93,12 +99,6 @@ retry
 	if (stash - WREG)
 	 movwf	stash
 	endif
-	endm
-
-zOS_SWI	macro	type		;inline void zOS_SWI(const int8_t type) {
-	movlw	type		;
-	movlp	0x00		; zos_swj(type);
-	call	0x02		;}
 	endm
 
 zOS_ARG	macro	arg
@@ -267,7 +267,8 @@ zOS_UNW	macro	job		; inline void zOS_UNW(int8_t job) { }
 	zOS_MEM	FSR0,job,zOS_PCH;  fsr0 = 0x10 * (1 + job) + zOS_PCH;
 	bcf	INDF0,zOS_WAI	;  *fsr0 &= ~(1 << zOS_WAI); // now runnable
 	endm			; }
-	
+
+#if 1
 zOS_OUT	macro	swinum,string	; // 8 words per byte (+1) to avoid using stack
 	local start,out
 	if (out-start) > 255
@@ -289,6 +290,26 @@ i = 0
 i += 1
 	endw			;
 	endm			;}
+#else
+zOS_OUT	macro	swinum,revstr,temp; // 1 word per byte (+) to use stack+file
+	local	pre,post,callnxt,offset,loop
+offset	set	callnxt
+	movlw	post-pre	;inline void zOS_OUT(int8_t swinum, const char*
+	movwf	temp		;                    revstr, int8_t* temp) {
+loop
+	decfsz	temp,f		; static const s[] = revstr;
+	bra	post		;
+	movf	temp,w		; for (*temp = strlen(revstr); *temp; (*temp)--){
+	addlw	offset		;  zOS_ARG(0, s[*temp]);
+callnxt
+	callw			;  zOS_SWI(swinum);
+	zOS_ARG	0
+	zOS_SWI	swinum
+	bra	loop		; } // zOS_ARG 0 is 2, zOS_SWI 3 words, bra 1
+pre
+	dt	revstr	;}
+post
+#endif
 
 zOS_PSH	macro	reg
 	movf	zOS_ME		;inline void zOS_PSH(uint8_t* reg) {
@@ -524,6 +545,7 @@ nottmr
 	btfsc	rts,rtsflag	;    zOS_RET(); // not the HWI we expected, ass
 	bra	done		;  } else {
 	zOS_RET
+
 	;; check to make sure there are at least 2 characters free in the buffer
 do_swi
 	moviw	1[FSR1]		;   char* p1plus2 = 2 + (1[fsr1] /*p1*/ & 0x7f);
