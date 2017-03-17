@@ -418,7 +418,7 @@ done
 zOS_CON	macro	p,rat,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t rat,int8_t
 	local	task,loop,decl,isr
 	bra	decl		;                    rts,int8_t* hb,int8_t pin){
-task
+	
 	;; initialize constants and variables
 	local	t0div,t0rst,p0,p1,wrap,buf,max
 t0div	set	0
@@ -438,7 +438,7 @@ sspstat	set	SSP#v(p)STAT & 0x1f
 sspxmit	 set	TXIF
 rtsflag	 set	TXIF
 	endif
-
+task
 	movlw	high sspbase
 	movwf	FSR0H		; goto decl;
 	zOS_MY2	FSR0		;task:
@@ -453,7 +453,18 @@ rtsflag	 set	TXIF
 	iorlw	buf		; const char* wrap = ((bsr&1)<<7) | buf;
 	movwf	wrap		;
 	movwf	p0		; fsr0 = sspbase;
+ addlw 5
 	movwf	p1		; p0 = p1 = wrap; // reset value if they max out
+ movlw 'z'
+ movwf sspbase	
+ movlw 'O'
+ movwf sspbase+1
+ movlw 'S'
+ movwf sspbase+2
+ movlw 0x0d
+ movwf sspbase+3
+ movlw 0x0a
+ movwf sspbase+4
 	
 loop
 	zOS_SWI	zOS_SLP
@@ -600,7 +611,6 @@ done
 	
 	;; intialize the UART peripheral, job handle and first three arguments
 decl
-;;; FIXME: need to set up the hardware port at the requested bps rate here first
 	banksel	RCSTA
 #if 0
 	;; wait out inevitable garbage TX (not sure why this delay is necessary)
