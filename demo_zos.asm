@@ -1,7 +1,7 @@
 	processor 16f1847
 	include p16f1847.inc
 	
-;__CONFIG
+	__CONFIG _CONFIG1,_FOSC_HS & _WDTE_OFF & _PWRTE_OFF & _MCLRE_ON & _CP_OFF & _CPD_OFF & _BOREN_ON & _CLKOUTEN_OFF & _IESO_ON & _FCMEN_ON
 
 ;;; uncomment to reduce zOS footprint by 100 words (at cost of zOS_FRK/EXE/FND):
 ;zOS_MIN	equ	1
@@ -16,7 +16,25 @@
 	pagesel	main
 	goto	main
 
+;//futzing on
+main	
+	banksel	TRISB
+	bcf	TRISB,RB5
+zOS_T0E equ INTCON
+zOS_T0F equ INTCON
+	zOS_CON	1,20000000/9600,PIR1,PORTB,RB5
+	movlw	0x80
+	zOS_ARG	3
+	zOS_SWI zOS_NEW	; w = zOS_SWI(zOS_NEW);// start a task
+	movf	0x75,w		;
+	movwf	PCLATH		;
+	movf	0x74,w		;
+	movwf	PCL		; goto task;
 
+	zOS_RUN INTCON,INTCON
+ end
+;//futzing off	
+	
 put_str
 	zOS_STR	OUTCHAR		;void put_str(const char*){zOS_STR(OUTCHAR,"");}
 	return			;
