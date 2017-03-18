@@ -280,17 +280,17 @@ start
 	endif
 out
 	variable i,sum,prev,curr
-prev = 0xff
+;prev = 0xff
 i = 0
 	while i < (out-start)	; for (int i=0; str[i]||(nulterm&&!str[i]); i++)
-sum = i+start
-curr = high sum
-	if curr-prev	
+;sum = i+start
+;curr = high sum
+;	if curr-prev	
 	 pagesel sum
-	endif
+;	endif
 	call	sum		;  file[i] = str[i];
 	movwf	file+i		; return i;
-prev = curr
+;prev = curr
 i += 1
 	endw
 	movlw	i+nulterm	;}
