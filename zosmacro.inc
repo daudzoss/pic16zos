@@ -270,6 +270,31 @@ zOS_UNW	macro	job		; inline void zOS_UNW(int8_t job) { }
 	bcf	INDF0,zOS_WAI	;  *fsr0 &= ~(1 << zOS_WAI); // now runnable
 	endm			; }
 
+zOS_ASC	macro	file,str,nulterm;inline uint8_t zOS_ASC(char*file, const char*
+	local	start,out
+	bra	out		;                       str, int nulterm) {
+start
+	dt	str
+	if nulterm
+	 dt	0
+	endif
+out
+	variable i,sum,prev,curr
+prev = 0xff
+i = 0
+	while i < (out-start)	; for (int i=0; str[i]||(nulterm&&!str[i]); i++)
+sum = i+start
+curr = high sum
+	if curr-prev	
+	 pagesel sum
+	endif
+	call	sum		;  file[i] = str[i];
+	movwf	file+i		; return i;
+prev = curr
+i += 1
+	endw
+	movlw	i+nulterm	;}
+	endm
 #if 1
 zOS_OUT	macro	swinum,string	; // 8 words per byte (+1) to avoid using stack
 	local start,out
@@ -282,13 +307,19 @@ zOS_OUT	macro	swinum,string	; // 8 words per byte (+1) to avoid using stack
 start
 	dt	string
 out		
-	variable i
+	variable i,sum,prev,curr
+prev = 0xff
 i = 0
 	while i < (out-start)	; for (int i = 0; i < strlen(string); i++) {
-	pagesel	i+start
-	call	i+start		;  zOS_ARG(0, *(string[i])());
+sum = i+start
+curr = high sum
+	if curr-prev
+	 pagesel sum
+	endif
+	call	sum		;  zOS_ARG(0, *(string[i])());
 	zOS_ARG	0		;  zOS_SWI(swinum);
 	zOS_SWI	swinum		; }
+prev = curr	
 i += 1
 	endw			;
 	endm			;}
@@ -430,29 +461,31 @@ t0scale	set	0x23
 buf	set	0x24
 max	set	0x70
 	
-	local	sspbase,sspcon,sspstat,rtsflag
-sspbase	set	SSP#v(p)CON1 & 0xff80
-sspcon	set	SSP#v(p)CON1 & 0x1f
-sspstat	set	SSP#v(p)STAT & 0x1f
+	local	uatbase,uatxmit,rtsflag
 	if (p == 1)
-sspxmit	 set	TXIF
+uatbase	 set	TXREG & 0xff80
+uatxmit	 set	TXREG
 rtsflag	 set	TXIF
+	else
+uatbase	 set	TX#v(p)REG & 0xff80
+uatxmit	 set	TX#v(p)REG
+rtsflag	 set	TX#v(p)IF
 	endif
 task
-	movlw	high sspbase
+	movlw	high uatbase
 	movwf	FSR0H		; goto decl;
 	zOS_MY2	FSR0		;task:
 	movlw	0xff		; fsr0 = 0x70 + (bsr<<1);//global always visible
 	movwi	t0div[FSR0]	; 0[fsr0] = 0xff;// live TMR0 postscaler divider
 	movwi	t0rst[FSR0]	; 1[fsr0] = 0xff; // live reset value for TMR0
-	movlw	low sspbase	; const int8_t* sspbase = sspcon& 0xff80;
-	movwf	FSR0L		; const int8_t* sspcon = (p==1)?SSP1CON:SSP2CON;
-	rrf	zOS_ME		; const int8_t*sspstat=(p==1)?SSP1STAT:SSP2STAT;
+	movlw	low uatbase	; const int8_t* uatbase = uatxmit & 0xff80;
+	movwf	FSR0L		; fsr0 = uatbase;
+	rrf	zOS_ME		;
 	clrw			; const char* max = 0x70;
 	rrf	WREG,w		; static char *p0, *p1, buf[]; //p0:task, p1:ISR
 	iorlw	buf		; const char* wrap = ((bsr&1)<<7) | buf;
 	movwf	wrap		;
-	movwf	p0		; fsr0 = sspbase;
+	movwf	p0		;
 	movwf	p1		; p0 = p1 = wrap; // reset value if they max out
  movlw 'z'
  movwf buf
@@ -470,7 +503,7 @@ task
 	
 loop
 ; // don't be a nice guy while we're single-stepping instructions:
-;	zOS_SWI	zOS_SLP
+ clrwdt;zOS_SWI	zOS_SLP
 	movlw	high rts	; do {
 	movwf	FSR1H		;  zOS_SWI(zOS_SLP);
 	movlw	low rts		;  // wait for SWI to store char(s) in buf[]
@@ -485,7 +518,7 @@ loop
 	btfsc	STATUS,Z	;  if (p0 == p1)
 	bra	loop		;   continue; // nothing to do, somehow (!)
 	moviw	FSR1++		;  // ...WE HAVE SOMETHING IN THE BUFFER TO SEND
-	movwi	sspxmit[FSR0]	;  sspxmit[fsr0] = *fsr1++; // send a character
+	movwi	uatxmit[FSR0]	;  uatxmit[fsr0] = *fsr1++; // send a character
 	movf	FSR1L,w		;
 	movwf	p0		;  p0 = fsr1 & 0x00ff; // wrap around to buf+0
 	andlw	0x7f		;
@@ -500,7 +533,7 @@ loop
 	;;  in which case the ISR stores it, advances p1 and clears zOS_WAI bit
 	;;  and thus afer clearing zOS_WAI the job just re-sleeps if rtsflag==0
 	;; 
-	;; HWI will be coming from the SSP peripheral indicating ready-to-send
+	;; HWI will be coming from the UAT peripheral indicating ready-to-send
 	;;  in which case ISR clears the job's zOS_WAI bit to get scheduled
 	;; (or HWI will come from a tmr0 expiration for the blinking heartbeat)
 	;; 
@@ -515,7 +548,7 @@ isr
 	;; make sure the task is sleeping (else the above initialization unrun!)
 	btfss	WREG,zOS_WAI	; fsr1 = 0x10 * (1+zos_job);
 	bra	err		; if (zOS_PCH[fsr1] & (1<<zOS_WAI) == 0)
-	movlw	high sspcon	;  goto done;
+	movlw	high uatcon	;  goto done;
 	movwf	FSR0H;[sic]	;
 #if 0
 	movf	zOS_ME		; // need to be sure in correct bank for zOS_JOB
@@ -545,13 +578,13 @@ isr
 	xorwf	hb,f		;   hb ^= 1 << pin;
 	bra	done		; } else {
 	
-	;; get fsr0 pointing to sspbase again, point fsr1 to p0
+	;; get fsr0 pointing to uatbase again, point fsr1 to p0
 nottmr
 	zOS_LOC	FSR1,zOS_JOB,p0
-	movlw	low sspbase	;  fsr1 = (zOS_JOB << 7); // not bsr?!?
+	movlw	low uatbase	;  fsr1 = (zOS_JOB << 7); // not bsr?!?
 	movwf	FSR0L		;
-	movlw	high sspbase	;
-	movwf	FSR0H		;  fsr0 = sspbase;
+	movlw	high uatbase	;
+	movwf	FSR0H		;  fsr0 = uatbase;
 	
 	;; check for validated SWI first since it will be in zOS_MSK, else a HWI
 	movf	zOS_MSK,w	;
