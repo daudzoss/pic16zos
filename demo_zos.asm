@@ -24,11 +24,16 @@ zOS_T0E equ INTCON
 zOS_T0F equ INTCON
 	zOS_CON	1,20000000/9600,PIR1,PORTB,RB5
 	movlw	0x80
+	movf	FSR0L,w
+	movwf	0x7a
+	movf	FSR0H,w
+	movwf	0x7b
 	zOS_ARG	3
 	zOS_SWI zOS_NEW	; w = zOS_SWI(zOS_NEW);// start a task
-	movf	0x75,w		;
+	movlb	1
+	movf	0x7b,w
 	movwf	PCLATH		;
-	movf	0x74,w		;
+	movf	0x7a,w
 	movwf	PCL		; goto task;
 
 	zOS_RUN INTCON,INTCON
