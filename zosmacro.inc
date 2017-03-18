@@ -449,25 +449,28 @@ task
 	movwf	FSR0L		; const int8_t* sspcon = (p==1)?SSP1CON:SSP2CON;
 	rrf	zOS_ME		; const int8_t*sspstat=(p==1)?SSP1STAT:SSP2STAT;
 	clrw			; const char* max = 0x70;
-	rrf	WREG,w		; static char *p0, *p1, buf[]; //po:task, p1:ISR
+	rrf	WREG,w		; static char *p0, *p1, buf[]; //p0:task, p1:ISR
 	iorlw	buf		; const char* wrap = ((bsr&1)<<7) | buf;
 	movwf	wrap		;
 	movwf	p0		; fsr0 = sspbase;
- addlw 5
 	movwf	p1		; p0 = p1 = wrap; // reset value if they max out
  movlw 'z'
- movwf sspbase	
+ movwf buf
  movlw 'O'
- movwf sspbase+1
+ movwf buf+1
  movlw 'S'
- movwf sspbase+2
+ movwf buf+2
  movlw 0x0d
- movwf sspbase+3
+ movwf buf+3
  movlw 0x0a
- movwf sspbase+4
+ movwf buf+4
+ movlw 5
+;	zOS_ASC	buf,"(c)2017\r\nzOS> "
+	addwf	p1,f		;
 	
 loop
-	zOS_SWI	zOS_SLP
+; // don't be a nice guy while we're single-stepping instructions:
+;	zOS_SWI	zOS_SLP
 	movlw	high rts	; do {
 	movwf	FSR1H		;  zOS_SWI(zOS_SLP);
 	movlw	low rts		;  // wait for SWI to store char(s) in buf[]
