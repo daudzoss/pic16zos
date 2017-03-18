@@ -464,7 +464,7 @@ max	set	0x70
 	local	uatbase,uatxmit,rtsflag
 	if (p == 1)
 uatbase	 set	TXREG & 0xff80
-uatxmit	 set	TXREG
+uatxmit	 set	TXREG & 0x007f
 rtsflag	 set	TXIF
 	else
 uatbase	 set	TX#v(p)REG & 0xff80
@@ -487,18 +487,7 @@ task
 	movwf	wrap		;
 	movwf	p0		;
 	movwf	p1		; p0 = p1 = wrap; // reset value if they max out
- movlw 'z'
- movwf buf
- movlw 'O'
- movwf buf+1
- movlw 'S'
- movwf buf+2
- movlw 0x0d
- movwf buf+3
- movlw 0x0a
- movwf buf+4
- movlw 5
-;	zOS_ASC	buf,"(c)2017\r\nzOS> "
+	zOS_ASC	buf,"\r\nzOS>",1
 	addwf	p1,f		;
 	
 loop
@@ -548,7 +537,7 @@ isr
 	;; make sure the task is sleeping (else the above initialization unrun!)
 	btfss	WREG,zOS_WAI	; fsr1 = 0x10 * (1+zos_job);
 	bra	err		; if (zOS_PCH[fsr1] & (1<<zOS_WAI) == 0)
-	movlw	high uatcon	;  goto done;
+	movlw	high uatxmit	;  goto done;
 	movwf	FSR0H;[sic]	;
 #if 0
 	movf	zOS_ME		; // need to be sure in correct bank for zOS_JOB
