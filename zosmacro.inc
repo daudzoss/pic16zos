@@ -636,7 +636,6 @@ done
 	
 	;; intialize the UART peripheral, job handle and first three arguments
 decl
-	banksel	RCSTA
 #if 0
 	;; wait out inevitable garbage TX (not sure why this delay is necessary)
 	clrf	0x20
@@ -648,6 +647,7 @@ delay0
 	bra	delay0
 #endif
 #if 0
+	banksel	RCSTA
 	bcf	RCSTA,SPEN	;decl:
 	bcf	RCSTA,CREN	; RCSTA &= ~((1<<SPEN)|(1<<CREN));
 #endif
