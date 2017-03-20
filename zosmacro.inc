@@ -641,15 +641,16 @@ decl
 	;; wait out inevitable garbage TX (not sure why this delay is necessary)
 	clrf	0x20
 	clrf	0x21
-	pagesel	delay0
 delay0
 	incfsz	0x21,f
-	goto	delay0
+	bra	delay0
 	incfsz	0x20,f
-	goto	delay0
+	bra	delay0
 #endif
+#if 0
 	bcf	RCSTA,SPEN	;decl:
 	bcf	RCSTA,CREN	; RCSTA &= ~((1<<SPEN)|(1<<CREN));
+#endif
 	banksel	TXSTA
 	bcf	TXSTA,TXEN	; TXSTA &= ~(1<<TXEN);
 	local brgval,brgvalm,brgvalh,brgvall
@@ -678,15 +679,18 @@ brgvall	set	low brgvalm
 	movlw	brgvall		;
 	movwf	SPBRG		; SPBRG = (rat/16) - 1;
 #endif
+#if 0
 	banksel	RCSTA
 	bsf	RCSTA,SPEN	; // (3) "Enable..by setting..SPEN"
 	bcf	RCSTA,RX9	; RCSTA &= ~(1<<RX9);  // (5) "9-bit..set..RX9"
 	bsf	RCSTA,CREN	; RCSTA |= (1<<SPEN) | (1<<CREN); // (6) "CREN" 
+#endif
 	banksel	TXSTA
 	bsf	TXSTA,TXEN	; TXSTA |= 1<<TXEN; // (5) "Enable..by..TXEN"
+#if 0
 	banksel	PIE1
 	bsf	PIE1,RCIE	; PIE1 |= 1<<RCIE; //(4) "Set..RCIE..and..PEIE"
-
+#endif
 	zOS_ADR	task,zOS_UNP	; fsr0 = task & 0x7fff;// MSB 0 => unprivileged
 	movlw	low isr		; w = zOS_ARG(0, isr & 0x00ff);
 	zOS_ARG	0

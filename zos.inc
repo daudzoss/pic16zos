@@ -286,14 +286,15 @@ zos_004
 	movwf	zOS_JOB		; zOS_JOB = zOS_NUM+1;// search from high to low
 	zOS_MEM	FSR0,zOS_JOB,0	; fsr0 = 0x10 * (1 + zOS_JOB);
 zos_nhw
-	zOS_LIV	FSR0,zOS_JOB,0,zos_sch
-	banksel	PIE1
+	zOS_LIV	FSR0,zOS_JOB,0,zos_don
+	banksel	zOS_PIE
 	moviw	zOS_HIM[FSR0]	; int8_t w = 0; 
 	andwf	zOS_PIE,w	; while (zOS_LIV(&fsr0, &zOS_JOB, 0)) {
 	btfss	STATUS,Z	;  if ((w = zOS_HIM[fsr0] & zOS_PIE))
 	bra	zos_cmp		;   break;
 #ifdef PIE1
 	moviw	zOS_HIM[FSR0]	;
+	banksel	PIE1
 	andwf	PIE1,w		;
 	btfss	STATUS,Z	;  if ((w = zOS_HIM[fsr0] & zOS_PIE1))
 	bra	zos_cmp		;   break;
@@ -353,7 +354,6 @@ zos_cmp
 	movwf	PCLATH		;   *(zOS_ISR[fsr0])();
 	moviw	zOS_ISR[FSR0]	;  } // handler refused, so loop to the next job
 	movwf	PCL		; } // if this line reached, no runnable handler
- nop; imposs	bra imposs ;<--never gets here, so why does it jump to zos_sch?
 
 	;; scheduler
 zos_sch

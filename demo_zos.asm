@@ -16,30 +16,6 @@
 	pagesel	main
 	goto	main
 
-;//futzing on
-main	
-	banksel	TRISB
-	bcf	TRISB,RB5
-zOS_T0E equ INTCON
-zOS_T0F equ INTCON
-	zOS_CON	1,20000000/9600,PIR1,PORTB,RB5
-	movlw	0x80
-	movf	FSR0L,w
-	movwf	0x7a
-	movf	FSR0H,w
-	movwf	0x7b
-	zOS_ARG	3
-	zOS_SWI zOS_NEW	; w = zOS_SWI(zOS_NEW);// start a task
-	movlb	1
-	movf	0x7b,w
-	movwf	PCLATH		;
-	movf	0x7a,w
-	movwf	PCL		; goto task;
-
-	zOS_RUN INTCON,INTCON
- end
-;//futzing off	
-	
 put_str
 	zOS_STR	OUTCHAR		;void put_str(const char*){zOS_STR(OUTCHAR,"");}
 	return			;
@@ -98,12 +74,12 @@ print
 	pagesel	put_str	
 	call	put_str		;  put_str(fsr0);
 #if 1
-i	equ	0x20
-j	equ	0x21
+spit_i	equ	0x20
+spit_j	equ	0x21
 loop
-	incfsz	j,f		;  for (int i = 0; i & 0xff; i++)
+	incfsz	spit_j,f	;  for (int i = 0; i & 0xff; i++)
 	bra	loop		;   for (int j = 0; j & 0xff; j++)
-	incfsz	i,f		;    ;
+	incfsz	spit_i,f	;    ;
 	bra	loop		; } while (1);
 #endif
 	bra	awaitgo		;}
@@ -113,14 +89,18 @@ loop
 ;;; hardwired into zosmacro.inc library and any available line may be chosen:
 	
 OUTCHAR	equ	zOS_SI3
-main	
+main
+#ifdef ANSELB
+	banksel	ANSELB
+	bcf	ANSELB,RB5
+#endif
 	banksel	TRISB
 	bcf	TRISB,RB5
 	zOS_CON	1,20000000/9600,PIR1,PORTB,RB5
 	movlw	OUTCHAR		;void main(void) {
 	zOS_ARG	3		; zOS_CON(/*SSP*/1,20MHz/9600bps,PIR1,PORTB,5);
 	zOS_LAU	WREG		; zOS_ARG(3, OUTCHAR);//handles without knowing!
-	
+#if 0	
 	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler for splash
 	zOS_ADR	splash,zOS_UNP	; zOS_ADR(fsr0 = splash&~zOS_PRV);//unprivileged
 	zOS_LAU	FSR1L		; zOS_LAU(&fsr1);// stash job then addr in FSR1L
@@ -142,7 +122,7 @@ main
 	clrf	INDF0		; *fsr0 = fsr1; // splash()'s global#0 also
 	
 	clrf	INDF1		; *fsr1 = 0; // ...change from this 0 to nonzero
-	
+#endif	
 #if 1
 ;;; normal mode: use tmr0 as OS timer rather than an external transition counter
 	banksel	OPTION_REG
