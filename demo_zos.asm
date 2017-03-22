@@ -127,12 +127,12 @@ main
 ;;; normal mode: use tmr0 as OS timer rather than an external transition counter
 	banksel	OPTION_REG
 	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
+	bcf	OPTION_REG,PSA	; OPTION_REG &= ~(1<<TMR0CS);// use max prescale
 #else
 ;;; leave T0CS high to see if interrupts are happening, just overwhelming
 	banksel	ANSELA		;
 	bcf	ANSELA,RA4	; ANSELA 
 #endif
-;;;FIXME: set the prescaler appropriately so that the IRQ frequency isn't crazy
 	zOS_RUN	INTCON,INTCON	; zOS_RUN(/*T0IE in*/INTCON, /*T0IF in*/INTCON);
 	nop			;}
 	

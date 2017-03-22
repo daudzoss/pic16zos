@@ -484,7 +484,8 @@ task
 	zOS_MY2	FSR0		;task:
 	movlw	0xff		; fsr0 = 0x70 + (bsr<<1);//global always visible
 	movwi	t0div[FSR0]	; 0[fsr0] = 0xff;// live TMR0 postscaler divider
-	movwi	t0rst[FSR0]	; 1[fsr0] = 0xff; // live reset value for TMR0
+	movlw	0x00		;
+	movwi	t0rst[FSR0]	; 1[fsr0] = 0x00; // live reset value for TMR0
 	movlw	low uatbase	; const int8_t* uatbase = uatxmit & 0xff80;
 	movwf	FSR0L		; fsr0 = uatbase;
 	rrf	zOS_ME		;
@@ -555,16 +556,17 @@ isr
 
 	;; if it's a simple and frequent timer overflow interrupt finish quickly
 	banksel	zOS_T0F
-	btfss	zOS_T0F,T0IF	; if (/*presumed true: (zOS_T0E & (1<<T0IE)) &&*/
+	btfss	zOS_T0F,T0IF	; if (/*presumed true:(zOS_T0E & (1<<T0IE)) &&*/
 	bra	nottmr		;     (zOS_T0F & (1<<T0IF))) { // timer overflow
 	bcf	zOS_T0F,T0IF	;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
 
-	;; with fsr0 pointing to global pair, point fsr1 to local mem ("t0scale")
+	;; with fsr0 pointing to global pair, point fsr1 to local mem("t0scale")
 	zOS_LOC	FSR1,zOS_JOB,t0scale
 	banksel	TMR0
-	moviw	t0rst[FSR0]	;  fsr1 = (zOS_JOB << 7) | t0scale; // not bsr?!?
-	movwf	TMR0		;  bsr = TMR0 >> 7; //now invalid for this branch
-	decfsz	INDF1,f		;  TMR0 = t0rst[fsr0]; // reset TMR0
+	moviw	t0rst[FSR0]	;  fsr1 = (zOS_JOB << 7) | t0scale;// not bsr?!?
+	btfss	STATUS,Z	;  bsr = TMR0 >> 7;//now invalid for this branch
+	movwf	TMR0		;  if (t0rst[fsr0])
+	decfsz	INDF1,f		;   TMR0 = t0rst[fsr0]; // TMR0 reset specified
 	bra	done		;  if (--*fsr1 == 0) {
 
 	banksel	hb
