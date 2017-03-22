@@ -178,53 +178,60 @@ out3	set	0x1f & PID1OUTHH
 setup	set	(1<<PID1MODE1)
 enb	set	PID1EN	
 bsy	set	PID1BUSY
-	local spinget,spinmul
-	bcf	INTCON,GIE	;void zOS_MUL(int16_t** fsr) {
-	movlw	low PID1CON	; INTCON &= ~(1<<GIE);
-	movwf	FSR#v(fn)L	; // begin critical section accessing PID/zOS_AR
+	
+	movlw	low PID1CON	;void zOS_MUL(int16_t** fsr) {
+	movwf	FSR#v(fn)L	; *fsr = &PID1CON;
 	movlw	high PID1CON	;
-	movwf	FSR#v(fn)H	; *fsr = &PID1CON;
+	movwf	FSR#v(fn)H	; do {
+spinget
+	btfss	INDF#v(fn),enb	;  while ((**fsr&(1<<enb))&& // MATHACC for sure
+	bra	notbusy		;         (**fsr&(1<<bsy)))  // ours if not busy
+	btfss	INDF#v(fn),bsy	;                            // or never enabled
+	bra	notbusy		;
+	zOS_SWI	zOS_YLD		;   zOS_SWI(zOS_YLD);
+	bra	spinget		;   // interrupts now enabled if zOS_SWI called
+notbusy
+	bcf	INTCON,GIE	;  INTCON &= ~(1<<GIE);
+	btfsc	INDF#v(fn),enb	;  // begin critical section (seizing MATHACC)
+	bra	spinget		;
+	bsf	INDF#v(fn),bsy	;
+	bra	spinget		; } while ((**fsr&(1<<enb))||(**fsr&(1<<bsy)));
 	movlw	setup		;
 	movwf	indf#v(fn)	; **fsr = 1<<PIDMODE1; // unsigned mult no accum
-	bsf	indf#v(fn),enb	; **fsr |= 1<<PID1EN;
-spinget
-	btfsc	INDF#v(fn),bsy	; do {
-	bra	spinget		;  do {} while (**fsr & 1<<PID1BUSY);
-	movf	zOS_ME		;
-	movwi	-1[FSR#v(fn)]	;  -1[*fsr] = bsr;// stamping PID1ACCU claims it
+	bsf	indf#v(fn),enb	; **fsr |= 1<<PID1EN; // selected, then enabled
 	movlw	low inout	;
 	movwf	FSR#v(fn)L	;
 	movlw	high inout	;
-	movwf	FSR#v(fn)H	;  *fsr = &PID1SETL & 0x1f80; // just bank bits
+	movwf	FSR#v(fn)H	; *fsr = &PID1SETL & 0x1f80; // just bank bits
 	movf	zOS_AR3,w	;
-	movwi	fac0H[FSR#v(fn)];  (0x1f & PID1K1H)[*fsr] = zOS_AR3;
+	movwi	fac0H[FSR#v(fn)]; (0x1f & PID1K1H)[*fsr] = zOS_AR3;
 	movf	zOS_AR2,w	;
-	movwi	fac0L[FSR#v(fn)];  (0x1f & PID1K1L)[*fsr] = zOS_AR2;
+	movwi	fac0L[FSR#v(fn)]; (0x1f & PID1K1L)[*fsr] = zOS_AR2;
 	movf	zOS_AR1,w	;
-	movwi	fac1H[FSR#v(fn)];  (0x1f & PID1SETH)[*fsr] = zOS_AR1;
+	movwi	fac1H[FSR#v(fn)]; (0x1f & PID1SETH)[*fsr] = zOS_AR1;
 	movf	zOS_AR0,w	;
-	movwi	fac1L[FSR#v(fn)];  (0x1f & PID1SETL)[*fsr] = zOS_AR0;
-	clrw			;  (0x1f & PID1INH)[*fsr] = 0;
-	movwi	zeroH[FSR#v(fn)];  (0x1f & PID1INL)[*fsr] = 0; // start multiply
-	movwi	start[FSR#v(fn)];  // end critical section accessing PID/zOS_ARx
-	bsf	INTCON,GIE	;  INTCON |= 1<<GIE;
+	movwi	fac1L[FSR#v(fn)]; (0x1f & PID1SETL)[*fsr] = zOS_AR0;
+	clrw			; (0x1f & PID1INH)[*fsr] = 0;
+	movwi	zeroH[FSR#v(fn)]; (0x1f & PID1INL)[*fsr] = 0; // start multiply
+	movwi	start[FSR#v(fn)]; // end critical section (seizing MATHACC)
+	bsf	INTCON,GIE	; INTCON |= 1<<GIE;
 	movlw	low PID1CON	;
 	movwf	FSR#v(fn)L	;
-	movlw	high PID1CON	;
-	movwf	FSR#v(fn)H	;  *fsr = &PID1CON;
+	movlw	high PID1CON	; *fsr = &PID1CON;
+	movwf	FSR#v(fn)H	; do {
 spinmul
+#if 0
+	clrwdt			;  clrwdt();
+#endif
 	zOS_SWI	zOS_YLD
-	btfss	INDF#v(fn),bsy	;  do {
-	bra	spinmul		;   zOS_YLD();
-	bcf	INTCON,GIE	;  } while (**fsr & 1<<PID1BUSY);
-	moviw	-1[FSR#v(fn)]	;  INTCON &= ~(1<<GIE);
-	xorwf	zOS_ME		;  // begin critical section accessing PID/zOS_A
-	btfss	STATUS,Z	;
-	bra	spinget		; } while (-1[*fsr] != bsr);
-	movlw	low inout	;
+	btfss	INDF#v(fn),bsy	;  zOS_YLD();
+	bra	spinmul		; } while (**fsr & 1<<PID1BUSY);
+	bcf	INTCON,GIE	; INTCON &= ~(1<<GIE);
+	bcf	INDF#v(fn),enb	; // begin critical section (copying result)
+	movlw	low inout	; **fsr &= ~(1<<bsy); // disable MathACC to free
 	movwf	FSR#v(fn)L	;
 	movlw	high inout	;
-	movwf	FSR#v(fn)H	;  *fsr = &PID1SETL & 0x1f80; // just bank bits
+	movwf	FSR#v(fn)H	; *fsr = &PID1SETL & 0x1f80; // just bank bits
 	moviw	out3[FSR#v(fn)]	; zOS_AR3 = (0x1f & PID1OUTHH)[*fsr];
 	movwf	zOS_AR3		;
 	moviw	out2[FSR#v(fn)]	; zOS_AR2 = (0x1f & PID1OUTHL)[*fsr];
@@ -232,7 +239,7 @@ spinmul
 	moviw	out1[FSR#v(fn)]	; zOS_AR1 = (0x1f & PID1OUTLH)[*fsr];
 	movwf	zOS_AR1		;
 	moviw	out0[FSR#v(fn)]	; zOS_AR0 = (0x1f & PID1OUTLL)[*fsr];
-	movwf	zOS_AR0		; INTCON |= 1<<GIE;
+	movwf	zOS_AR0		; INTCON |= 1<<GIE; // end critical section
 	bsf	INTCON,GIE	;}
 	endm
 #endif
