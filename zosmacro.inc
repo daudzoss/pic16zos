@@ -479,8 +479,8 @@ uatxmit	 set	TX#v(p)REG
 rtsflag	 set	TX#v(p)IF
 	endif
 task
-	movlw	high uatbase
-	movwf	FSR0H		; goto decl;
+	movlw	high uatbase	; goto decl;
+	movwf	FSR0H		;
 	zOS_MY2	FSR0		;task:
 	movlw	0xff		; fsr0 = 0x70 + (bsr<<1);//global always visible
 	movwi	t0div[FSR0]	; 0[fsr0] = 0xff;// live TMR0 postscaler divider
@@ -491,16 +491,15 @@ task
 	rrf	zOS_ME		;
 	clrw			; const char* max = 0x70;
 	rrf	WREG,w		; static char *p0, *p1, buf[]; //p0:task, p1:ISR
-	iorlw	buf		; const char* wrap = ((bsr&1)<<7) | buf;
-	movwf	wrap		;
+	iorlw	buf		;
+	movwf	wrap		; const char* wrap = ((bsr&1)<<7) | buf;
 	movwf	p0		;
 	movwf	p1		; p0 = p1 = wrap; // reset value if they max out
 	zOS_ASC	buf,"\r\nzOS>",1
 	addwf	p1,f		;
 	
 loop
-; // don't be a nice guy while we're single-stepping instructions:
- clrwdt;zOS_SWI	zOS_SLP
+	zOS_SWI	zOS_SLP
 	movlw	high rts	; do {
 	movwf	FSR1H		;  zOS_SWI(zOS_SLP);
 	movlw	low rts		;  // wait for SWI to store char(s) in buf[]
@@ -530,7 +529,7 @@ loop
 	;;  in which case the ISR stores it, advances p1 and clears zOS_WAI bit
 	;;  and thus afer clearing zOS_WAI the job just re-sleeps if rtsflag==0
 	;; 
-	;; HWI will be coming from the UAT peripheral indicating ready-to-send
+	;; HWI will be coming from the UART peripheral indicating ready-to-send
 	;;  in which case ISR clears the job's zOS_WAI bit to get scheduled
 	;; (or HWI will come from a tmr0 expiration for the blinking heartbeat)
 	;; 
@@ -640,8 +639,9 @@ ascii
 err
 	clrw			;  }
 done
-	zOS_UNW	zOS_JOB		; goto done; err: w = 0;
-	zOS_RFI	WREG		; zOS_UNW(zOS_JOB); zOS_RFI (WREG); }
+	movwf	zOS_MSK	    	;
+	zOS_UNW	zOS_JOB		; err: w = 0;
+	zOS_RFI	zOS_MSK		; done: zOS_UNW(zOS_JOB); zOS_RFI (w);}
 	
 	;; intialize the UART peripheral, job handle and first three arguments
 decl
