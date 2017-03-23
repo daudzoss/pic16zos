@@ -212,7 +212,9 @@ zOS_RET	macro
 ;;; at the end of any interrupt handler goes back to scheduler without stack hit
 zOS_RFI	macro	retreg
 	pagesel	zos_sch		;inline void zOS_RFI(int8_t* retreg) {
-	movf	retreg,w	; w = *retreg; goto zos_sch;
+	if (retreg-WREG)
+	 movf	retreg,w	; w = *retreg; goto zos_sch;
+	endif
 	goto	zos_sch		;}
 	endm
 
