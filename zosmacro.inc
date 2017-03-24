@@ -15,9 +15,8 @@ fsrn set 1
 	else
 fsrn set 0
 	endif
-	bcf	FSR#v(fsrn)H,7	;// documentation suggests 5 but BSR now 6 bits!
-	bcf	FSR#v(fsrn)H,6	;
-	bcf	FSR#v(fsrn)H,5	;inline int8_t zOS_GLO(int8_t* *fsrnum,
+	movlw	0x3f		;// documentation suggests 5 but BSR now 6 bits!
+	andwf	FSR#v(fsrn)H,f	;inline int8_t zOS_GLO(int8_t* *fsrnum,
 	if (job)
 	 rlf	job,w		;                      int8_t* job) {
 	else
@@ -537,21 +536,12 @@ loop
 	;; Note: caller needs to make sure to check status of return value for
 	;; != 0, just in case job is in between sleeps or with a full buffer
 isr
-	;; get fsr0 pointing to tmr0 postscaler/reset value, fsr1 to job struct;
 	local err,done,do_swi,ascii,nottmr
-	zOS_MEM	FSR1,zOS_JOB,0
-	moviw	zOS_PCH[FSR1]	;isr:
 	
-	;; make sure the task is sleeping (else the above initialization unrun!)
-	btfss	WREG,zOS_WAI	; fsr1 = 0x10 * (1+zos_job);
-	bra	err		; if (zOS_PCH[fsr1] & (1<<zOS_WAI) == 0)
-	movlw	high uatxmit	;  goto done;
-	movwf	FSR0H;[sic]	;
 #if 0
-	movf	zOS_ME		; // need to be sure in correct bank for zOS_JOB
-	movwf	zOS_JOB		;
-	movwf	BSR
-#endif
+	;; get fsr0 pointing to tmr0 postscaler/reset value
+	movlw	high uatxmit	;
+	movwf	FSR0H		;
 	zOS_MY2	FSR0L		; fsr0 = 0x70 | (bsr << 1);
 
 	;; if it's a simple and frequent timer overflow interrupt finish quickly
@@ -559,6 +549,18 @@ isr
 	btfss	zOS_T0F,T0IF	; if (/*presumed true:(zOS_T0E & (1<<T0IE)) &&*/
 	bra	nottmr		;     (zOS_T0F & (1<<T0IF))) { // timer overflow
 	bcf	zOS_T0F,T0IF	;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
+#else
+	;; if it's a simple and frequent timer overflow interrupt finish quickly
+	banksel	zOS_T0F
+	btfss	zOS_T0F,T0IF	; if (/*presumed true:(zOS_T0E & (1<<T0IE)) &&*/
+	bra	nottmr		;     (zOS_T0F & (1<<T0IF))) { // timer overflow
+	bcf	zOS_T0F,T0IF	;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
+
+	;; get fsr0 pointing to tmr0 postscaler/reset value
+	movlw	high uatxmit	;
+	movwf	FSR0H		;
+	zOS_MY2	FSR0L		; fsr0 = 0x70 | (bsr << 1);
+#endif
 
 	;; with fsr0 pointing to global pair, point fsr1 to local mem("t0scale")
 	zOS_LOC	FSR1,zOS_JOB,t0scale
@@ -576,20 +578,26 @@ isr
 	xorwf	hb,f		;   hb ^= 1 << pin;
 	bra	done		; } else {
 	
-	;; get fsr0 pointing to uatbase again, point fsr1 to p0
+	;; make sure the task is sleeping (else the task() initialization unrun)
 nottmr
-	zOS_LOC	FSR1,zOS_JOB,p0
-	movlw	low uatbase	;  fsr1 = (zOS_JOB << 7); // not bsr?!?
+	zOS_MEM	FSR0,zOS_JOB,0
+	moviw	zOS_PCH[FSR0]	;isr: point fsr0 to job struct;
+	btfss	WREG,zOS_WAI	; fsr0 = 0x10 * (1+zos_job);
+	bra	err		; if (zOS_PCH[fsr0] & (1<<zOS_WAI) == 0)
+
+	;; point fsr0 to uatbase again, point fsr1 to p0
+	movlw	low uatbase	;
 	movwf	FSR0L		;
-	movlw	high uatbase	;
-	movwf	FSR0H		;  fsr0 = uatbase;
+	movlw	high uatbase	;  fsr0 = uatbase;
+	movwf	FSR0H		;  fsr1 = (zOS_JOB << 7);
+	zOS_LOC	FSR1,zOS_JOB,p0
 	
 	;; check for validated SWI first since it will be in zOS_MSK, else a HWI
 	movf	zOS_MSK,w	;
 	btfsc	STATUS,Z	;  if (zOS_MSK == 0) { // not a SWI so check HWI
 	bra	do_swi		;   if (rts & (1<<rtsflag) == 0)
 	banksel	rts
-	btfsc	rts,rtsflag	;    zOS_RET(); // not the HWI we expected, ass
+	btfsc	rts,rtsflag	;    zOS_RET(); // not the HWI we expected, SWI?
 	bra	done		;  } else {
 	zOS_RET
 
