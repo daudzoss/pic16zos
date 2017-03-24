@@ -479,15 +479,15 @@ rtsflag	 set	TX#v(p)IF
 	endif
 task
 	movlw	high uatbase	; goto decl;
-	movwf	FSR0H		;
+	movwf	FSR0H		;// all init that requires knowledge of BSR here
 	zOS_MY2	FSR0		;task:
 	movlw	0xff		; fsr0 = 0x70 + (bsr<<1);//global always visible
 	movwi	t0div[FSR0]	; 0[fsr0] = 0xff;// live TMR0 postscaler divider
 	movlw	0x00		;
 	movwi	t0rst[FSR0]	; 1[fsr0] = 0x00; // live reset value for TMR0
-	movlw	low uatbase	; const int8_t* uatbase = uatxmit & 0xff80;
-	movwf	FSR0L		; fsr0 = uatbase;
-	rrf	zOS_ME		;
+	movlw	low uatbase	;
+	movwf	FSR0L		; const int8_t* uatbase = uatxmit & 0xff80;
+	rrf	zOS_ME		; fsr0 = uatbase;
 	clrw			; const char* max = 0x70;
 	rrf	WREG,w		; static char *p0, *p1, buf[]; //p0:task, p1:ISR
 	iorlw	buf		;
@@ -495,7 +495,7 @@ task
 	movwf	p0		;
 	movwf	p1		; p0 = p1 = wrap; // reset value if they max out
 	zOS_ASC	buf,"\r\nzOS>",1
-	addwf	p1,f		;
+	addwf	p1,f		; p1 += strlen(strcpy(buf,"\r\nzOS>")) + 1;
 	
 loop
 	zOS_SWI	zOS_SLP
@@ -537,8 +537,9 @@ loop
 isr
 	local err,done,do_swi,ascii,nottmr
 	
-#if 0
 	;; get fsr0 pointing to tmr0 postscaler/reset value
+	movf	zOS_JOB,w	;
+	movwf	BSR		; bsr = zOS_JOB; // isr starts with unknown bank
 	movlw	high uatxmit	;
 	movwf	FSR0H		;
 	zOS_MY2	FSR0L		; fsr0 = 0x70 | (bsr << 1);
@@ -548,27 +549,15 @@ isr
 	btfss	zOS_T0F,T0IF	; if (/*presumed true:(zOS_T0E & (1<<T0IE)) &&*/
 	bra	nottmr		;     (zOS_T0F & (1<<T0IF))) { // timer overflow
 	bcf	zOS_T0F,T0IF	;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
-#else
-	;; if it's a simple and frequent timer overflow interrupt finish quickly
-	banksel	zOS_T0F
-	btfss	zOS_T0F,T0IF	; if (/*presumed true:(zOS_T0E & (1<<T0IE)) &&*/
-	bra	nottmr		;     (zOS_T0F & (1<<T0IF))) { // timer overflow
-	bcf	zOS_T0F,T0IF	;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
-
-	;; get fsr0 pointing to tmr0 postscaler/reset value
-	movlw	high uatxmit	;
-	movwf	FSR0H		;
-	zOS_MY2	FSR0L		; fsr0 = 0x70 | (bsr << 1);
-#endif
 
 	;; with fsr0 pointing to global pair, point fsr1 to local mem("t0scale")
 	zOS_LOC	FSR1,zOS_JOB,t0scale
 	banksel	TMR0
-	moviw	t0rst[FSR0]	;  fsr1 = (zOS_JOB << 7) | t0scale;// not bsr?!?
-	btfss	STATUS,Z	;  bsr = TMR0 >> 7;//now invalid for this branch
-	movwf	TMR0		;  if (t0rst[fsr0])
-	decfsz	INDF1,f		;   TMR0 = t0rst[fsr0]; // TMR0 reset specified
-	bra	done		;  if (--*fsr1 == 0) {
+	moviw	t0rst[FSR0]	;  fsr1 = (zOS_JOB << 7) | t0scale;
+	btfss	WREG,7		;  bsr = TMR0 >> 7;//now invalid for this branch
+	movwf	TMR0		;  if (t0rst[fsr0] < 128)// max 7 bit TMR0 reset
+	decfsz	INDF1,f		;   TMR0 = t0rst[fsr0]; // or chance of deadlock
+	bra	done		;  if (--*fsr1 == 0) {  
 
 	banksel	hb
 	movf	INDF0,w		;
@@ -665,7 +654,7 @@ delay0
 #endif
 #if 0
 	banksel	RCSTA
-	bcf	RCSTA,SPEN	;decl:
+	bcf	RCSTA,SPEN	;decl: // all init that is BSR independent here
 	bcf	RCSTA,CREN	; RCSTA &= ~((1<<SPEN)|(1<<CREN));
 #endif
 	banksel	TXSTA
