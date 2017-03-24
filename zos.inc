@@ -365,9 +365,9 @@ zos_sch
 	btfsc	STATUS,Z	;  WREG_SHAD = w; // sent via ZOS_RET()
 	bra	zos_don		;  if ((zOS_JOB = BSR_SHAD)!= 0)//2x max or '004
 	movwf	zOS_JOB		;   for (zOS_MSK = 2; zOS_MSK; zOS_MSK--) {
-	movlw	2		;
-	movwf	zOS_MSK		;
-	bra	zos_1st		;    zOS_MEM(fsr0,zOS_JOB,0)
+	movlw	3		;
+	movwf	zOS_MSK		;    //zOS_MSK=2 first time through,1 after wrap
+	bra	zos_1st		;    zOS_MEM(fsr0,zOS_JOB,0);
 zos_itr
 	zOS_LIV	FSR0,zOS_JOB,1,zos_wra
 	clrwdt			;   //zOS_LIV leaves PCH in WREG, test runnable?
