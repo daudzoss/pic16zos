@@ -89,16 +89,17 @@ loop
 	
 OUTCHAR	equ	zOS_SI3
 main
-#ifdef ANSELB
-	banksel	ANSELB
-	bcf	ANSELB,RB5
-#endif
-	banksel	TRISB
-	bcf	TRISB,RB5
 	zOS_CON	1,20000000/9600,PIR1,PORTB,RB5
 	movlw	OUTCHAR		;void main(void) {
 	zOS_ARG	3		; zOS_CON(/*SSP*/1,20MHz/9600bps,PIR1,PORTB,5);
-	zOS_LAU	WREG		; zOS_ARG(3, OUTCHAR);//handles without knowing!
+	zOS_LAU	WREG		; zOS_ARG(3,OUTCHAR/*only 1 SWI*/); zOS_LAU(&w);
+#ifdef ANSELB
+	banksel	ANSELB
+	bcf	ANSELB,RB5	; ANSELB &= ~(1<<RB5); // allow digital function
+#endif
+	banksel	TRISB
+	bcf	TRISB,RB5	; TRISB &= ~(1<<RB5); // allow output heartbeat
+	
 #if 0	
 	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler for splash
 	zOS_ADR	splash,zOS_UNP	; zOS_ADR(fsr0 = splash&~zOS_PRV);//unprivileged
