@@ -36,12 +36,11 @@ splash
 	zOS_ARG	0
 #endif	
 	zOS_SWI	zOS_END		; zOS_END(); // unschedule self
-	nop			;}
 	
 spitjob	
 	zOS_MY2	FSR0
-	moviw	0[FSR0]		;void spitjob(void) {
-	movwf	FSR1L		;
+	moviw	0[FSR0]		;}
+	movwf	FSR1L		;void spitjob(void) {
 	moviw	1[FSR0]		; zOS_MY2(&fsr0);
 	movwf	FSR1H		; fsr1 = *fsr0; // watch fsr1 for nonzero
 	movf	zOS_ME		; w = zOS_ME(); // shouldn't get clobbered below
