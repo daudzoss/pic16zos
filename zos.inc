@@ -355,14 +355,14 @@ zos_cmp
 	moviw	zOS_ISH[FSR0]	;    zOS_MSK = 0; //indicates HWI (not SWI) type
 	movwf	PCLATH		;    *(zOS_ISR[fsr0])();
 	moviw	zOS_ISR[FSR0]	;   }// if handler refuses, loop to the next job
-	movwf	PCL		;  }//(if this line reached, no runnable handler
+	movwf	PCL		;  }
 	
 	;; scheduler
 zos_sch
 	banksel	WREG_SHAD
-	movwf	WREG_SHAD	;   // ....so just drop into the scheduler)
-	movf	BSR_SHAD,w	;zos_sch:
-	btfsc	STATUS,Z	;  WREG_SHAD = w; // sent via ZOS_RET()
+	movwf	WREG_SHAD	;zos_sch:
+	movf	BSR_SHAD,w	;  // stay in _SHAD/STKPTR/TOS bank until retfie
+	btfsc	STATUS,Z	;  WREG_SHAD = w; // sent via ZOS_RFI()
 	bra	zos_don		;  if ((zOS_JOB = BSR_SHAD)!= 0)//2x max or '004
 	movwf	zOS_JOB		;   for (zOS_MSK = 2; zOS_MSK; zOS_MSK--) {
 	movlw	3		;
@@ -375,11 +375,13 @@ zos_itr
 	bra	zos_itr		;     clrwdt();
 	
 	;; if this point is reached, a runnable job was found with job# zOS_JOB
+#if 0
 	;; (but we skip a whole bunch of trivial copies if zOS_JOB==BSR_SHAD)
 	movf	BSR_SHAD,w	;
 	xorwf	zOS_JOB,w	;
 	btfsc	STATUS,Z	;
 	bra	zos_don		;    if (zOS_JOB != BSR_SHAD) {
+#endif
 
 	;; copy the interrupted job's (BSR_SHAD) criticals into its bank 0 slot
 	zOS_MEM	FSR0,BSR_SHAD,zOS_PCL
