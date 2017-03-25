@@ -133,7 +133,7 @@ fsrn set 0
 ;;; note: caller is responsible for making sure the STKPTR/_SHAD bank is active
 zOS_ROL	macro	old,new,temp,fsrnum,base
 	local fsrn,loop1,loop2,done
-	if (fsrn & 3)
+	if (fsrnum & 3)
 fsrn set 1
 	else
 fsrn set 0
@@ -182,8 +182,8 @@ loop2
 	bra	loop2		;}
 done
 	endm
-zOS_RTL	equ	((FSR1H_SHAD-STATUS_SHAD-2)&0x3f)
-zOS_RTH	equ	((FSR1H_SHAD-STATUS_SHAD-1)&0x3f)
+zOS_RTL	equ	((STATUS_SHAD-FSR1H_SHAD-2)&0x3f)
+zOS_RTH	equ	((STATUS_SHAD-FSR1H_SHAD-1)&0x3f)
 ;;; running job#: 1         2         3         4         5
 ;;; stack pos 15: 3rd(1)    3rd(2)    3rd(3)    3rd(4)    3rd(5)
 ;;; stack pos 14: 2nd(1)    2nd(2)    2nd(3)    2nd(4)    2nd(5)
