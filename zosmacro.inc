@@ -126,14 +126,9 @@ zOS_T0F	equ	t0flags
 	movwf	STKPTR		; STKPTR = zOS_BOS; // every job bottom of stack
 	
 	;; set the active job to the first (and potentially only), interrupts ON
-	movlb	1		; for (bsr = 1;;) // start with running job 1
-	bsf	INTCON,GIE	; INTCON |= 1<<GIE;
-
-	;; wait for stuff to happen
-	local loop
-loop
-	clrwdt			;  clrwdt();
-	bra	loop		;}
+	movlw	1		; bsr_shad = w = 1; // start with running job 1;
+	movwf	BSR_SHAD	; zOS_RFI(); // run the scheduler to grab its PC
+	zOS_RFI			;}
 	endm
 
 zOS_DBG	macro
