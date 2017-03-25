@@ -3,8 +3,8 @@
 ;;;
 ;;; memory footprint:
 ;;; no memory words used upon inclusion (before expansion of a macro)
-;;;  14-bit words if only zOS_CON() job is started to accept console output
-;;;  words if full-featured monitor and job manager shell zOS_MON() instead
+;;;  ____ 14-bit words if only zOS_CON() job is started to accept console output
+;;;  ____ words if full-featured monitor and job manager shell zOS_MON() instead
 	
 #define zOS_ME BSR,w		; // "movf/andwf/xorwf zOS_ME" can't clobber BSR
 
