@@ -1,9 +1,9 @@
 ;;; zosmacro.inc
 ;;; potentially useful (but not mandatory) macros for zOS
 ;;;
-;;; memory footprint:
+;;; total memory footprint (for a PIC16F1847, including the zOS base):
 ;;; no memory words used upon inclusion (before expansion of a macro)
-;;;  ____ 14-bit words if only zOS_CON() job is started to accept console output
+;;;  ____ 14-bit words if only zOS_CON() job is started to buffer console output
 ;;;  ____ words if full-featured monitor and job manager shell zOS_MON() instead
 	
 #define zOS_ME BSR,w		; // "movf/andwf/xorwf zOS_ME" can't clobber BSR
@@ -111,6 +111,7 @@ num set (arg & 0x03)
 
 zOS_RUN	macro	t0enable,t0flags
 	;; start a TMR0 interrupt since none found (most in INTCON, others PIE0)
+	local boot
 zOS_T0E	equ	t0enable
 zOS_T0F	equ	t0flags	
 	if (zOS_T0E)
@@ -127,8 +128,11 @@ zOS_T0F	equ	t0flags
 	
 	;; set the active job to the first (and potentially only), interrupts ON
 	movlw	1		; bsr_shad = w = 1; // start with running job 1;
-	movwf	BSR_SHAD	; zOS_RFI(); // run the scheduler to grab its PC
-	zOS_RFI			;}
+	movwf	BSR_SHAD	; boot(); // run the scheduler to grab its PC
+	pagesel	boot		;}
+	call	boot		;void boot(void) { zOS_RFI(); }
+boot	
+	zOS_RFI	WREG
 	endm
 
 zOS_DBG	macro
