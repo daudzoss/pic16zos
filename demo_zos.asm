@@ -17,8 +17,8 @@
 	goto	main
 
 put_str
-	zOS_STR	OUTCHAR		;void put_str(const char*){zOS_STR(OUTCHAR,"");}
-	return			;
+	zOS_STR	OUTCHAR
+	return			;void put_str(const char*) { zOS_STR(OUTCHAR); }
 	
 greet
 	da	"Demo application for zOS"
@@ -26,21 +26,17 @@ crlf
 	da	"\r\n",0
 splash
 	zOS_MY2	FSR1		;void splash(void) {
-	zOS_ADR	greet,zOS_FLA	;
-	pagesel	put_str		; zOS_MY2(&fsr1);
-	call	put_str		; zOS_ADR(fsr0 ="Demo application for zOS\r\n");
-	movlw	1		; put_str(fsr0);
-	movwf	INDF1		; *fsr1 = 1; // will cause spitjob()s to unstick
-#if 0
-	movf	zOS_ME ;implicit
-	zOS_ARG	0
-#endif	
-	zOS_SWI	zOS_END		; zOS_END(); // unschedule self
+	zOS_ADR	greet,zOS_FLA	; zOS_MY2(&fsr1);
+	pagesel	put_str		; zOS_ADR(fsr0 ="Demo application for zOS\r\n");
+	call	put_str		; put_str(fsr0);
+	movlw	1		; *fsr1 = 1; // will cause spitjob()s to unstick
+	movwf	INDF1		; zOS_END(); // unschedule self, own job implied
+	zOS_SWI	zOS_END		;}
 	
 spitjob	
 	zOS_MY2	FSR0
-	moviw	0[FSR0]		;}
-	movwf	FSR1L		;void spitjob(void) {
+	moviw	0[FSR0]		;void spitjob(void) {
+	movwf	FSR1L		;
 	moviw	1[FSR0]		; zOS_MY2(&fsr0);
 	movwf	FSR1H		; fsr1 = *fsr0; // watch fsr1 for nonzero
 	movf	zOS_ME		; w = zOS_ME(); // shouldn't get clobbered below
