@@ -50,10 +50,10 @@ fsrn set 0
 	endm
 
 zOS_ADR	macro	adr,msb
-	 movlw	low adr		;inline void zOS_ADR(void* a) {
-	 movwf	FSR0L		; if (msb) fsr0 = 0x8000 | a;
-	 movlw	high adr	; else fsr0 = 0x7fff & a;
-	 movwf	FSR0H		;}
+	movlw	low adr		;inline void zOS_ADR(void* a) {
+	movwf	FSR0L		; if (msb) fsr0 = 0x8000 | a;
+	movlw	high adr	; else fsr0 = 0x7fff & a;
+	movwf	FSR0H		;}
 	if (msb)
 	 bsf	FSR0H,7
 	else
