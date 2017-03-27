@@ -182,8 +182,15 @@ loop2
 	bra	loop2		;}
 done
 	endm
+	
+#ifdef GPASM
+zOS_RTL	equ	(STATUS_SHAD-FSR1H_SHAD-2)
+zOS_RTH	equ	(STATUS_SHAD-FSR1H_SHAD-1)
+#else
 zOS_RTL	equ	((STATUS_SHAD-FSR1H_SHAD-2)&0x3f)
 zOS_RTH	equ	((STATUS_SHAD-FSR1H_SHAD-1)&0x3f)
+#endif
+
 ;;; running job#: 1         2         3         4         5
 ;;; stack pos 15: 3rd(1)    3rd(2)    3rd(3)    3rd(4)    3rd(5)
 ;;; stack pos 14: 2nd(1)    2nd(2)    2nd(3)    2nd(4)    2nd(5)
@@ -382,7 +389,8 @@ zos_itr
 	btfsc	STATUS,Z	;
 	bra	zos_don		;    if (zOS_JOB != BSR_SHAD) {
 
-	;; copy the interrupted job's (BSR_SHAD) criticals into its bank 0 slot
+	;; copy the interrupted job's (BSR_SHAD) criticals into its bank 0 slot;
+	;; by pure chance this clobbers the "unused" range 0x72~0x7f on 1st run!
 	zOS_MEM	FSR0,BSR_SHAD,zOS_PCL
 	movf	TOSL,w		;     fsr0 = 0x10 * (1+BSR_SHAD) + zOS_PCL;
 	movwi	FSR0++		;     *fsr0++ = TOSL; // return address from IRQ
