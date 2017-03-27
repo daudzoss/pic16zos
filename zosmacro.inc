@@ -3,8 +3,8 @@
 ;;;
 ;;; total memory footprint (for a PIC16F1847, including the zOS base):
 ;;; no memory words used upon inclusion (before expansion of a macro)
-;;;  ____ 14-bit words if only zOS_CON() job is started to buffer console output
-;;;  ____ words if full-featured monitor and job manager shell zOS_MON() instead
+;;;  ~256 14-bit words if only zOS_CON() job is started to buffer console output
+;;;  _??_ 14-bit words for full-featured monitor and job manager shell zOS_MON()
 	
 #define zOS_ME BSR,w		; // "movf/andwf/xorwf zOS_ME" can't clobber BSR
 
@@ -132,7 +132,7 @@ zOS_T0F	equ	t0flags
 	pagesel	boot		;}
 	call	boot		;
 boot	
-	bsr	INTCON,GIE	;void boot(void) { INTCON |= 1<<GIE; zOS_RFI();}
+	bsf	INTCON,GIE	;void boot(void) { INTCON |= 1<<GIE; zOS_RFI();}
 	zOS_RFI	WREG
 	endm
 
