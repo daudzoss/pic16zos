@@ -1,10 +1,26 @@
+;;; demo_zos.asm
+;;;
+;;; demonstration (and, frankly) bring-up app for zOS
+;;;
+;;; after starting job #1 as a console output buffer (zOS_CON() in zosmacro.inc)
+;;; to demonstrate privileged mode (able to kill or otherwise tweak other tasks)
+;;; 
+;;; it starts a splash() job #2 to copy a packed ascii greeting into the buffer
+;;; (using the SWI line zOS_SI3) character by character, and until this job ends
+;;; 
+;;;
+;;; two other processes (should end up numbered jobs 3 and 4) run in re-entrant
+;;; function splitjob() print their 
+	
+
 	processor 16f1847
 	include p16f1847.inc
 	
 	__CONFIG _CONFIG1,_FOSC_HS & _WDTE_OFF & _PWRTE_OFF & _MCLRE_ON & _CP_OFF & _CPD_OFF & _BOREN_ON & _CLKOUTEN_OFF & _IESO_ON & _FCMEN_ON
 
 ;;; uncomment to reduce zOS footprint by 100 words (at cost of zOS_FRK/EXE/FND):
-;zOS_MIN	equ	1
+;
+zOS_MIN	equ	1
 	
 	include zos.inc
 	include zosmacro.inc
@@ -85,6 +101,7 @@ loop
 	
 OUTCHAR	equ	zOS_SI3
 main
+#if 0	
 	zOS_CON	1,20000000/9600,PIR1,PORTB,RB5
 	movlw	OUTCHAR		;void main(void) {
 	zOS_ARG	3		; zOS_CON(/*SSP*/1,20MHz/9600bps,PIR1,PORTB,5);
@@ -96,7 +113,6 @@ main
 	banksel	TRISB
 	bcf	TRISB,RB5	; TRISB &= ~(1<<RB5); // allow output heartbeat
 	
-#if 0	
 	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler for splash
 	zOS_ADR	splash,zOS_UNP	; zOS_ADR(fsr0 = splash&~zOS_PRV);//unprivileged
 	zOS_LAU	FSR1L		; zOS_LAU(&fsr1);// stash job then addr in FSR1L
@@ -119,16 +135,11 @@ main
 	
 	clrf	INDF1		; *fsr1 = 0; // ...change from this 0 to nonzero
 #endif	
-#if 1
-;;; normal mode: use tmr0 as OS timer rather than an external transition counter
+
 	banksel	OPTION_REG
 	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
 	bcf	OPTION_REG,PSA	; OPTION_REG &= ~(1<<TMR0CS);// use max prescale
-#else
-;;; leave T0CS high to see if interrupts are happening, just overwhelming
-	banksel	ANSELA		;
-	bcf	ANSELA,RA4	; ANSELA 
-#endif
+
 	zOS_RUN	INTCON,INTCON	; zOS_RUN(/*T0IE in*/INTCON, /*T0IF in*/INTCON);
 	nop			;}
 	

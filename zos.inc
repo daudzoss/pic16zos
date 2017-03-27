@@ -3,8 +3,8 @@
 ;;;  Technology's entire enhanced midrange 8-bit PIC microcontroller family:
 ;;;
 ;;; memory footprint:
-;;;  ~430 14-bit words for base RTOS i.e. main() starts at 0x0___
-;;;  ~330 words if zOS_MIN is defined to omit FRK/EXE/FND (thus SWI#4~7 zOS_YLD)
+;;;  ~611 14-bit words for base RTOS i.e. main() starts at 0x0263
+;;;  ~509 words if zOS_MIN is defined to omit FRK/EXE/FND (thus SWI#4~7=zOS_YLD)
 ;;; 
 ;;; SRAM footprint:
 ;;; 86 bank-0 bytes claimed by RTOS, 30 bytes of stack scratch space relocatable
@@ -35,8 +35,9 @@ zOS_NUM	set	5
 zOS_STK	set	(((zOS_NUM+1)<<7)|0x20)
 #endif
 
-;;; software interrupt infrastructure the OS is based on (with interrupts off!)
-;;; user-definable:
+;;; software interrupt infrastructure zOS is based on (even with interrupts off)
+	
+;;; 5 user-definable software interrupt lines:
 zOS_SB7	equ	7
 zOS_SI7	equ	(1<<zOS_SB7)
 zOS_SB6	equ	6
@@ -47,7 +48,8 @@ zOS_SB4	equ	4
 zOS_SI4	equ	(1<<zOS_SB4)
 zOS_SB3	equ	3
 zOS_SI3	equ	(1<<zOS_SB3)
-;;; system:
+
+;;; 7 system softare interrupts for job management:
 zOS_FND	equ	0x07		; find a running job by its handle AR1:AR0
 zOS_EXE	equ	0x06		; replace this job with a new job (unpriv'ed)
 zOS_FRK	equ	0x05		; copy a running job into a new job
@@ -56,31 +58,8 @@ zOS_RST	equ	0x03		; restart job at its start address (vs. END+NEW)
 zOS_END	equ	0x02		; job killed, slot# available for NEW
 zOS_SLP	equ	0x01		; indicate job waiting on its ISR, so don't run
 zOS_NEW	equ	0x00		; create a job (FSR0==addr,AR1:0==isr,AR3:2==IM)
-;;; FND runs high->low, _END/_SLP/_RST can only be run by a _PRV job or *it* got
 
-;;; job/shadow register offsets from zOS_J0M, zOS_J1M,...
-zOS_HDL	equ	0x00		; handle, the start address of the job
-zOS_HDH	equ	0x01		;
-zOS_PRB	equ	7		;  MSB of HDL indicates privilege(manage others)
-;zOS_PRV	equ	(1<<15)		; not used except in comments
-zOS_RAM	equ	0		;
-zOS_FLA	equ	1		;
-zOS_UNP	equ	0		;
-zOS_PCL	equ	0x02		; address to resume execution
-zOS_PCH	equ	0x03		;  "impossible" PCH 0x00==not runnable
-zOS_WAI	equ	7		;  MSB of PCH indicates sleeping (wait for int)
-zOS_SST	equ	0x04		; shadow STATUS
-zOS_SWR	equ	0x05		; shadow WREG
-zOS_SSP	equ	0x06		; STKPTR to be restored (BSR never restorable!)
-zOS_SPH	equ	0x07		; PCLATH to be restored
-zOS_SF0	equ	0x08		; shadow FSR0
-zOS_SF1	equ	0x0a		; shadow FSR1
-zOS_ISR	equ	0x0c		; interrupt service routine address for the job
-zOS_ISH	equ	0x0d		; interrupt service routine address for the job
-zOS_HIM	equ	0x0e		; mask for hardware interrupts to process (0=no)
-zOS_SIM	equ	0x0f		; mask for software interrupts (low 3 always==1)
-	
-;;; global memory space for message-passing boxes (or J6M?!?)
+;;; global memory space for 2 scratch registers plus message-passing mailboxes
 zOS_JOB	equ	0x70		; next job to run (0 if unknown)
 zOS_MSK	equ	0x71		; masked-off sofware interrupt for ISR to handle
 zOS_J1L	equ	0x72		;  (repurposeable as scratch after zOS_RFI call)
@@ -99,6 +78,27 @@ zOS_AR1	equ	0x7d
 zOS_AR2	equ	0x7e
 zOS_AR3	equ	0x7f
 
+;;; job/shadow register offsets from zOS_J0M, zOS_J1M,...
+zOS_HDL	equ	0x00		; handle, the start address of the job
+zOS_HDH	equ	0x01		;
+zOS_PRB	equ	7		;  MSB of HDL indicates privilege(manage others)
+zOS_RAM	equ	0		;
+zOS_FLA	equ	1		;
+zOS_UNP	equ	0		;
+zOS_PCL	equ	0x02		; address to resume execution
+zOS_PCH	equ	0x03		;  "impossible" PCH 0x00==not runnable
+zOS_WAI	equ	7		;  MSB of PCH indicates sleeping (wait for int)
+zOS_SST	equ	0x04		; shadow STATUS
+zOS_SWR	equ	0x05		; shadow WREG
+zOS_SSP	equ	0x06		; STKPTR to be restored (BSR never restorable!)
+zOS_SPH	equ	0x07		; PCLATH to be restored
+zOS_SF0	equ	0x08		; shadow FSR0
+zOS_SF1	equ	0x0a		; shadow FSR1
+zOS_ISR	equ	0x0c		; interrupt service routine address for the job
+zOS_ISH	equ	0x0d		; interrupt service routine address for the job
+zOS_HIM	equ	0x0e		; mask for hardware interrupts to process (0=no)
+zOS_SIM	equ	0x0f		; mask for software interrupts (low 3 always==1)
+	
 zOS_TOS	equ	0x0e  		; STKPTR for full stack (0x0f reserved for ISRs)
 zOS_BOS	equ	0x0b		; STKPTR for empty stack (first push is to 0x0c)
 	
@@ -575,7 +575,7 @@ zos_sw3
 	andlw	0x7f		;   // clear PC MSB (which indicates sleepiness)
 	movwi	zOS_PCH[FSR1]	;   zOS_PCH[fsr1] = zOS_HDH[fsr1] & 0x7f;
 	movlw	zOS_BOS		;   zOS_SSP[fsr1] = zOS_BOS;
-	movwi	zOS_SSP[FSR1]	;   zOS_RFI(zOS_JOB);
+	movwi	zOS_SSP[FSR1]	;  case zOS_YLD: zOS_RFI(zOS_JOB);
 zos_sw4
 
 #ifdef zOS_MIN
