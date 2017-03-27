@@ -232,17 +232,18 @@ loop
 	if (incr)
 	 movlw	0x10		;inline int8_t zOS_LIV(int8_t* *fsrnum,
 	else
-	 movlw	0-0x10		;     int8_t *job, int8_t incr, void *(unf)()) {
+	 movlw	0-0x10		;     uint8_t *job, int8_t incr, void *(unf)()) {
 	endif
 	addwf	FSR#v(fsrn)L,f	; do {
 	if (incr)
 	 incf	job,f		;  *fsrnum += incr ? 0x10 : -0x10;// next struct
 	 movlw	0xff-zOS_NUM	;  job += incr ? 1 : -1; // next job#
-	 addwf	job,w		;  if ((job == 0) || (job == zOS_NUM+1)) {//past
+	 addwf	job,w		;  if ((job == 0) || (job >= zOS_NUM+1)) {//past
+	 btfss	WREG,7		;
 	else
 	 decf	job,f		;   goto unf; // Z was set
+	 btfsc	STATUS,Z	;  } else if (zOS_PCH[fsrnum]) // found runnable
 	endif
-	btfsc	STATUS,Z	;  } else if (zOS_PCH[fsrnum]) // found runnable
 	bra	unf		;   return w = zOS_PCH[fsrnum]; // Z was cleared
 	moviw	zOS_PCH[FSR#v(fsrn)]
 	btfsc	STATUS,Z	; } while (1); // job is runnable (or unf was 0)

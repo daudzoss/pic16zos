@@ -127,7 +127,7 @@ zOS_T0F	equ	t0flags
 	movwf	STKPTR		; STKPTR = zOS_BOS; // every job bottom of stack
 	
 	;; set the active job to the first (and potentially only), interrupts ON
-	movlw	1		; bsr_shad = w = 1; // start with running job 1;
+	movlw	1+zOS_NUM	; bsr_shad = w = 1+zOS_NUM; // will wrap around
 	movwf	BSR_SHAD	; boot(); // run the scheduler to grab its PC
 	pagesel	boot		;}
 	call	boot		;void boot(void) { zOS_RFI(); }
