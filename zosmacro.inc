@@ -130,8 +130,9 @@ zOS_T0F	equ	t0flags
 	movlw	1+zOS_NUM	; bsr_shad = w = 1+zOS_NUM; // will wrap around
 	movwf	BSR_SHAD	; boot(); // run the scheduler to grab its PC
 	pagesel	boot		;}
-	call	boot		;void boot(void) { zOS_RFI(); }
+	call	boot		;
 boot	
+	bsr	INTCON,GIE	;void boot(void) { INTCON |= 1<<GIE; zOS_RFI();}
 	zOS_RFI	WREG
 	endm
 
