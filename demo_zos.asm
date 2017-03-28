@@ -45,7 +45,13 @@ put_str
 	return			;void put_str(const char*) { zOS_STR(OUTCHAR); }
 SPLVAR	equ	0x20
 splash
-	zOS_ADR	greet,zOS_FLA	;void splash(void) {
+	movf	zOS_ME		;void splash(void) {
+	zOS_ARG	0		; // ceding processor to let both spitjob()s run
+	zOS_SWI	zOS_YLD		; zOS_ARG(0, bsr);
+	movf	zOS_ME		; zOS_SWI(zOS_YLD);
+	zOS_ARG	0		; zOS_ARG(0, bsr);
+	zOS_SWI	zOS_YLD		; zOS_SWI(zOS_YLD);
+	zOS_ADR	greet,zOS_FLA	;
 	pagesel	put_str		; zOS_ADR(fsr0 ="Demo application for zOS\r\n");
 	call	put_str		; put_str(fsr0);
 	movlw	zOS_NUM+1	; SPLVAR = zOS_NUM + 1;
