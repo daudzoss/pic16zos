@@ -2,6 +2,10 @@
 ;;; a lightweight, small-footprint, preemptively multitasking RTOS for Microchip
 ;;;  Technology's entire enhanced midrange 8-bit PIC microcontroller family:
 ;;;
+;;; jobs (up to 5) are never allowed to manipulate the BSR directly, as that is
+;;; the prerogative of zOS (it being used as the current job #) and the bank may
+;;; never end up greater than zOS_NUM in user space with interrupts enabled!!!
+
 ;;; memory footprint:
 ;;;  ~611 14-bit words for base RTOS i.e. main() starts at 0x0263
 ;;;  ~509 words if zOS_MIN is defined to omit FRK/EXE/FND (thus SWI#4~7=zOS_YLD)
@@ -146,6 +150,7 @@ fsrn set 0
 	movf	new,w		;                    int8_t* base) {
 	subwf	old,w		; //responsibility of caller to banksel STKPTR
 	btfsc	STATUS,Z	; if (*new == *old) // nothing to do
+;;; FIXME: BSR_SHAD ends up set to JOB_NUM immediately before zOS_ROL, always 0!
 	bra	done		;  return;
 	decf	WREG,w		; w = new - old - 1;
 	btfsc	WREG,7		;
@@ -423,6 +428,7 @@ zos_itr
 	moviw	FSR0++		;
 	movwf	WREG_SHAD	;     WREG_SHAD = *fsr0++;
 	movf	zOS_JOB,w	;     //point to correct 80-byte local SRAM page
+;;; FIXME: BSR_SHAD ends up set to JOB_NUM immediately before zOS_ROL, always 0!
 	movwf	BSR_SHAD	;     BSR_SHAD = zOS_JOB; // not STKPTR
 	moviw	++FSR0		;
 	movwf	PCLATH_SHAD	;     PCLATH_SHAD = *++fsr0;
@@ -461,10 +467,6 @@ zos_swj
 	movf	BSR,w		;
 	banksel	BSR_SHAD	; // BSR = the job# that made the interrupt call
 	movwf	BSR_SHAD	; BSR_SHAD = BSR;
-#if 0	
-	movf	zOS_MSK,w ;
-	movwf	WREG_SHAD ; return value will be set in switch () statement
-#endif
 	movf	zOS_JOB,w	;
 	movwf	STATUS_SHAD	; STATUS_SHAD = STATUS; // Z set with WREG_SHAD
 	movf	PCLATH,w	;
@@ -731,13 +733,9 @@ zos_zer
 	bra	zos_zer		;
 zos_end
 	;; your program starts here, with a launcher job (#6) that ends after:
-	;; 1) starting other jobs with calls to zOS_NEW or its zOS_LAU wrapper
-	;;    (being sure to stay in bank 0)
-	;; 2) setting up oscillators, timers, other peripherals, etc.
+	;; 1) setting up oscillators, timers, other peripherals, etc.
 	;;    (with the appropriate and ineviatable bank switching)
-	;; 3) calling to zOS_RUN (which will enable interrupts) to start job 1
-	;; 
-	;; jobs are never allowed to manipulate the BSR directly, as that
-	;; is the prerogative of zOS (it being used as the current job #)
-	;; and the BSR may never end up greater than zOS_NUM in user space!!!
-	;;
+	;; 2) starting jobs with calls to zOS_NEW or its zOS_LAU wrapper
+	;;    (being sure to stay in bank 0 or using job macros zOS_CON/zos_MON)
+	;; 3) calling zOS_RUN (which will enable interrupts) to start job 1
+
