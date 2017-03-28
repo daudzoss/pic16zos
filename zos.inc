@@ -729,9 +729,11 @@ zos_zer
 	bra	zos_zer		;
 zos_end
 	;; your program starts here, with a launcher job (#6) that ends after:
-	;; 1) setting up oscillators, timers, other peripherals, etc.
-	;; 2) starting other jobs with calls to zOS_NEW
-	;; 3) calling to zOS_RUN (which will enable interrupts)
+	;; 1) starting other jobs with calls to zOS_NEW or its zOS_LAU wrapper
+	;;    (being sure to stay in bank 0)
+	;; 2) setting up oscillators, timers, other peripherals, etc.
+	;;    (with the appropriate and ineviatable bank switching)
+	;; 3) calling to zOS_RUN (which will enable interrupts) to start job 1
 	;; 
 	;; jobs are never allowed to manipulate the BSR directly, as that
 	;; is the prerogative of zOS (it being used as the current job #)
