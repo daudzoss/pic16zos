@@ -122,6 +122,15 @@ main
 	zOS_ARG	3		; zOS_CON(/*SSP*/1,20MHz/9600bps,PIR1,PORTB,5);
 	zOS_LAU	WREG		; zOS_ARG(3,OUTCHAR/*only 1 SWI*/); zOS_LAU(&w);
 
+	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler for splash
+	zOS_ADR	splash,zOS_PRB	; zOS_ADR(fsr0 = splash&~zOS_PRV);// privileged
+	zOS_LAU	WREG		; zOS_LAU(&w);
+	
+	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler either
+	zOS_ADR	spitjob,zOS_UNP	; zOS_ADR(fsr0 = spitjob&~zOS_PRV);//unprivilege
+	zOS_LAU	WREG		; zOS_LAU(&w);
+	zOS_LAU	WREG		; zOS_LAU(&w); // launch two copies
+	
 	banksel	ANSELB
 	bcf	ANSELB,RB5	; ANSELB &= ~(1<<RB5); // allow digital function
 
@@ -132,15 +141,6 @@ main
 	bcf	OPTION_REG,PSA	; OPTION_REG &= ~(1<<PSA);// max timer0 prescale
 	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
 
-	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler for splash
-	zOS_ADR	splash,zOS_PRB	; zOS_ADR(fsr0 = splash&~zOS_PRV);// privileged
-	zOS_LAU	WREG		; zOS_LAU(&w);
-	
-	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler either
-	zOS_ADR	spitjob,zOS_UNP	; zOS_ADR(fsr0 = spitjob&~zOS_PRV);//unprivilege
-	zOS_LAU	WREG		; zOS_LAU(&w);
-	zOS_LAU	WREG		; zOS_LAU(&w); // launch two copies
-	
 	zOS_RUN	INTCON,INTCON	; zOS_RUN(/*T0IE in*/INTCON, /*T0IF in*/INTCON);
 	end			;}
 	
