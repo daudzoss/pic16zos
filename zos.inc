@@ -50,7 +50,7 @@ zOS_SB3	equ	3
 zOS_SI3	equ	(1<<zOS_SB3)
 
 ;;; 7 system softare interrupts for job management:
-zOS_FND	equ	0x07		; find a running job by its handle AR1:AR0
+zOS_FND	equ	0x07		; find a running job <=AR2 by its handle AR1:AR0
 zOS_EXE	equ	0x06		; replace this job with a new job (unpriv'ed)
 zOS_FRK	equ	0x05		; copy a running job into a new job
 zOS_YLD	equ	0x04		; (in)voluntarily cede processor before next irq
@@ -390,7 +390,7 @@ zos_itr
 	bra	zos_don		;    if (zOS_JOB != BSR_SHAD) {
 
 	;; copy the interrupted job's (BSR_SHAD) criticals into its bank 0 slot;
-	;; by pure chance this clobbers the "unused" range 0x72~0x7f on 1st run!
+	;; by pure chance this clobbers the "unused" range 0x72~0x7b on 1st run!
 	zOS_MEM	FSR0,BSR_SHAD,zOS_PCL
 	movf	TOSL,w		;     fsr0 = 0x10 * (1+BSR_SHAD) + zOS_PCL;
 	movwi	FSR0++		;     *fsr0++ = TOSL; // return address from IRQ
@@ -657,8 +657,15 @@ zos_sw6
 	movlb	0		;   //spoof privilege to overwrite
 	bra	zos_dup		;   goto zos_dup;
 zos_sw7
-	movlw	zOS_NUM+1	;  case zOS_FND:
-	movwf	zOS_JOB		;   zOS_JOB = zOS_NUM + 1;
+	movf	zOS_AR2,w	;  case zOS_FND:
+	btfss	STATUS,Z	;
+	movlw	zOS_NUM		;
+	addlw	1		;
+	movwf	zOS_JOB		;
+	addlw	0xfe-zOS_NUM	;   if (zOS_AR2 && ((uint8_t)zOS_AR2<=zOS_NUM))
+	btfss	WREG,7		;    zOS_JOB = zOS_AR2 + 1;
+	movlw	1+zOS_NUM	;   else
+	movwf	zOS_JOB		;    zOS_JOB = zOS_NUM + 1;
 	zOS_MEM	FSR1,zOS_JOB,0	;   fsr1 = 0x10 * (1 + zOS_JOB);
 zos_nxt
 	zOS_LIV	FSR1,zOS_JOB,0,zos_bad
@@ -670,12 +677,11 @@ zos_nxt
 	xorwf	zOS_AR1,w	;    int16_t b=(zOS_HDH[fsr0]<<8)|zOS_HDL[fsr0];
 	andlw	0x7f		;
 	btfss	STATUS,Z	;    if (a & 0x7f == b & 0x7f)
-	bra	zos_nxt		;     WREG_SHAD = zOS_JOB;
-	banksel	WREG_SHAD
-	movf	zOS_JOB,w	;   }
-	movwf	WREG_SHAD	;   zOS_RET();
+	bra	zos_nxt		;     zOS_RFI (zOS_JOB);
+	zOS_RFI	zOS_JOB		;   }
 zos_bad
-	zOS_RET
+	clrw			;
+	zOS_RFI	WREG		;   zOS_RFI(w = 0);
 #endif
 	
 	;; else handle the software interrupt with the first registered handler
