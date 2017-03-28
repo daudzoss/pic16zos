@@ -297,8 +297,9 @@ zos_004
 	zOS_MEM	FSR0,zOS_JOB,0	; fsr0 = 0x10 * (1 + zOS_JOB);
 zos_nhw
 	zOS_LIV	FSR0,zOS_JOB,0,zos_don
+	clrwdt			; do { // until serviceable by running ISR or a
 	banksel	zOS_PIE
-	moviw	zOS_HIM[FSR0]	; do { // until serviceable by running ISR or a
+	moviw	zOS_HIM[FSR0]	;  clrwdt();
 	andwf	zOS_PIE,w	;  int8_t w = 0;   // runnable job is scheduled
 	btfss	STATUS,Z	;  while (zOS_LIV(&fsr0, &zOS_JOB, 0)) {
 	bra	zos_cmp		;  //match enabled interrupts against HIM fields
