@@ -289,7 +289,7 @@ out
 ;prev = 0xff
 i = 0
 	while i < (out-start)	; for (int i=0; str[i]||(nulterm&&!str[i]); i++)
-;sum = i+start
+sum = start
 ;curr = high sum
 ;	if curr-prev	
 	 pagesel sum
@@ -297,7 +297,7 @@ i = 0
 	call	sum		;  file[i] = str[i];
 	movwf	file+i		; return i;
 ;prev = curr
-i += 1
+sum += 1
 	endw
 	movlw	i+nulterm	;}
 	endm
@@ -494,8 +494,11 @@ task
 	movwf	wrap		; const char* wrap = ((bsr&1)<<7) | buf;
 	movwf	p0		;
 	movwf	p1		; p0 = p1 = wrap; // reset value if they max out
+#if 0
 	zOS_ASC	buf,"\r\nzOS>",1
+	;; FIXME: zOS_ASC won't build under MPASM
 	addwf	p1,f		; p1 += strlen(strcpy(buf,"\r\nzOS>")) + 1;
+#endif
 	
 loop
 	zOS_SWI	zOS_SLP
