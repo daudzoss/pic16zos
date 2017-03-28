@@ -117,6 +117,16 @@ loop
 	
 OUTCHAR	equ	zOS_SI3
 main
+	banksel	ANSELB
+	bcf	ANSELB,RB5	; ANSELB &= ~(1<<RB5); // allow digital function
+
+	banksel	TRISB
+	bcf	TRISB,RB5	; TRISB &= ~(1<<RB5); // allow output heartbeat
+	
+	banksel	OPTION_REG
+	bcf	OPTION_REG,PSA	; OPTION_REG &= ~(1<<PSA);// max timer0 prescale
+	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
+
 	zOS_CON	1,20000000/9600,PIR1,PORTB,RB5
 	movlw	OUTCHAR		;void main(void) {
 	zOS_ARG	3		; zOS_CON(/*SSP*/1,20MHz/9600bps,PIR1,PORTB,5);
@@ -131,16 +141,6 @@ main
 	zOS_LAU	WREG		; zOS_LAU(&w);
 	zOS_LAU	WREG		; zOS_LAU(&w); // launch two copies
 	
-	banksel	ANSELB
-	bcf	ANSELB,RB5	; ANSELB &= ~(1<<RB5); // allow digital function
-
-	banksel	TRISB
-	bcf	TRISB,RB5	; TRISB &= ~(1<<RB5); // allow output heartbeat
-	
-	banksel	OPTION_REG
-	bcf	OPTION_REG,PSA	; OPTION_REG &= ~(1<<PSA);// max timer0 prescale
-	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
-
 	zOS_RUN	INTCON,INTCON	; zOS_RUN(/*T0IE in*/INTCON, /*T0IF in*/INTCON);
 	end			;}
 	
