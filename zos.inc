@@ -28,8 +28,9 @@ zOS_NUM	set	5
 #endif
 
 ;;; you may redefine the location of the scratch space for restoring the stack
-;;; after each context switch (by default it is 0x20 in bank zOS_NUM+1, but must
-;;; be pulled in on small devices or pushed out for a heap-management job space)
+;;; after each context switch (by default it is 0x20 in bank zOS_NUM+1, but can
+;;; be pulled in on small devices into unused local storage, or pushed out for
+;;; a heap-management job space)
 #ifdef zOS_STK
 #else
 zOS_STK	set	(((zOS_NUM+1)<<7)|0x20)
