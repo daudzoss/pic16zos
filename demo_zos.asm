@@ -1,6 +1,6 @@
 ;;; demo_zos.asm
 ;;;
-;;; demonstration (and, frankly) bring-up app for zOS
+;;; demonstration (and, frankly, bring-up) app for zOS
 ;;;
 ;;; after starting job #1 as a console output buffer (zOS_CON() in zosmacro.inc)
 ;;; to demonstrate privileged mode (able to kill or otherwise tweak other tasks)
@@ -23,11 +23,12 @@ zOS_NUM	equ	4
 	__CONFIG _CONFIG1,_FOSC_HS & _WDTE_OFF & _PWRTE_OFF & _MCLRE_ON & _CP_OFF & _CPD_OFF & _BOREN_ON & _CLKOUTEN_OFF & _IESO_ON & _FCMEN_ON
 
 ;;; uncomment to reduce zOS footprint by 100 words (at cost of zOS_FRK/EXE/FND):
-;
-zOS_MIN	equ	1
+;zOS_MIN	equ	1
 	
 	include zos.inc
 	include zosmacro.inc
+	
+OUTCHAR	equ	zOS_SI3
 	
 ;;; uncomment to pre-load stack positions with indices (for debugging ZOS_ROL):
 ;	
@@ -54,19 +55,19 @@ splash
 	zOS_ADR	greet,zOS_FLA	;
 	pagesel	put_str		; zOS_ADR(fsr0 ="Demo application for zOS\r\n");
 	call	put_str		; put_str(fsr0);
-	movlw	zOS_NUM+1	; SPLVAR = zOS_NUM + 1;
-	movwf	SPLVAR		; while (--SPLVAR) {
+	movlw	zOS_NUM+1	; uint8_t splvar = zOS_NUM + 1;
+	movwf	SPLVAR		; while (--splvar) {
 splalp
 	movlw	low spitjob	;  zOS_ARG(0, spitjob & 0x00ff);
 	zOS_ARG	0
 	movlw	high spitjob	;  zOS_ARG(1, spitjob >> 8);
 	zOS_ARG	1
-	decf	SPLVAR,w	;  zOS_ARG(2, SPLVAR);      
-	btfsc	STATUS,Z	;  SPLVAR = zOS_SWI(zOS_FND);      
-	bra	spldone		;  if (SPLVAR)
+	decf	SPLVAR,w	;  zOS_ARG(2, splvar);      
+	btfsc	STATUS,Z	;  splvar = zOS_SWI(zOS_FND);      
+	bra	spldone		;  if (splvar)
 	zOS_ARG	2
 	zOS_SWI	zOS_FND
-	movwf	SPLVAR		;   zOS_UNW(SPLVAR); // un-wait found spitjob()s
+	movwf	SPLVAR		;   zOS_UNW(splvar); // un-wait found spitjob()s
 	movf	SPLVAR,f	;  else
 	btfsc	STATUS,Z	;   break; // until none found at all
 	bra	spldone		; }
@@ -115,7 +116,6 @@ loop
 ;;; for flexibility of incorporation into any application this choice is not
 ;;; hardwired into zosmacro.inc library and any available line may be chosen:
 	
-OUTCHAR	equ	zOS_SI3
 main
 	banksel	ANSELB
 	bcf	ANSELB,RB5	; ANSELB &= ~(1<<RB5); // allow digital function
