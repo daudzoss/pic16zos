@@ -715,11 +715,11 @@ zos_swm
 	zOS_RFI	WREG
 
 zos_ini
-	;; clear out page 0 to reflect no  running tasks
+	;; clear out page 0 to reflect no running tasks, set global data to 0's
 	movlb	0		; "invalid" job# used to get perms for zOS_NEW
-	movlw	0x6f		; bsr = 0;
+	movlw	0x7f		; bsr = 0;
 	movwf	FSR0L		;
-	clrf	FSR0H		; for (fsr0 = 0x006f; fsr >= 0x0020; fsr--)
+	clrf	FSR0H		; for (fsr0 = 0x007f; fsr >= 0x0020; fsr--)
 zos_zer
 	clrw			;
 	movwi	FSR0--		;  *fsr = 0; // only zOS_PCH is critical
