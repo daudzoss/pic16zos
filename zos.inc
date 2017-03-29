@@ -131,7 +131,6 @@ fsrn set 0
 	clrf	FSR#v(fsrn)H	;}
 	endm
 
-;;; FIXME:doesn't seem to work!
 ;;; macro to wind the circular stack around from the running job# to the new job
 ;;; (before restoring the new job's STKPTR and copying its return address there)
 ;;; typically: zOS_ROL BSR_SHAD,JOB_NUM(BSR?),zOS_TMP,FSR0,zOS_STK
@@ -150,7 +149,6 @@ fsrn set 0
 	movf	new,w		;                    int8_t* base) {
 	subwf	old,w		; //responsibility of caller to banksel STKPTR
 	btfsc	STATUS,Z	; if (*new == *old) // nothing to do
-;;; FIXME: BSR_SHAD ends up set to JOB_NUM immediately before zOS_ROL, always 0!
 	bra	done		;  return;
 	decf	WREG,w		; w = new - old - 1;
 	btfsc	WREG,7		;
@@ -283,8 +281,6 @@ FSR1	 equ	FSR1L
 	org	0x0002
 	pagesel	zos_swj
 	goto	zos_swj		;<--zOS_SWI is call to 0x0002, a jump to zos_swj
-
-;;;FIXME: use more decfsz when searching high-to-low?
 
 	;; enter handler which will zOS_RFI() to zos_sch if it's the correct one
 	;; (and we're not still in the bank-0 initialization before interrupts),
@@ -421,6 +417,9 @@ zos_itr
 	movf	FSR1H_SHAD,w	;
 	movwi	FSR0++		;     *fsr0++ = FSR1H_SHAD;
 
+	;; get stack spun around to where zOS_JOB expects it on return from ISR
+	zOS_ROL	BSR_SHAD,zOS_JOB,zOS_MSK,FSR1,zOS_STK
+	
 	;; copy zOS_JOB's criticals out of its bank 0 slot
 	zOS_MEM	FSR0,zOS_JOB,zOS_SST
 	moviw	FSR0++		;     fsr0 = 0x10 * (1+zOS_JOB) + zOS_SST;
@@ -428,7 +427,6 @@ zos_itr
 	moviw	FSR0++		;
 	movwf	WREG_SHAD	;     WREG_SHAD = *fsr0++;
 	movf	zOS_JOB,w	;     //point to correct 80-byte local SRAM page
-;;; FIXME: BSR_SHAD ends up set to JOB_NUM immediately before zOS_ROL, always 0!
 	movwf	BSR_SHAD	;     BSR_SHAD = zOS_JOB; // not STKPTR
 	moviw	++FSR0		;
 	movwf	PCLATH_SHAD	;     PCLATH_SHAD = *++fsr0;
@@ -441,14 +439,13 @@ zos_itr
 	moviw	++FSR0		;
 	movwf	FSR1H_SHAD	;     FSR1H_SHAD = *++fsr0;
 	
-	;; get stack spun around to where zOS_JOB expects it on return from ISR
-	zOS_ROL	BSR_SHAD,zOS_JOB,zOS_MSK,FSR1,zOS_STK
+	;; set new job stack pointer, last step before completing context switch
 	moviw	zOS_RTL[FSR0]	;     TOSL = zOS_PCL[FSR0-11];
 	movwf	TOSL		;     TOSH = zOS_PCH[FSR0-11];
 	moviw	zOS_RTH[FSR0]	;     return (void)__isr;
-	movwf	TOSH		;    }//if this point is reached, search wrapped
+	movwf	TOSH		;    }
 zos_don
-	retfie			;
+	retfie			;    //if this point is reached, search wrapped:
 zos_wra
 	clrf	zOS_JOB		;    fsr0 = 0x10 * (1 + (zOS_JOB = 0));
 zos_1st
@@ -480,7 +477,6 @@ zos_swj
 	movf	FSR1H,w		;
 	movwf	FSR1H_SHAD	; FSR1H_SHAD = FSR1H;
 
-;;;FIXME: clarify what is set to the job# into an SWI: BSR? zOS_JOB?
 	;; see if the interrupt type is a system one (<8)
 	pagesel	zos_swh
 	movlw	zOS_SI7|zOS_SI6|zOS_SI5|zOS_SI4|zOS_SI3
