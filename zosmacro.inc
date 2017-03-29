@@ -276,6 +276,8 @@ zOS_UNW	macro	job		; inline void zOS_UNW(int8_t job) { }
 	bcf	INDF0,zOS_WAI	;  *fsr0 &= ~(1 << zOS_WAI); // now runnable
 	endm			; }
 
+#if 0
+;;; FIXME: major reworking needed still
 zOS_ASC	macro	file,str,nulterm;inline uint8_t zOS_ASC(char*file, const char*
 	local	start,out
 	variable i,sum,prev,curr
@@ -342,13 +344,14 @@ loop
 	movf	temp,w		; for (*temp = strlen(revstr); *temp; (*temp)--){
 	addlw	offset		;  zOS_ARG(0, s[*temp]);
 callnxt
-	callw			;  zOS_SWI(swinum);
+	callw	;<---probably wrong since PCLATH unset!	;  zOS_SWI(swinum);
 	zOS_ARG	0
 	zOS_SWI	swinum
 	bra	loop		; } // zOS_ARG 0 is 2, zOS_SWI 3 words, bra 1
 pre
 	dt	revstr	;}
 post
+#endif
 #endif
 
 zOS_PSH	macro	reg
