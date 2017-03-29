@@ -88,29 +88,68 @@ mychan
 	retlw	0x01		;}
 	
 
-rel_isr
-	
-
-relay
 RELAYID	equ	0x20
 OPTOID	equ	0x21
 RELAYP	equ	0x22
-OPTOP	equ	x023
+OPTOP	equ	0x23
 RELAYB	equ	0x24
 OPTOB	equ	0x25
 MYMASK	equ	0x26
+	
+optoisr
+	movf	zOS_JOB,w	;__isr void optoisr(uint8_t zOS_JOB) {
+	movwf	BSR		; bsr = zOS_JOB;
+	zOS_MY2	FSR0
+	movf	RELAYP,w	; uint8_t fsr0 = 0x70 | (bsr << 1);
+	movwf	FSR1L		; uint8_t fsr1;
+	movlw	high PORTA	;
+	movwf	FSR1H		; fsr1 = (relayp==PORTA&0xff) ? &PORTA : &PORTB;
+	moviw	1[FSR0]		;
+	btfss	STATUS,Z	;
+	bra	optordy		; if (1[fsr0]) { // initialization has completed
+	zOS_RET
+optordy
+	movf	zOS_MSK,w	;  if (zOS_MSK == 0) { // process standard HWI
+	btfss	STATUS,Z	;
+	bra	optoswi		;
+	movf	OPTOB,w		;   bsr = &IOCBF >> 7;
+	banksel	IOCBF
+	andwf	IOCBF,w		;   w = OPTOB & IOCBF; // mask for the port bits
+	btfss	STATUS,Z	;
+	bra	optoioc		;   if (w) { // our opto is (at least 1) trigger
+	zOS_RET
+optoioc
+	movwf	zOS_MSK		;    zOS_MSK = w; // scratch var to clear flag
+	andwf	INDF1,w		;
+	btfsc	STATUS,Z	;
+	bra	opto_lo		;
+opto_hi
+	movlw	0xff		;
+	movwi	1[FSR0]		;
+	bra	optoclr		;
+opto_lo
+	movf	zOS_JOB,w	;
+	movwf	BSR		;   bsr = zOS_JOB;
+optoclr
+	
+
+optoswi
+	
+	
+
+relay
 	zOS_MY2	FSR0
 	decf	zOS_ME		;void relay(void) { // 1<= bsr (job#) <= 4
 	pagesel	myrelay	
 	call	myrelay		; uint8_t* fsr0 = 0x70 | (bsr << 1);
 	movwf	RELAYID		; static uint8_t relayid = myrelay1(bsr);
-	
+
 	w2port
 	movwf	RELAYP		; static uint8_t relayp = w2port(relayid);
 	movf	RELAYID,w	;
 	w2bit
 	movwf	RELAYB		; static uint8_t relayb = w2bit(relayid);
-	
+
 	decf	zOS_ME		;
 	pagesel	myopto
 	call	myopto		;
@@ -125,43 +164,53 @@ MYMASK	equ	0x26
 	decf	zOS_ME		;
 	w2chan
 	movwf	MYMASK		; static uint8_t mymask = w2chan1(bsr);
-	
-	movf	RELAYP		;
+
+	movf	RELAYP,w		;
 	movwf	FSR1L		; uint8_t* fsr1;
 	movlw	high PORTA	;
 	movwf	FSR1H		; fsr1 = (relayp==PORTA&0xff) ? &PORTA : &PORTB;
+	movlw	0xff		;
+	movwi	1[FSR0]		; 1[fsr0] = 0xff; // bits nonzero indicates init
 relaylp
 	movf	MYMASK,w	; do {
-	andwf	INDF0,w		;  if (*fsr0 & mymask)
-	pagesel	relay1
-	btfsc	STATUS,Z	;   relay1();
-	call	relay1		;  else
-	pagesel	relay0
-	btfsc	STATUS,Z	;   relay0();
-	call	relay0		;  zOS_SWI(zOS_YLD); // let another job run
-relaysl
-	zOS_SWI	zOS_YLD		; } while (1);
-	bra	relaylp		;}
-relay1
-	movf	RELAYB,w
-	iorwf	INDF1,f
-	return
+	andwf	INDF0,w		;
+	btfss	STATUS,Z	;
+	bra	relay0		;  if (*fsr0 & mymask)
+	movf	RELAYB,w	;   *fsr1 |= relayb;
+	iorwf	INDF1,f	   	;  else
+	bra	relaysl	   	;   *fsr1 &= ~relayb;
 relay0
-	comf	RELAYB,w
-	andwf	INDF1,f
-	return
-	
+	comf	RELAYB,w	;  zOS_SWI(zOS_YLD); // let another job run
+	andwf	INDF1,f		; } while (1);
+relaysl
+	zOS_SWI	zOS_YLD
+	bra	relaylp		;}
 
 OUTCHAR	equ	zOS_SI3
+NON_IOC	equ	zOS_SI4
+	
 main
-	zOS_INT	1<<IOCIF,0	;void main(void) {
-	zOS_ADR	relay,zOS_UNP	; zOS_INT(1<<IOCIF, 0); // HWI only, watches IOC
-	zOS_LAU	WREG		; zOS_ADR(relay, zOS_UNP);
-	zOS_LAU	WREG		;
-	zOS_LAU	WREG		; for (int job = 1; job <= 4; job++)
-	zOS_LAU	WREG		;  zOS_LAU(&w);
-	sublw	zOS_NUM-1	;
-	btfsc	WREG,7		; if (w >= zOS_NUM) // job remaining for zOS_MON
+	clrw			;void main(void) {
+create	
+	pagesel	myopto
+	call	myopto		; for (w = 0; w < 4; zOS_LAU(&w)) {//1 job/relay
+	xorlw	PORTA<<3	;  if (myopto(w) & 0xf8 != (PORTA<<3) & 0xf8)
+	btfsc	STATUS,Z	;   zOS_INT(1<<IOCIF,0); // Port B HWI's use IOC
+	bra	use_swi		;  else // but Port A has no IOC capability, so
+	zOS_INT	1<<IOCIF,0
+use_swi
+	zOS_INT	0,NON_IOC
+	zOS_ADR	relay,zOS_UNP
+	movlw	low optoisr	;   zOS_INT(0,NON_IOC); // use a SWI from main()
+	zOS_ARG	0
+	movlw	high optoisr	;  zOS_ARG(0, optoisr & 0x00ff);
+	zOS_ARG	1
+	zOS_LAU	WREG
+	btfss	WREG,2		;  zOS_ARG(1, optoisr >> 8);
+	bra	create		;  zOS_ADR(relay, zOS_UNP); // relay() unpriv'ed
+	
+	sublw	zOS_NUM-1	; }
+	btfsc	WREG,7		; if (w == zOS_NUM)// no job remains for zOS_MON
 	reset			;  reset();
 
 	zOS_CON	1,20000000/9600,PIR1,PORTB,RB5
