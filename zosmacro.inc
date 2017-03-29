@@ -278,6 +278,21 @@ zOS_UNW	macro	job		; inline void zOS_UNW(int8_t job) { }
 
 zOS_ASC	macro	file,str,nulterm;inline uint8_t zOS_ASC(char*file, const char*
 	local	start,out
+	variable i,sum,prev,curr
+prev = 0xff
+i = 0
+	while i < (out-start)	; for (int i=0; str[i]||(nulterm&&!str[i]); i++)
+sum = start
+curr = high sum
+	if curr-prev	
+	 pagesel sum
+	endif
+	call	sum		;  file[i] = str[i];
+	movwf	file+i		; return i;
+prev = curr
+sum += 1
+	endw
+	movlw	i+nulterm	;}
 	bra	out		;                       str, int nulterm) {
 start
 	dt	str
@@ -285,22 +300,8 @@ start
 	 dt	0
 	endif
 out
-	variable i,sum,prev,curr
-;prev = 0xff
-i = 0
-	while i < (out-start)	; for (int i=0; str[i]||(nulterm&&!str[i]); i++)
-sum = start
-;curr = high sum
-;	if curr-prev	
-	 pagesel sum
-;	endif
-	call	sum		;  file[i] = str[i];
-	movwf	file+i		; return i;
-;prev = curr
-sum += 1
-	endw
-	movlw	i+nulterm	;}
 	endm
+
 #if 1
 zOS_OUT	macro	swinum,string	; // 8 words per byte (+1) to avoid using stack
 	local start,out
@@ -330,7 +331,7 @@ i += 1
 	endw			;
 	endm			;}
 #else
-zOS_OUT	macro	swinum,revstr,temp; // 1 word per byte (+) to use stack+file
+zOS_OUT	macro	swinum,revstr,temp; // 1 word per byte (+13) to use stack+file
 	local	pre,post,callnxt,offset,loop
 offset	set	callnxt
 	movlw	post-pre	;inline void zOS_OUT(int8_t swinum, const char*
