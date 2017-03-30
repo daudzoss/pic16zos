@@ -97,29 +97,30 @@ OPTOB	equ	0x25
 MYMASK	equ	0x26
 	
 optoisr
-	movf	zOS_JOB,w	;__isr void optoisr(uint8_t zOS_JOB) {
-	movwf	BSR		; bsr = zOS_JOB;
 	zOS_MY2	FSR0
-	movf	RELAYP,w	; uint8_t fsr0 = 0x70 | (bsr<<1); // out,in&0xff
-	movwf	FSR1L		; uint8_t fsr1;
-	movlw	high PORTA	;
+	movf	RELAYP,w	;__isr void optoisr(uint8_t zOS_JOB) {
+	movwf	FSR1L		; uint8_t fsr0 = 0x70 | (bsr<<1); // out,0xff&in
+	movlw	high PORTA	; uint8_t fsr1;
 	movwf	FSR1H		; fsr1 = (relayp==PORTA&0xff) ? &PORTA : &PORTB;
+	movf	zOS_JOB,w	;
+	movwf	BSR		; bsr = zOS_JOB;
 	moviw	1[FSR0]		;
 	btfss	STATUS,Z	;
 	bra	optordy		; if (1[fsr0]) { // initialization has completed
 	zOS_RET
 optordy
 	movf	OPTOB,w		;  w = OPTOB;// our job's single bit of interest
-	movf	zOS_MSK,f	;
-	btfss	STATUS,Z	;  if (zOS_MSK == 0) { // process a standard HWI
-	bra	optoswi		;   bsr = &IOCBF >> 7;
-	
-	;; FIXME: might need to qualify it as an IOC interrupt, right?
-
+	movf	zOS_MSK,f	;  if (zOS_MSK == 0) {
+	btfss	STATUS,Z	;   if (INTCON & 1<<IOCF == 0)
+	bra	optoswi		;    zOS_RET(); // not an IOC, maybe timer0 ovf.
+	btfsc	INTCON,IOCF	;
+	bra	optohwi		;   bsr = &IOCBF >> 7;
+	zOS_RET
+optohwi
 	banksel	IOCBF
-	andwf	IOCBF,w		;   w &= IOCBF; // mask for the port bits
+	andwf	IOCBF,w		;   w = OPTOB & IOCBF; // mask for the port bits
 	btfss	STATUS,Z	;   if (w) { // our opto is (at least 1) trigger
-	bra	optoioc		;    zOS_MSK = w; // use as scratch var for a 0
+	bra	optoioc		;    zOS_MSK = w; // use as scratch var for zero
 	zOS_RET
 optoioc
 	movwf	zOS_MSK		;    IOCBF ^= w; // clear the IOC flag
@@ -129,7 +130,7 @@ optoswi
 	btfsc	STATUS,Z	;  }
 	bra	opto_lo		;
 opto_hi
-	movlw	0xff		;  1[FSR0] = (w & *fsr0) ? 0xff : ~zOS_MSK;
+	movlw	0xff		;  1[FSR0] = (w & *fsr1) ? 0xff : ~zOS_MSK;
 	movwi	1[FSR0]		;  zOS_RFI(zOS_MSK);
 	bra	optoclr		; }
 opto_lo
@@ -166,7 +167,7 @@ relay
 	w2chan
 	movwf	MYMASK		; static uint8_t mymask = w2chan1(bsr);
 
-	movf	RELAYP,w		;
+	movf	RELAYP,w	;
 	movwf	FSR1L		; uint8_t* fsr1;
 	movlw	high PORTA	;
 	movwf	FSR1H		; fsr1 = (relayp==PORTA&0xff) ? &PORTA : &PORTB;
@@ -177,49 +178,56 @@ relaylp
 	andwf	INDF0,w		;
 	btfss	STATUS,Z	;
 	bra	relay0		;  if (*fsr0 & mymask)
-	movf	RELAYB,w	;   *fsr1 |= relayb;
+	movf	RELAYB,w	;   *fsr1 |= relayb; // commanded to 1 by global
 	iorwf	INDF1,f	   	;  else
-	bra	relaysl	   	;   *fsr1 &= ~relayb;
+	bra	relayld	   	;   *fsr1 &= ~relayb;// commanded to 0 by global
 relay0
 	comf	RELAYB,w	;  zOS_SWI(zOS_YLD); // let another job run
 	andwf	INDF1,f		; } while (1);
-relaysl
+relayld
 	zOS_SWI	zOS_YLD
 	bra	relaylp		;}
 
 OUTCHAR	equ	zOS_SI3
 NON_IOC	equ	zOS_SI4
-	
+ALL_IOC	equ	0x7a
+TMP_IOC	equ	0x7b
+
 main
 	clrw			;void main(void) {
+	clrf	ALL_IOC		; volatile uint_8t all_ioc = 0; //job 5 clobbers
 create	
 	pagesel	myopto
 	call	myopto		; for (w = 0; w < 4; zOS_LAU(&w)) {//1 job/relay
-	xorlw	PORTA<<3	;  if (myopto(w) & 0xf8 != (PORTA<<3) & 0xf8)
-	btfsc	STATUS,Z	;   zOS_INT(1<<IOCIF,0); // Port B HWI's use IOC
-	bra	use_swi		;  else // but Port A has no IOC capability, so
+	movwf	TMP_IOC		;  volatile uint8_t tmp_ioc = myopto(w);
+	xorlw	PORTA<<3	;  if (tmp_ioc & 0xf8 == (PORTA<<3) & 0xf8)
+	btfss	STATUS,Z	;   zOS_INT(0,NON_IOC); // use a SWI from main()
+	bra	use_hwi		;  else {// but Port A has no IOC capability, so
+	zOS_INT	0,NON_IOC
+	bra	use_swi		;   zOS_INT(1<<IOCIF,0); // Port B HWI uses IOC
+use_hwi
+	movf	TMP_IOC,w	;   all_ioc |= tmp_ioc;
+	iorwf	ALL_IOC,f	;  }
 	zOS_INT	1<<IOCIF,0
 use_swi
-	zOS_INT	0,NON_IOC
 	zOS_ADR	relay,zOS_UNP
-	movlw	low optoisr	;   zOS_INT(0,NON_IOC); // use a SWI from main()
+	movlw	low optoisr	;  zOS_ADR(relay, zOS_UNP); // relay() unpriv'ed
 	zOS_ARG	0
 	movlw	high optoisr	;  zOS_ARG(0, optoisr & 0x00ff);
 	zOS_ARG	1
 	zOS_LAU	WREG
 	btfss	WREG,2		;  zOS_ARG(1, optoisr >> 8);
-	bra	create		;  zOS_ADR(relay, zOS_UNP); // relay() unpriv'ed
+	bra	create		; }
 	
-	sublw	zOS_NUM-1	; }
+	sublw	zOS_NUM-1	;
 	btfsc	WREG,7		; if (w == zOS_NUM)// no job remains for zOS_MON
 	reset			;  reset();
 
-	zOS_CON	1,20000000/9600,PIR1,PORTB,RB5
-	movlw	OUTCHAR		; zOS_MON(/*SSP*/1,20MHz/9600bps,PIR1,PORTB,5);
-	zOS_ARG	3		; zOS_ARG(3,OUTCHAR/*only 1 SWI*/);
-	zOS_LAU	WREG		; zOS_LAU(&w);
-	
-	;;don't forget to set up Interrupt-On-Change here
+	banksel	IOCBP
+	movf	TMP_IOC,w	;
+	movwf	IOCBP		; IOCBP = tmp_ioc; // IOCF senses rising optos
+	movwf	IOCBN		; IOCBN = tmp_ioc; // IOCF senses falling optos
+	bsf	INTCON,IOCE	; INTCON |= 1<<IOCE; // enable edge sensing HWIs
 
 	banksel	ANSELB
 	bcf	ANSELB,RB5	; ANSELB &= ~(1<<RB5); // allow digital function
@@ -228,7 +236,11 @@ use_swi
 	
 	banksel	OPTION_REG
 	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
-	bcf	OPTION_REG,PSA	; OPTION_REG &= ~(1<<TMR0CS);// use max prescale
-
+	bcf	OPTION_REG,PSA	; OPTION_REG &= ~(1<<PSA);// using max prescaler
+	
+	zOS_CON	1,20000000/9600,PIR1,PORTB,RB5
+	movlw	OUTCHAR		; zOS_MON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
+	zOS_ARG	3		; zOS_ARG(3, OUTCHAR/*only 1 SWI*/);
+	zOS_LAU	WREG		; zOS_LAU(&w);
 	zOS_RUN	INTCON,INTCON	; zOS_RUN(/*T0IE in*/INTCON, /*T0IF in*/INTCON);
 	end			;}
