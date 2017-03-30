@@ -291,6 +291,8 @@ create
 	pagesel	myopto
 	call	myopto		; for (w = 0; w < 4; zOS_LAU(&w)) {//1 job/relay
 	movwf	TMP_IOC		;  volatile uint8_t tmp_ioc = myopto(w);
+	zOS_ADR	optoisr,zOS_FLA
+	movf	TMP_IOC,w	;  fsr0 = &optoisr;
 	andlw	0xf8		;
 	xorlw	PORTA<<3	;  if (tmp_ioc & 0xf8 == (PORTA<<3) & 0xf8)
 	btfss	STATUS,Z	;   zOS_INT(0,NON_IOC); // use a SWI from main()
@@ -303,12 +305,8 @@ use_hwi
 	zOS_INT	1<<IOCIF,0
 use_swi
 	zOS_ADR	relay,zOS_UNP
-	movlw	low optoisr	;  zOS_ADR(relay, zOS_UNP); // relay() unpriv'ed
-	zOS_ARG	0
-	movlw	high optoisr	;  zOS_ARG(0, optoisr & 0x00ff);
-	zOS_ARG	1
 	zOS_LAU	WREG
-	btfss	WREG,2		;  zOS_ARG(1, optoisr >> 8);
+	btfss	WREG,2		;  fsr0 = &relay 0x7fff; // relay() unpriv'ed
 	bra	create		; }
 	
 	sublw	zOS_NUM-1	;
