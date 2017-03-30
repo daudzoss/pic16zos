@@ -88,6 +88,12 @@ zOS_SWI	macro	type		;inline void zOS_SWI(const int8_t type) {
 	call	0x02		;}
 	endm
 
+zOS_TAI	macro	type		;inline void zOS_SWI(const int8_t type) {
+	movlw	type		; zos_skp(type);
+	pagesel	zos_skp
+	call	zos_skp		;}
+	endm
+	
 zOS_LAU	macro	stash
 	local retry
 retry
@@ -568,6 +574,9 @@ isr
 
 	banksel	hb
 	movf	INDF0,w		;
+	btfsc	STATUS,Z	;
+	incf	INDF0,w		;   if (*fsr0 == 0)
+	movwf	INDF0		;    *fsr0 = 1;
 	movwf	INDF1		;   *fsr1 /*countdown*/ = *fsr0 /*postscaler*/;
 	movlw	(1<<pin)	;
 	xorwf	hb,f		;   hb ^= 1 << pin;

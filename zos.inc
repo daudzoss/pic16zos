@@ -7,8 +7,8 @@
 ;;; never end up greater than zOS_NUM in user space with interrupts enabled!!!
 
 ;;; memory footprint:
-;;;  ~611 14-bit words for base RTOS i.e. main() starts at 0x0263
-;;;  ~509 words if zOS_MIN is defined to omit FRK/EXE/FND (thus SWI#4~7=zOS_YLD)
+;;;  ~613 14-bit words for base RTOS i.e. main() starts at 0x0263
+;;;  ~511 words if zOS_MIN is defined to omit FRK/EXE/FND (thus SWI#4~7=zOS_YLD)
 ;;; 
 ;;; SRAM footprint:
 ;;; 86 bank-0 bytes claimed by RTOS, 30 bytes of stack scratch space relocatable
@@ -455,6 +455,12 @@ zos_1st
 	bra	zos_004		;int8_t zos_swj(int8_t w){ // call vector at 002
 
 	;; software interrupt processing reached by jumping to 0x0002 with W set
+	;; which then calls to zos_swj, or by jumping to zos_skp after already
+	;; processing a previous interrupt (since there is only 1 level of SHAD)
+	;; to skip the copy into the shadow registers
+zos_skp
+	movwf	zOS_MSK		;
+	bra	zos_sk2		;
 zos_swj
 	;; save the shadow registers (for the ones that have them) to use retfie
 	bcf	INTCON,GIE	; INTCON &= ~(1<<GIE); // interrupt would be bad
@@ -476,7 +482,7 @@ zos_swj
 	movwf	FSR1L_SHAD	; FSR1L_SHAD = FSR1L;
 	movf	FSR1H,w		;
 	movwf	FSR1H_SHAD	; FSR1H_SHAD = FSR1H;
-
+zos_sk2
 	;; see if the interrupt type is a system one (<8)
 	pagesel	zos_swh
 	movlw	zOS_SI7|zOS_SI6|zOS_SI5|zOS_SI4|zOS_SI3
