@@ -1,13 +1,71 @@
 ;;; olirelay.asm
 
-;;; example program to control the Olimex PIC-IO relay/optoisolator board loaded
-;;; with a PIC16F1847 microcontroller, the schematic for which may be found at
-;;; olimex.com/Products/PIC/Development/PIC-IO/resources/PIC-IO_revision_C.pdf
-
 	processor 16f1847
 	include	p16f1847.inc
 
 	__CONFIG _CONFIG1,_FOSC_HS & _WDTE_OFF & _PWRTE_OFF & _MCLRE_ON & _CP_OFF & _CPD_OFF & _BOREN_ON & _CLKOUTEN_OFF & _IESO_ON & _FCMEN_ON
+	
+;;; example program to control the Olimex PIC-IO relay/optoisolator board loaded
+;;; with a PIC16F1847 microcontroller, the schematic for which may be found at
+;;; olimex.com/Products/PIC/Development/PIC-IO/resources/PIC-IO_revision_C.pdf
+;;;            __________ __________
+;;;           |          U          |
+;;;      OUT2_|  1 (RA2)   (RA1) 18 |_OUT3
+;;;           |                     |
+;;;      OUT1_|  2 (RA3)   (RA0) 17 |_OUT4
+;;;           |                     |
+;;;       IN1_|  3 (RA4)   (RA7) 16 |_OSC1
+;;;           |                     |     20MHz xtal
+;;;     /MCLR_|  4 (RA5)   (RA6) 15 |_OSC2
+;;;           |                     |
+;;;       GND_|  5               14 |_VDD
+;;;           |                     |
+;;;       IN2_|  6 (RB0)   (RB7) 13 |_PGD (ICSP pin 4)
+;;;           |                     |
+;;; TXH = RXD_|  7 (RB1)   (RB6) 12 |_PGC (ICSP pin 5)
+;;;           |                     |
+;;; RXH = TXD_|  8 (RB2)   (RB5) 11 |_HBEAT LED (on timer 0)
+;;;           |                     |
+;;;       IN3_|  9 (RB3)   (RB4) 10 |_IN4 (ICSP pin 6)
+;;;           |_____________________|
+
+PORT1	equ	PORTA<<3
+OPTO1	equ	RA4
+PORT2	equ	PORTB<<3	
+OPTO2	equ	RB0
+PORT3	equ	PORTB<<3
+OPTO3	equ	RB3	
+PORT4	equ	PORTB<<3
+OPTO4	equ	RB4
+	
+RELAY1	equ	RA3
+RELAY2	equ	RA2
+RELAY3	equ	RA1
+RELAY4	equ	RA0
+	
+;;; this board uses an 18-pin PIC with an external crystal to watch four opto-
+;;; isolators and drive four relays; running this example zOS application each
+;;; input/output pair (numbered 1 to 4, coinciding with its job) runs in its own
+;;; copy of the relay() re-entrant function and its re-entrant IRS counterpart
+;;; optoisr() to reflect respectively the commanded output state from its odd-
+;;; numbered global to the relay and input state from the optoisolator into the
+;;; even-numbered global:
+RLY1OUT	equ	0x72
+OPT1IN	equ	0x73
+RLY2OUT	equ	0x74
+OPT2IN	equ	0x75
+RLY3OUT	equ	0x76
+OPT3IN	equ	0x77
+RLY4OUT	equ	0x78
+OPT4IN	equ	0x79
+ALL_IOC	equ	0x7a		; logical OR of all IOC flags to watch rise/fall
+TMP_IOC	equ	0x7b		; scratch var (globals for init loop then job 5)
+	
+;;; the fifth available job is intended to be the monitor application with which
+;;; the board can be controlled directly, replaced with a custom application via
+;;; the zOS_EXE system call, or for killing relay tasks that are not used and
+;;; thus freeing space
+
 
 ;;; uncomment to reduce zOS footprint by 100 words (at cost of zOS_FRK/EXE/FND):
 ;zOS_MIN	equ	1
@@ -21,11 +79,12 @@
 	pagesel	main
 	goto	main
 	
-inputs	macro
-	movf	0x72,w		;inline uint8_t inputs() { // AND of all inputs
-	andwf	0x74,w		; return *((void *)0x72) & *((void *)0x74) &
-	andwf	0x76,w		;        *((void *)0x76) & *((void *)0x78);
-	andwf	0x78,w		;}
+input2w	macro
+	movf	OPT1IN,w	;inline uint8_t input2w() { // AND of all inputs
+	andwf	OPT2IN,w	; // since an all-zero register means task unrun
+	andwf	OPT3IN,w	; return OPT1IN & OPT2IN & OPT3IN & OPT4IN;     
+	andwf	OPT4IN,w	;}
+	endm
 
 w2port	macro
 	andlw	0xf8		;inline uint8_t* w2port(uint8_t w) {
@@ -48,14 +107,6 @@ w2bit	macro
 	retlw	1<<7		;}
 	endm
 
-PORT1	equ	PORTA<<3
-OPTO1	equ	RA4
-PORT2	equ	PORTB<<3	
-OPTO2	equ	RB0
-PORT3	equ	PORTB<<3
-OPTO3	equ	RB3	
-PORT4	equ	PORTB<<3
-OPTO4	equ	RB4
 myopto1
 	addlw	0-1		;uint8_t myopto1(uint8_t w) { switch (w) {
 myopto
@@ -66,10 +117,6 @@ myopto
 	retlw	PORT3|OPTO3	; } // undefined for w < 1 or w > 4
 	retlw	PORT4|OPTO4	;}
 
-RELAY1	equ	RA3
-RELAY2	equ	RA2
-RELAY3	equ	RA1
-RELAY4	equ	RA0
 myrelay1
 	addlw	0-1		;uint8_t myrelay1(uint8_t w) { switch (w) {
 myrelay
@@ -114,9 +161,9 @@ optoisr
 optordy
 	movf	OPTOB,w		;  w = OPTOB;// our job's single bit of interest
 	movf	zOS_MSK,f	;  if (zOS_MSK == 0) {
-	btfss	STATUS,Z	;   if (INTCON & 1<<IOCF == 0)
+	btfss	STATUS,Z	;   if (INTCON & 1<<IOCIF == 0)
 	bra	optoswi		;    zOS_RET(); // not an IOC, maybe timer0 ovf.
-	btfsc	INTCON,IOCF	;
+	btfsc	INTCON,IOCIF	;
 	bra	optohwi		;   bsr = &IOCBF >> 7;
 	zOS_RET
 optohwi
@@ -166,9 +213,10 @@ relay
 	w2bit
 	movwf	OPTOB		; static uint8_t optob = w2bit(optoid);
 
+	pagesel	mychan
 	decf	zOS_ME		;
-	w2chan
-	movwf	MYMASK		; static uint8_t mymask = w2chan1(bsr);
+	call	mychan		;
+	movwf	MYMASK		; static uint8_t mymask = mychan1(bsr);
 
 	movf	RELAYP,w	;
 	movwf	FSR1L		; uint8_t* fsr1;
@@ -191,10 +239,9 @@ relayld
 	zOS_SWI	zOS_YLD
 	bra	relaylp		;}
 
+	;; software interrupt lines used: SI3 to print char to console, SI4=>RA4
 OUTCHAR	equ	zOS_SI3
 NON_IOC	equ	zOS_SI4
-ALL_IOC	equ	0x7a
-TMP_IOC	equ	0x7b
 
 main
 	clrw			;void main(void) {
@@ -203,13 +250,14 @@ create
 	pagesel	myopto
 	call	myopto		; for (w = 0; w < 4; zOS_LAU(&w)) {//1 job/relay
 	movwf	TMP_IOC		;  volatile uint8_t tmp_ioc = myopto(w);
+	andlw	0xf8		;
 	xorlw	PORTA<<3	;  if (tmp_ioc & 0xf8 == (PORTA<<3) & 0xf8)
 	btfss	STATUS,Z	;   zOS_INT(0,NON_IOC); // use a SWI from main()
-	bra	use_hwi		;  else {// but Port A has no IOC capability, so
+	bra	use_hwi		;  else { // since Port A has no IOC capability
 	zOS_INT	0,NON_IOC
-	bra	use_swi		;   zOS_INT(1<<IOCIF,0); // Port B HWI uses IOC
+	bra	use_swi		;   all_ioc |= tmp_ioc; // Port B HWI uses IOC
 use_hwi
-	movf	TMP_IOC,w	;   all_ioc |= tmp_ioc;
+	movf	TMP_IOC,w	;   zOS_INT(1<<IOCIF,0);// though so register it
 	iorwf	ALL_IOC,f	;  }
 	zOS_INT	1<<IOCIF,0
 use_swi
@@ -227,10 +275,10 @@ use_swi
 	reset			;  reset();
 
 	banksel	IOCBP
-	movf	TMP_IOC,w	;
-	movwf	IOCBP		; IOCBP = tmp_ioc; // IOCF senses rising optos
-	movwf	IOCBN		; IOCBN = tmp_ioc; // IOCF senses falling optos
-	bsf	INTCON,IOCE	; INTCON |= 1<<IOCE; // enable edge sensing HWIs
+	movf	ALL_IOC,w	;
+	movwf	IOCBP		; IOCBP = all_ioc; // IOCIF senses rising optos
+	movwf	IOCBN		; IOCBN = all_ioc; // IOCIF senses falling optos
+	bsf	INTCON,IOCIE	; INTCON |= 1<<IOCIE; // enable edge sensing HWI
 
 	banksel	ANSELB
 	bcf	ANSELB,RB5	; ANSELB &= ~(1<<RB5); // allow digital function
