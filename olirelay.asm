@@ -21,8 +21,12 @@
 	pagesel	main
 	goto	main
 	
+inputs	macro
+	movf	0x72,w		;inline uint8_t inputs() { // AND of all inputs
+	andwf	0x74,w		; return *((void *)0x72) & *((void *)0x74) &
+	andwf	0x76,w		;        *((void *)0x76) & *((void *)0x78);
+	andwf	0x78,w		;}
 
-#define PORT(x) ((PORTA & ~0x1f) | ((x)>>3))
 w2port	macro
 	andlw	0xf8		;inline uint8_t* w2port(uint8_t w) {
 	xorlw	PORTA<<3	; return ((w & 0xf8) == ((PORTA<<3) & 0xf8)) ?
@@ -31,7 +35,6 @@ w2port	macro
 	movlw	low PORTB	;}
 	endm
 	
-#define BIT(x) (1 << ((x) & 0x07))
 w2bit	macro
 	andlw	0x07		;inline uint8_t w2bit(uint8_t w) {
 	brw			;
