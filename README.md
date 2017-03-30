@@ -13,6 +13,8 @@ A library of macros for instantiating potentially useful jobs eventually will in
 
 * zOS_MON, like zOS_CON but with a command-line interface for job management and monitoring of the PIC memory space
 
-Bank switching in the application should not be used or needed outside of the interrupt-handler context, as there is a per-job hardware ISR interface.  User-space communication with the kernel and with other jobs is accomplished with either software interrupts or the mailbox interface.  No job priority or starvation prevention is supported at this time due to the lightweight nature of zOS.
+* zOS_RUN, for setting up the timer0 peripheral used for the system tick and context-switching quantum
+
+Bank switching in the application should not be used or needed outside of the interrupt-handler context, as there is a per-job hardware ISR interface.  User-space communication with the kernel and with other jobs is accomplished with either software interrupts or the mailbox interface.  No job priority or starvation prevention is supported at this time due to the lightweight nature of the round-robin scheduler in zOS.
 
 Minimum system requirements: enhanced 14-bit PIC core device with 512 words flash and 128 bytes SRAM
