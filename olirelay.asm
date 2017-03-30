@@ -24,10 +24,10 @@
 
 #define PORT(x) ((PORTA & ~0x1f) | ((x)>>3))
 w2port	macro
-	andlw	0xf8		;
-	xorlw	PORTA<<3	;inline uint8_t* w2port(uint8_t w) {
-	movlw	low PORTA	; return ((PORTA<<3) & 0xf8) == (w & 0xf8)) ?
-	btfss	STATUS,Z	; PORTA : PORTB;
+	andlw	0xf8		;inline uint8_t* w2port(uint8_t w) {
+	xorlw	PORTA<<3	; return ((w & 0xf8) == ((PORTA<<3) & 0xf8)) ?
+	movlw	low PORTA	;        PORTA :
+	btfss	STATUS,Z	;        PORTB;
 	movlw	low PORTB	;}
 	endm
 	
