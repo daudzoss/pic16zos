@@ -129,7 +129,7 @@ main
 
 	zOS_CON	1,20000000/9600,PIR1,PORTB,RB5
 	movlw	OUTCHAR		;void main(void) {
-	zOS_ARG	3		; zOS_CON(/*SSP*/1,20MHz/9600bps,PIR1,PORTB,5);
+	zOS_ARG	3		; zOS_CON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
 	zOS_LAU	WREG		; zOS_ARG(3,OUTCHAR/*only 1 SWI*/); zOS_LAU(&w);
 
 	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler for splash
