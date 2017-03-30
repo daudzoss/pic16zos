@@ -148,8 +148,10 @@ RELAYP	equ	0x22
 OPTOP	equ	0x23
 RELAYB	equ	0x24
 OPTOB	equ	0x25
-MYMASK	equ	0x26
-SAID_HI	equ	0x27
+OPTOCUR	equ	0x26
+OPTOLST	equ	0x27
+MYMASK	equ	0x28
+SAID_HI	equ	0x29
 	
 optoisr
 	zOS_MY2	FSR0
@@ -200,7 +202,6 @@ optoclr
 greet
 	da	"\r\nActivated relay ",0
 relay
-	;; FIXME: need NON_IOC monitoring for the RA4 relay()
 	zOS_MY2	FSR0
 	decf	zOS_ME		;void relay(void) { // 1<= bsr (job#) <= 4
 	pagesel	myrelay	
@@ -223,6 +224,7 @@ relay
 	movf	OPTOID,w	;
 	w2bit
 	movwf	OPTOB		; static uint8_t optob = w2bit(optoid);
+	movwf	OPTOLST		; static uint8_t optolst = optob;// for RA4 only
 
 	pagesel	mychan
 	decf	zOS_ME		;
@@ -257,13 +259,25 @@ relayrd
 	movf	MYMASK,w	;   goto _relay;
 	andwf	INDF0,w		;  }
 	btfss	STATUS,Z	;
-	bra	relay0		;  if (*fsr0 & mymask)
-	movf	RELAYB,w	;   *fsr1 |= relayb; // commanded to 1 by global
-	iorwf	INDF1,f	   	;  else
-	bra	relayld	   	;   *fsr1 &= ~relayb;// commanded to 0 by global
+	bra	relay0		;
+	movf	RELAYB,w	;  if (*fsr0 & mymask)
+	iorwf	INDF1,f	   	;   *fsr1 |= relayb; // commanded to 1 by global
+	bra	relayop	   	;
 relay0
-	comf	RELAYB,w	;  zOS_SWI(zOS_YLD); // let another job run
-	andwf	INDF1,f		; } while (1);
+	comf	RELAYB,w	;  else
+	andwf	INDF1,f		;   *fsr1 &= ~relayb;// commanded to 0 by global
+relayop
+	movf	OPTOP,w		;  if (OPTOP == PORTA) { // watch in tight loop
+	xorlw	low PORTA	;   if (OPTOLST != OPTOB & PORTA) { // changed!
+	btfsc	STATUS,Z	;    OPTOLST = OPTOB & PORTA; // save new value
+	bra	relayld		;    zOS_SWI(NON_IOC); // and tell ISR to look
+	mov	OPTOB,w		;   }
+	andwf	PORTA,w		;   continue; // get pre-empted; can't afford to 
+	xorwf	OPTOLST,f	;  }
+	btfsc	STATUS,Z	;
+	bra	relayld		;  zOS_SWI(zOS_YLD);// let next job run (no ARG)
+	zOS_SWI	NON_IOC
+	bra	relaylp		; } while (1);
 relayld
 	zOS_SWI	zOS_YLD
 	bra	relaylp		;}
