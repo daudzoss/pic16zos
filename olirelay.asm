@@ -76,6 +76,10 @@ TMP_IOC	equ	0x7b		; scratch var (globals for init loop then job 5)
 ;;; uncomment to pre-load stack positions with indices (for debugging xOS_ROL):
 ;zOS_DBG
 
+;; software interrupt lines used: SI3 to print chars to console, SI4 for RA4 IOC
+OUTCHAR	equ	zOS_SI3
+NON_IOC	equ	zOS_SI4
+
 	pagesel	main
 	goto	main
 	
@@ -145,6 +149,7 @@ OPTOP	equ	0x23
 RELAYB	equ	0x24
 OPTOB	equ	0x25
 MYMASK	equ	0x26
+SAID_HI	equ	0x27
 	
 optoisr
 	zOS_MY2	FSR0
@@ -176,29 +181,35 @@ optoioc
 	movwf	zOS_MSK		;    IOCBF ^= w; // clear the IOC flag
 	xorwf	IOCBF,f		;   } else
 optoswi
-	andwf	INDF1,w		;    zOS_RET(); // probably belongs to another job
+	andwf	INDF1,w		;    zOS_RET(); // probably belongs to other job
 	btfsc	STATUS,Z	;  }
-	bra	opto_lo		;
+	bra	opto_lo		;  1[FSR0] = (w & *fsr1) ? 0xff : ~zOS_MSK;
 opto_hi
-	movlw	0xff		;  1[FSR0] = (w & *fsr1) ? 0xff : ~zOS_MSK;
-	movwi	1[FSR0]		;  zOS_RFI(zOS_MSK);
-	bra	optoclr		; }
+	movlw	0xff		;  zOS_ARG(0,(w & *fsr1) ? 'H' : 'L');
+	movwi	1[FSR0]		;  zOS_TAI(OUTCHAR);
+	movlw	'H'		;
+	bra	optoclr		;  // zOS_RFI() implicitly done after zOS_TAI()
 opto_lo
-	comf	zOS_MSK,w	; zOS_RET();
-	movwi	1[FSR0]		;}
+	comf	zOS_MSK,w	; }
+	movwi	1[FSR0]		; zOS_RET();
+	movlw	'L'		;}
 optoclr
-	zOS_RFI	zOS_MSK
+	zOS_ARG	0
+	zOS_TAI	OUTCHAR
 
+greet
+	da	"\r\nActivated relay ",0
 relay
+	;; FIXME: need NON_IOC monitoring for the RA4 relay()
 	zOS_MY2	FSR0
 	decf	zOS_ME		;void relay(void) { // 1<= bsr (job#) <= 4
 	pagesel	myrelay	
-	call	myrelay		; uint8_t* fsr0 = 0x70 | (bsr << 1);
-	movwf	RELAYID		; static uint8_t relayid = myrelay1(bsr);
+	call	myrelay		; const char* greet = "\r\nActivated relay ";
+	movwf	RELAYID		; _relay: uint8_t* fsr0 = 0x70 | (bsr << 1);
 
 	w2port
-	movwf	RELAYP		; static uint8_t relayp = w2port(relayid);
-	movf	RELAYID,w	;
+	movwf	RELAYP		; static uint8_t relayid = myrelay1(bsr);
+	movf	RELAYID,w	; static uint8_t relayp = w2port(relayid);
 	w2bit
 	movwf	RELAYB		; static uint8_t relayb = w2bit(relayid);
 
@@ -222,11 +233,29 @@ relay
 	movwf	FSR1L		; uint8_t* fsr1;
 	movlw	high PORTA	;
 	movwf	FSR1H		; fsr1 = (relayp==PORTA&0xff) ? &PORTA : &PORTB;
+	
 	movlw	0xff		;
 	movwi	1[FSR0]		; 1[fsr0] = 0xff; // bits nonzero indicates init
+	clrw	SAID_HI		; said_hi = 0;
 relaylp
-	movf	MYMASK,w	; do {
-	andwf	INDF0,w		;
+	movf	SAID_HI,w	; do {
+	brw			;  if (!said_hi && // haven't announced self yet
+relayhi
+	zOS_ARG	0
+	movf	ALL_IOC,w	;      all_ioc) { // and job 5 running zOS_CON()
+	btfsc	STATUS,Z	;   said_hi = !said_hi;
+	bra	relayrd		;   zOS_ADR(fsr0 = &greet);
+	movlw	relayrd-relayhi	;   zOS_STR(OUTCHAR); // "\r\nActivated relay "
+	movwf	SAID_HI		;   zOS_ARG(0,0);
+	zOS_ADR	greet,zOS_FLA
+	zOS_STR	OUTCHAR		
+	movf	zOS_ME		;   zOS_ARG(1,bsr);
+	zOS_ARG	1
+	zOS_SWI	OUTCHAR
+	bra	relay		;   zOS_SWI(OUTCHAR);// "01", "02", "03" or "04"
+relayrd
+	movf	MYMASK,w	;   goto _relay;
+	andwf	INDF0,w		;  }
 	btfss	STATUS,Z	;
 	bra	relay0		;  if (*fsr0 & mymask)
 	movf	RELAYB,w	;   *fsr1 |= relayb; // commanded to 1 by global
@@ -239,9 +268,6 @@ relayld
 	zOS_SWI	zOS_YLD
 	bra	relaylp		;}
 
-	;; software interrupt lines used: SI3 to print char to console, SI4=>RA4
-OUTCHAR	equ	zOS_SI3
-NON_IOC	equ	zOS_SI4
 
 main
 	clrw			;void main(void) {
@@ -279,6 +305,7 @@ use_swi
 	movwf	IOCBP		; IOCBP = all_ioc; // IOCIF senses rising optos
 	movwf	IOCBN		; IOCBN = all_ioc; // IOCIF senses falling optos
 	bsf	INTCON,IOCIE	; INTCON |= 1<<IOCIE; // enable edge sensing HWI
+	clrf	ALL_IOC		; ALL_IOC = 0; // will go nonzero once zOS_CON()
 
 	banksel	ANSELB
 	bcf	ANSELB,RB5	; ANSELB &= ~(1<<RB5); // allow digital function
