@@ -38,6 +38,7 @@ OPTO3	equ	RB3
 PORT4	equ	PORTB<<3
 OPTO4	equ	RB4
 	
+RPORT	equ	PORTA<<3
 RELAY1	equ	RA3
 RELAY2	equ	RA2
 RELAY3	equ	RA1
@@ -126,10 +127,10 @@ myrelay1
 myrelay
 	andlw	0x03		; case 1: return (PORTA<<3) | RA3;
 	brw			; case 2: return (PORTA<<3) | RA2;
-	retlw	PORTA|RELAY1	; case 3: return (PORTA<<3) | RA1;
-	retlw	PORTA|RELAY2	; case 4: return (PORTA<<3) | RA0;
-	retlw	PORTA|RELAY3	; } // undefined for w < 1 or w > 4
-	retlw	PORTA|RELAY4	;}
+	retlw	RPORT|RELAY1	; case 3: return (PORTA<<3) | RA1;
+	retlw	RPORT|RELAY2	; case 4: return (PORTA<<3) | RA0;
+	retlw	RPORT|RELAY3	; } // undefined for w < 1 or w > 4
+	retlw	RPORT|RELAY4	;}
 
 mychan1
 	addlw	0-1		;uint8_t mychan1() { switch (w) {
