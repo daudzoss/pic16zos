@@ -100,7 +100,7 @@ optoisr
 	movf	zOS_JOB,w	;__isr void optoisr(uint8_t zOS_JOB) {
 	movwf	BSR		; bsr = zOS_JOB;
 	zOS_MY2	FSR0
-	movf	RELAYP,w	; uint8_t fsr0 = 0x70 | (bsr << 1);
+	movf	RELAYP,w	; uint8_t fsr0 = 0x70 | (bsr<<1); // out,in&0xff
 	movwf	FSR1L		; uint8_t fsr1;
 	movlw	high PORTA	;
 	movwf	FSR1H		; fsr1 = (relayp==PORTA&0xff) ? &PORTA : &PORTB;
@@ -109,33 +109,34 @@ optoisr
 	bra	optordy		; if (1[fsr0]) { // initialization has completed
 	zOS_RET
 optordy
-	movf	zOS_MSK,w	;  if (zOS_MSK == 0) { // process standard HWI
-	btfss	STATUS,Z	;
-	bra	optoswi		;
-	movf	OPTOB,w		;   bsr = &IOCBF >> 7;
+	movf	OPTOB,w		;  w = OPTOB;// our job's single bit of interest
+	movf	zOS_MSK,f	;
+	btfss	STATUS,Z	;  if (zOS_MSK == 0) { // process a standard HWI
+	bra	optoswi		;   bsr = &IOCBF >> 7;
+	
+	;; FIXME: might need to qualify it as an IOC interrupt, right?
+
 	banksel	IOCBF
-	andwf	IOCBF,w		;   w = OPTOB & IOCBF; // mask for the port bits
-	btfss	STATUS,Z	;
-	bra	optoioc		;   if (w) { // our opto is (at least 1) trigger
+	andwf	IOCBF,w		;   w &= IOCBF; // mask for the port bits
+	btfss	STATUS,Z	;   if (w) { // our opto is (at least 1) trigger
+	bra	optoioc		;    zOS_MSK = w; // use as scratch var for a 0
 	zOS_RET
 optoioc
-	movwf	zOS_MSK		;    zOS_MSK = w; // scratch var to clear flag
-	andwf	INDF1,w		;
-	btfsc	STATUS,Z	;
+	movwf	zOS_MSK		;    IOCBF ^= w; // clear the IOC flag
+	xorwf	IOCBF,f		;   } else
+optoswi
+	andwf	INDF1,w		;    zOS_RET(); // probably belongs to another job
+	btfsc	STATUS,Z	;  }
 	bra	opto_lo		;
 opto_hi
-	movlw	0xff		;
-	movwi	1[FSR0]		;
-	bra	optoclr		;
+	movlw	0xff		;  1[FSR0] = (w & *fsr0) ? 0xff : ~zOS_MSK;
+	movwi	1[FSR0]		;  zOS_RFI(zOS_MSK);
+	bra	optoclr		; }
 opto_lo
-	movf	zOS_JOB,w	;
-	movwf	BSR		;   bsr = zOS_JOB;
+	comf	zOS_MSK,w	; zOS_RET();
+	movwi	1[FSR0]		;}
 optoclr
-	
-
-optoswi
-	
-	
+	zOS_RFI	zOS_MSK
 
 relay
 	zOS_MY2	FSR0
