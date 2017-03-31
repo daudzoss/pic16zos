@@ -283,7 +283,7 @@ relayop
 	andwf	PORTA,w		;   continue; // get pre-empted; can't afford to 
 	xorwf	OPTOLST,f	;  }
 	btfsc	STATUS,Z	;
-	bra	relayld		;  zOS_SWI(zOS_YLD);// let next job run (no ARG)
+	bra	relaylp		;  zOS_SWI(zOS_YLD);// let next job run (no ARG)
 	zOS_SWI	NON_IOC
 	bra	relaylp		; } while (1);
 relayld
