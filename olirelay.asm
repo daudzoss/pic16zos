@@ -100,10 +100,9 @@ w2port	macro
 	endm
 	
 w2bit	macro
-	local branch
+	local branch,gosub
 	andlw	0x07		;inline uint8_t w2bit(uint8_t w) {
-	pagesel	branch
-	call	branch		; FIXME: ugly, used 3x; make it a bonafide func?
+	bra	gosub
 branch	
 	brw			;
 	retlw	1<<0		;
@@ -114,6 +113,9 @@ branch
 	retlw	1<<5		;
 	retlw	1<<6		; return 1 << (w & 0x07);
 	retlw	1<<7		;}
+gosub
+	pagesel	branch
+	call	branch		; FIXME: ugly, used 3x; make it a bonafide func?
 	endm
 
 myopto1
