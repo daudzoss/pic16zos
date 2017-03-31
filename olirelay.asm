@@ -298,9 +298,10 @@ create
 	btfss	STATUS,Z	;   zOS_INT(0,NON_IOC); // use a SWI from main()
 	bra	use_hwi		;  else { // since Port A has no IOC capability
 	zOS_INT	0,NON_IOC
-	bra	use_swi		;   all_ioc |= tmp_ioc; // Port B HWI uses IOC
+	bra	use_swi		;   all_ioc |= w2bit(tmp_ioc); // Port B use IOC
 use_hwi
 	movf	TMP_IOC,w	;   zOS_INT(1<<IOCIF,0);// though so register it
+	w2bit
 	iorwf	ALL_IOC,f	;  }
 	zOS_INT	1<<IOCIF,0
 use_swi
