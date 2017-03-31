@@ -100,7 +100,11 @@ w2port	macro
 	endm
 	
 w2bit	macro
+	local branch
 	andlw	0x07		;inline uint8_t w2bit(uint8_t w) {
+	pagesel	branch
+	call	branch		; FIXME: ugly, used 3x; make it a bonafide func?
+branch	
 	brw			;
 	retlw	1<<0		;
 	retlw	1<<1		;
