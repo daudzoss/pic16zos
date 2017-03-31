@@ -75,7 +75,8 @@ TMP_IOC	equ	0x7b		; scratch var (globals for init loop then job 5)
 	include zosmacro.inc
 	
 ;;; uncomment to pre-load stack positions with indices (for debugging xOS_ROL):
-;zOS_DBG
+;
+ zOS_DBG
 
 ;; software interrupt lines used: SI3 to print chars to console, SI4 for RA4 IOC
 OUTCHAR	equ	zOS_SI3
@@ -245,7 +246,7 @@ relay
 	
 	movlw	0xff		;
 	movwi	1[FSR0]		; 1[fsr0] = 0xff; // bits nonzero indicates init
-	clrw	SAID_HI		; said_hi = 0;
+	clrf	SAID_HI		; said_hi = 0;
 relaylp
 	movf	SAID_HI,w	; do {
 	brw			;  if (!said_hi && // haven't announced self yet
