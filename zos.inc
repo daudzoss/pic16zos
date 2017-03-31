@@ -95,7 +95,7 @@ zOS_PCH	equ	0x03		;  "impossible" PCH 0x00==not runnable
 zOS_WAI	equ	7		;  MSB of PCH indicates sleeping (wait for int)
 zOS_SST	equ	0x04		; shadow STATUS
 zOS_SWR	equ	0x05		; shadow WREG
-zOS_SSP	equ	0x06		; STKPTR to be restored (BSR never restorable!)
+zOS_SSP	equ	0x06		; STKPTR to be restored (BSR implied by base)
 zOS_SPH	equ	0x07		; PCLATH to be restored
 zOS_SF0	equ	0x08		; shadow FSR0
 zOS_SF1	equ	0x0a		; shadow FSR1
@@ -190,9 +190,11 @@ done
 #ifdef GPASM
 zOS_RTL	equ	(STATUS_SHAD-FSR1H_SHAD-2)
 zOS_RTH	equ	(STATUS_SHAD-FSR1H_SHAD-1)
+zOS_RTS	equ	(STATUS_SHAD-FSR1H_SHAD+2)
 #else
 zOS_RTL	equ	((STATUS_SHAD-FSR1H_SHAD-2)&0x3f)
 zOS_RTH	equ	((STATUS_SHAD-FSR1H_SHAD-1)&0x3f)
+zOS_RTS	equ	((STATUS_SHAD-FSR1H_SHAD+2)&0x3f)	
 #endif
 
 ;;; running job#: 1         2         3         4         5
@@ -440,6 +442,8 @@ zos_itr
 	movwf	FSR1H_SHAD	;     FSR1H_SHAD = *++fsr0;
 	
 	;; set new job stack pointer, last step before completing context switch
+	moviw	zOS_RTS[FSR0]	;
+	movwf	STKPTR		;     STKPTR = zOS_SSP[FSR0-11];
 	moviw	zOS_RTL[FSR0]	;     TOSL = zOS_PCL[FSR0-11];
 	movwf	TOSL		;     TOSH = zOS_PCH[FSR0-11];
 	moviw	zOS_RTH[FSR0]	;     return (void)__isr;
