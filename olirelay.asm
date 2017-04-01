@@ -277,7 +277,7 @@ relay0
 relayop
 	movf	OPTOP,w		;  if (OPTOP == PORTA) { // watch in tight loop
 	xorlw	low PORTA	;   if (OPTOLST != OPTOB & PORTA) { // changed!
-	btfsc	STATUS,Z	;    OPTOLST = OPTOB & PORTA; // save new value
+	btfss	STATUS,Z	;    OPTOLST = OPTOB & PORTA; // save new value
 	bra	relayld		;    zOS_SWI(NON_IOC); // and tell ISR to look
 	movf	OPTOB,w		;   }
 	andwf	PORTA,w		;   continue; // get pre-empted; can't afford to 
