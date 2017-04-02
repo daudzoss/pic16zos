@@ -587,21 +587,19 @@ nottmr
 	zOS_MEM	FSR0,zOS_JOB,0
 	moviw	zOS_PCH[FSR0]	;  fsr0 = 0x10*(1+zos_job); // bank 0 job struct
 	movf	zOS_MSK,f	;  w = zOS_PCH[fsr0]; // will indicate sleeping
-	btfss	STATUS,Z	;
-	bra	do_swi		;  if ((zOS_MSK == 0) // not a SWI so check HWI
+	btfss	STATUS,Z	;  if (zOS_MSK == 0) {// not a SWI so check HWI,
+	bra	do_swi		;   if (rts & (1<<rtsflag)) // clear the rtsflag
 	
 	;; determine whether the HWI is rtsflag (the only HWI line of interest)
 	banksel	rts
-	btfss	rts,rtsflag	;      && (rts & (1<<rtsflag))) {
-	bra	clrflag		;       // clear the ready-to-send flag, un-wait
+	btfsc	rts,rtsflag	;    rts &= ~(1<<rtsflag); // is our HWI for rts
+	bra	clrflag		;   else
 	zOS_RET
 clrflag
 	;; make sure the task is sleeping (else the task() initialization unrun)
-	bcf	rts,rtsflag	;   rts &= ~(1<<rtsflag);
-	btfss	WREG,zOS_WAI	;   if (zOS_PCH[fsr0] & (1<<zOS_WAI) == 0) 
-	bra	err		;    zOS_PCH[fsr0] = w & 0x7f; // now can run
-	andlw	0x7f		;       // (whether sleeping or not yet init'ed)
-	movwi	zOS_PCH[FSR0]	;   goto done;
+	bcf	rts,rtsflag	;    zOS_RET(); // must have been someone else's
+	andlw	0x7f		;   zOS_PCH[fsr0] = w & 0x7f;// now task can run
+	movwi	zOS_PCH[FSR0]	;   goto done;// (whether sleeping or uninit'ed)
 	bra	done		;  }
 
 	;; make sure the task is sleeping (else the task() initialization unrun)
