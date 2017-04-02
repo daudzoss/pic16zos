@@ -38,7 +38,11 @@ OPTO3	equ	RB3
 PORT4	equ	PORTB<<3
 OPTO4	equ	RB4
 	
+#ifdef LATA
+RPORT	equ	LATA<<3
+#else
 RPORT	equ	PORTA<<3
+#endif
 RELAY1	equ	RA3
 RELAY2	equ	RA2
 RELAY3	equ	RA1
@@ -226,7 +230,8 @@ relay
 	movwf	OPTOP		; static uint8_t optop = w2port(optoid);
 	movf	OPTOID,w	; static uint8_t optob = w2bit(optoid);
 	w2bit	OPTOB
-	movwf	OPTOLST		; static uint8_t optolst = optob;// for RA4 only
+	movf	OPTOB,w		;
+	movwf	OPTOLST		; static uint8_t optolst = optob;// used for RA4
 
 	pagesel	mychan
 	decf	zOS_ME		;
