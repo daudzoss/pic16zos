@@ -100,23 +100,19 @@ w2port	macro
 	movlw	low PORTB	;}
 	endm
 	
-w2bit	macro
-	local branch,gosub
-	andlw	0x07		;inline uint8_t w2bit(uint8_t w) {
-	bra	gosub
-branch	
-	brw			;
-	retlw	1<<0		;
-	retlw	1<<1		;
-	retlw	1<<2		;
-	retlw	1<<3		;
-	retlw	1<<4		;
-	retlw	1<<5		;
-	retlw	1<<6		; return 1 << (w & 0x07);
-	retlw	1<<7		;}
-gosub
-	pagesel	branch
-	call	branch		; FIXME: ugly, used 3x; make it a bonafide func?
+w2bit	macro	file
+	andlw	0x07		;inline uint8_t w2bit(uint8_t* file) {
+	bsf	STATUS,C	;
+	clrf	file		;
+	brw			; return 1 << (*file & 0x07);
+	rrf	file,f		;
+	rrf	file,f		;
+	rrf	file,f		;
+	rrf	file,f		;
+	rrf	file,f		;
+	rrf	file,f		;
+	rrf	file,f		;
+	rrf	file,f		;}
 	endm
 
 myopto1
@@ -219,19 +215,17 @@ relay
 	w2port
 	movwf	RELAYP		; static uint8_t relayid = myrelay1(bsr);
 	movf	RELAYID,w	; static uint8_t relayp = w2port(relayid);
-	w2bit
-	movwf	RELAYB		; static uint8_t relayb = w2bit(relayid);
+	w2bit	RELAYB
 
-	decf	zOS_ME		;
+	decf	zOS_ME		; static uint8_t relayb = w2bit(relayid);
 	pagesel	myopto
 	call	myopto		;
 	movwf	OPTOID		; static uint8_t optoid = myopto1(bsr);
 
 	w2port
 	movwf	OPTOP		; static uint8_t optop = w2port(optoid);
-	movf	OPTOID,w	;
-	w2bit
-	movwf	OPTOB		; static uint8_t optob = w2bit(optoid);
+	movf	OPTOID,w	; static uint8_t optob = w2bit(optoid);
+	w2bit	OPTOB
 	movwf	OPTOLST		; static uint8_t optolst = optob;// for RA4 only
 
 	pagesel	mychan
@@ -308,7 +302,8 @@ create
 	bra	use_swi		;   all_ioc |= w2bit(tmp_ioc); // Port B use IOC
 use_hwi
 	movf	TMP_IOC,w	;   zOS_INT(1<<IOCIF,0);// though so register it
-	w2bit
+	w2bit	TMP_IOC
+	movf	TMP_IOC,w	;
 	iorwf	ALL_IOC,f	;  }
 	zOS_INT	1<<IOCIF,0
 use_swi
