@@ -551,7 +551,7 @@ isr
 	local err,done,do_swi,ascii,nottmr
 	
 	;; get fsr0 pointing to tmr0 postscaler/reset value
-	movf	zOS_JOB,w	;
+	movf	zOS_JOB,w	;isr:
 	movwf	BSR		; bsr = zOS_JOB; // isr starts with unknown bank
 	movlw	high uatxmit	;
 	movwf	FSR0H		;
@@ -582,31 +582,41 @@ isr
 	xorwf	hb,f		;   hb ^= 1 << pin;
 	bra	done		; } else {
 	
-	;; make sure the task is sleeping (else the task() initialization unrun)
-nottmr
+	;; check for validated SWI first since it will be in zOS_MSK, else a HWI
+nottmr	
 	zOS_MEM	FSR0,zOS_JOB,0
-	moviw	zOS_PCH[FSR0]	;isr: point fsr0 to job struct;
-	btfss	WREG,zOS_WAI	; fsr0 = 0x10 * (1+zos_job);
-	bra	err		; if (zOS_PCH[fsr0] & (1<<zOS_WAI) == 0)
+	moviw	zOS_PCH[FSR0]	;  fsr0 = 0x10*(1+zos_job); // bank 0 job struct
+	movf	zOS_MSK,f	;  w = zOS_PCH[fsr0]; // will indicate sleeping
+	btfss	STATUS,Z	;
+	bra	do_swi		;  if ((zOS_MSK == 0) // not a SWI so check HWI
+	
+	;; determine whether the HWI is rtsflag (the only HWI line of interest)
+	banksel	rts
+	btfss	rts,rtsflag	;      && (rts & (1<<rtsflag))) {
+	bra	clrflag		;       // clear the ready-to-send flag, un-wait
+	zOS_RET
+clrflag
+	;; make sure the task is sleeping (else the task() initialization unrun)
+	bcf	rts,rtsflag	;   rts &= ~(1<<rtsflag);
+	btfss	WREG,zOS_WAI	;   if (zOS_PCH[fsr0] & (1<<zOS_WAI) == 0) 
+	bra	err		;    zOS_PCH[fsr0] = w & 0x7f; // now can run
+	andlw	0x7f		;       // (whether sleeping or not yet init'ed)
+	movwi	zOS_PCH[FSR0]	;   goto done;
+	bra	done		;  }
+
+	;; make sure the task is sleeping (else the task() initialization unrun)
+do_swi
+	btfss	WREG,zOS_WAI	;  if (zOS_PCH[fsr0] & (1<<zOS_WAI) == 0) 
+	bra	err		;   goto err;
 
 	;; point fsr0 to uatbase again, point fsr1 to p0
 	movlw	low uatbase	;
 	movwf	FSR0L		;
 	movlw	high uatbase	;  fsr0 = uatbase;
 	movwf	FSR0H		;  fsr1 = (zOS_JOB << 7);
-	zOS_LOC	FSR1,zOS_JOB,p0
-	
-	;; check for validated SWI first since it will be in zOS_MSK, else a HWI
-	movf	zOS_MSK,w	;
-	btfsc	STATUS,Z	;  if (zOS_MSK == 0) { // not a SWI so check HWI
-	bra	do_swi		;   if (rts & (1<<rtsflag) == 0)
-	banksel	rts
-	btfsc	rts,rtsflag	;    zOS_RET(); // not the HWI we expected, SWI?
-	bra	done		;  } else {
-	zOS_RET
+	zOS_LOC	FSR1,zOS_JOB,p0	
 
 	;; check to make sure there are at least 2 characters free in the buffer
-do_swi
 	moviw	1[FSR1]		;   char* p1plus2 = 2 + (1[fsr1] /*p1*/ & 0x7f);
 	andlw	0x7f		;
 	addlw	0x12		;
