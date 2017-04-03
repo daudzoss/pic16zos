@@ -364,13 +364,13 @@ zOS_PSH	macro	reg
 	movf	zOS_ME		;inline void zOS_PSH(uint8_t* reg) {
 	;; bcf	INTCON,GIE
 	banksel	TOSH
+	incf	STKPTR,f	; STKPTR++;
 	movwf	TOSH		; TOSH = bsr;// must store bsr so we can go back
 	if (reg-BSR)
 	 movf	reg,w		; if (reg != &bsr)
 	 movwf	TOSL		;  TOSL = *reg;
-	 movf	TOSH,w		; STKPTR++;
+	 movf	TOSH,w		; bsr = TOSH;
 	endif
-	incf	STKPTR,f	; bsr = TOSH;
 	movwf	BSR		;} // caller should have turned interrupts off
 	;; bsf	INTCON,GIE
 	endm
@@ -378,12 +378,12 @@ zOS_PSH	macro	reg
 zOS_POP	macro	reg
 	;; bcf	INTCON,GIE
 	banksel	STKPTR
-	decf	STKPTR,f	;inline void zOS_POP(uint8_t* reg) {
 	if (reg-BSR)
-	 movf	TOSL,w		; STKPTR--;
+	 movf	TOSL,w		;inline void zOS_POP(uint8_t* reg) {
 	 movwf	reg		; if (reg != &bsr) *reg = TOSL;
 	endif
 	movf	TOSH,w		; bsr = TOSH;
+	decf	STKPTR,f	; STKPTR--;
 	movwf	BSR		;} // caller should have turned interrupts off
 	;; bsf	INTCON,GIE
 	endm
