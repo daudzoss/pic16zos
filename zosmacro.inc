@@ -367,7 +367,7 @@ zOS_PSH	macro	reg
 	movwf	TOSH		; TOSH = bsr;// must store bsr so we can go back
 	if (reg-BSR)
 	 movf	reg,w		; if (reg != &bsr)
-	 mowwf	TOSL		;  TOSL = *reg;
+	 movwf	TOSL		;  TOSL = *reg;
 	 movf	TOSH,w		; STKPTR++;
 	endif
 	incf	STKPTR,f	; bsr = TOSH;
