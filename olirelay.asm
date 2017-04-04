@@ -250,14 +250,18 @@ relaylp
 	movf	SAID_HI,w	; do {
 	brw			;  if (!said_hi && // haven't announced self yet
 relayhi
-	zOS_ARG	0
-	movf	ALL_IOC,w	;      all_ioc) { // and job 5 running zOS_CON()
-	btfsc	STATUS,Z	;   said_hi = !said_hi;
-	bra	relayrd		;   zOS_ADR(fsr0 = &greet);
-	movlw	relayrd-relayhi	;   zOS_STR(OUTCHAR); // "\r\nActivated relay "
-	movwf	SAID_HI		;   zOS_ARG(0,0);
+	movf	ALL_IOC,f	;      all_ioc) { // and job 5 running zOS_CON()
+	btfsc	STATUS,Z	;
+	bra	relayrd		;   if (bsr == 1) { // only print job 1 preamble
+	decfsz	zOS_ME		;    zOS_ADR(fsr0 = &greet);
+	bra	relaynm		;    zOS_STR(OUTCHAR); // "\r\nActivated relay "
+	movlw	relayrd-relayhi	;    said_hi = !said_hi;
+	movwf	SAID_HI		;   }
 	zOS_ADR	greet,zOS_FLA
 	zOS_STR	OUTCHAR		
+relaynm
+	clrw			;   zOS_ARG(0,0);
+	zOS_ARG	0
 	movf	zOS_ME		;   zOS_ARG(1,bsr);
 	zOS_ARG	1
 	zOS_SWI	OUTCHAR
