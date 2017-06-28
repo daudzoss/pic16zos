@@ -51,7 +51,7 @@ RELAY4	equ	RA0
 ;;; this board uses an 18-pin PIC with an external crystal to watch four opto-
 ;;; isolators and drive four relays; running this example zOS application each
 ;;; input/output pair (numbered 1 to 4, coinciding with its job) runs in its own
-;;; copy of the relay() re-entrant function and its re-entrant IRS counterpart
+;;; copy of the relay() re-entrant function and its re-entrant ISR counterpart
 ;;; optoisr() to reflect respectively the commanded output state from its odd-
 ;;; numbered global to the relay and input state from the optoisolator into the
 ;;; even-numbered global:
@@ -105,17 +105,17 @@ w2port	macro
 	endm
 	
 w2bit	macro	file
-	andlw	0x07		;inline uint8_t w2bit(uint8_t* file) {
-	bsf	STATUS,C	;
-	clrf	file		;
-	brw			; return 1 << (*file & 0x07);
+	andlw	0x07		;inline uint8_t w2bit(uint8_t* file,
+	bsf	STATUS,C	;                     uint8_t w) {
+	clrf	file		; *file = 1 << (w &= 0x07);
+	brw			;
 	rrf	file,f		;
 	rrf	file,f		;
 	rrf	file,f		;
 	rrf	file,f		;
 	rrf	file,f		;
 	rrf	file,f		;
-	rrf	file,f		;
+	rrf	file,f		; return w;
 	rrf	file,f		;}
 	endm
 

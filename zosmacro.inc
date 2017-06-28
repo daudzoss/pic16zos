@@ -733,18 +733,22 @@ brgvall	set	low brgvalm
 
 #if 0
 ;;; like zOS_CON, but also accepts console input for a full job-management shell
-zOS_MON	macro	port,rat,hb,pin	;
-	local task,decl,isr
-	bra	decl		;
-task
+zOS_MON	macro	p,rat,rts,hb,pin;inline void zOS_MON(int8_t p,int8_t rat,int8_t
+	local task,decl,isr,endmon
+	call	predecl		;                    rts,int8_t* hb,int8_t pin){
+	zOS_CON	p,rat,rts,hb
+pstdecl	nop
+	bra	endmon
+
+	task
 
 loop
 
 	bra 	loop
-isr
+isr <---this is the one for input characters as output is handled by the zOS_CON() isr
 
 	zOS_RFI
-decl
+predecl
 	movlw	low task	; } else {
 	movwf	FSR0L		;  //job#0 means zOS_RUN not encountered yet 
 	movlw	high task	;
@@ -757,5 +761,7 @@ decl
 	movlw	1<<RCIF		;
 	iorlw	1<<TXIF		;  w = zOS_ARG(2, (1<<RCIF) | (1<<TXIF));
 	zOS_ARG	2
+	return			;//back to top for zOS_CON()'s decl
+endmon
 	endm
 #endif	
