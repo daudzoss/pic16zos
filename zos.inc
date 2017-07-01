@@ -470,12 +470,12 @@ zos_swj
 	bcf	INTCON,GIE	; INTCON &= ~(1<<GIE); // interrupt would be bad
 	movwf	zOS_MSK		; zOS_MSK = WREG; // the software interrupt type
 	movf	STATUS,w	;
-	movwf	zOS_JOB		; // just convenient temporary global for STATUS
+	movwf	zOS_JOB		; // only convenient temporary global for STATUS
 	movf	BSR,w		;
 	banksel	BSR_SHAD	; // BSR = the job# that made the interrupt call
 	movwf	BSR_SHAD	; BSR_SHAD = BSR;
 	movf	zOS_JOB,w	;
-	movwf	STATUS_SHAD	; STATUS_SHAD = STATUS; // Z set with WREG_SHAD
+	movwf	STATUS_SHAD	; STATUS_SHAD = zos_job = STATUS;
 	movf	PCLATH,w	;
 	movwf	PCLATH_SHAD	; PCLATH_SHAD = PCLATH;
 	movf	FSR0L,w		;
@@ -535,7 +535,8 @@ zos_err
 	;; or find a targetable slot (if zOS_NEW)
 	;; unprivileged jobs can only do most things to themselves
 zos_swp
-	movf	BSR,f		;  } else {
+	movf	BSR,w		;  } else {
+	movwf	zOS_JOB		;   zos_job = bsr;
 	btfsc	STATUS,Z	;   if (bsr != 0) {
 	bra	zos_elv		;    fsr1 = 0x10 * (1+bsr); // struct for job
 	zOS_MEM	FSR1,BSR,0

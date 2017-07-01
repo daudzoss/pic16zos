@@ -3,7 +3,11 @@
 	processor 16f1847
 	include	p16f1847.inc
 
+#ifdef __DEBUG
+	__CONFIG _CONFIG1,_FOSC_INTOSC & _WDTE_OFF & _PWRTE_OFF & _MCLRE_ON & _CP_OFF & _CPD_OFF & _BOREN_ON & _CLKOUTEN_OFF & _IESO_ON & _FCMEN_ON
+#else
 	__CONFIG _CONFIG1,_FOSC_HS & _WDTE_OFF & _PWRTE_OFF & _MCLRE_ON & _CP_OFF & _CPD_OFF & _BOREN_ON & _CLKOUTEN_OFF & _IESO_ON & _FCMEN_ON
+#endif
 	
 ;;; example program to control the Olimex PIC-IO relay/optoisolator board loaded
 ;;; with a PIC16F1847 microcontroller, the schematic for which may be found at
