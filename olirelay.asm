@@ -168,8 +168,8 @@ SAID_HI	equ	0x29
 optoisr
 	zOS_MY2	FSR0
 	movf	RELAYP,w	;__isr void optoisr(uint8_t zOS_JOB) {
-	movwf	FSR1L		; uint8_t fsr0 = 0x70 | (bsr<<1); // out,0xff&in
-	movlw	high PORTA	; uint8_t fsr1;
+	movwf	FSR1L		; uint8_t *fsr0 = 0x70 | (bsr<<1);// out,0xff&in
+	movlw	high PORTA	; uint8_t *fsr1;
 	movwf	FSR1H		; fsr1 = (relayp==PORTA&0xff) ? &PORTA : &PORTB;
 	movf	zOS_JOB,w	;
 	movwf	BSR		; bsr = zOS_JOB;
@@ -214,11 +214,10 @@ optoclr
 greet
 	da	"\r\nActivated relay ",0
 relay
-	zOS_MY2	FSR0
 	decf	zOS_ME		;void relay(void) { // 1<= bsr (job#) <= 4
 	pagesel	myrelay	
 	call	myrelay		; const char* greet = "\r\nActivated relay ";
-	movwf	RELAYID		; _relay: uint8_t* fsr0 = 0x70 | (bsr << 1);
+	movwf	RELAYID		;
 
 	w2port
 	movwf	RELAYP		; static uint8_t relayid = myrelay1(bsr);
@@ -239,9 +238,10 @@ relay
 
 	pagesel	mychan
 	decf	zOS_ME		;
-	call	mychan		;
-	movwf	MYMASK		; static uint8_t mymask = mychan1(bsr);
-
+	call	mychan		; static uint8_t mymask = mychan1(bsr);
+	movwf	MYMASK		; relayin: uint8_t* fsr0 = 0x70 | (bsr << 1);
+relayin
+	zOS_MY2	FSR0
 	movf	RELAYP,w	;
 	movwf	FSR1L		; uint8_t* fsr1;
 	movlw	high PORTA	;
@@ -269,19 +269,20 @@ relaynm
 	movf	zOS_ME		;   zOS_ARG(1,bsr);
 	zOS_ARG	1
 	zOS_SWI	OUTCHAR
-	bra	relay		;   zOS_SWI(OUTCHAR);// "01", "02", "03" or "04"
+	bra	relayin		;   zOS_SWI(OUTCHAR);// "01", "02", "03" or "04"
 relayrd
-	movf	MYMASK,w	;   goto _relay;
+	movf	MYMASK,w	;   goto relayin; // to restore FSRs after print
 	andwf	INDF0,w		;  }
-	btfss	STATUS,Z	;
+	btfsc	STATUS,Z	;
 	bra	relay0		;
 	movf	RELAYB,w	;  if (*fsr0 & mymask)
-	iorwf	INDF1,f	   	;   *fsr1 |= relayb; // commanded to 1 by global
+	iorwf	INDF1,w	   	;   *fsr1 |= relayb; // commanded to 1 by global
 	bra	relayop	   	;
 relay0
 	comf	RELAYB,w	;  else
-	andwf	INDF1,f		;   *fsr1 &= ~relayb;// commanded to 0 by global
+	andwf	INDF1,w		;   *fsr1 &= ~relayb;// commanded to 0 by global
 relayop
+	movwf	INDF1		;
 	movf	OPTOP,w		;  if (OPTOP == PORTA) { // watch in tight loop
 	xorlw	low PORTA	;   if (OPTOLST != OPTOB & PORTA) { // changed!
 	btfss	STATUS,Z	;    OPTOLST = OPTOB & PORTA; // save new value
@@ -323,7 +324,7 @@ use_swi
 	zOS_ADR	relay,zOS_UNP
 	zOS_LAU	WREG
 	btfss	WREG,2		;  fsr0 = &relay 0x7fff; // relay() unpriv'ed
-	bra	create		; }
+;just1:	bra	create		; }
 	
 	sublw	zOS_NUM-1	;
 	btfsc	WREG,7		; if (w == zOS_NUM)// no job remains for zOS_MON
