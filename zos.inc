@@ -300,11 +300,11 @@ zos_004
 	movwf	zOS_JOB		; zOS_JOB = zOS_NUM+1;// search from high to low
 	zOS_MEM	FSR0,zOS_JOB,0	; fsr0 = 0x10 * (1 + zOS_JOB);
 zos_nhw
-	zOS_LIV	FSR0,zOS_JOB,0,zos_don
-	clrwdt			; do { // until serviceable by running ISR or a
+	zOS_LIV	FSR0,zOS_JOB,0,zos_004
+	clrwdt			; do { // until serviceable by running ISR since
 	banksel	zOS_PIE
-	moviw	zOS_HIM[FSR0]	;  clrwdt();
-	andwf	zOS_PIE,w	;  int8_t w = 0;   // runnable job is scheduled
+	moviw	zOS_HIM[FSR0]	;  int8_t w = 0;  // no runnable job schedulable
+	andwf	zOS_PIE,w	;  clrwdt();
 	btfss	STATUS,Z	;  while (zOS_LIV(&fsr0, &zOS_JOB, 0)) {
 	bra	zos_cmp		;  //match enabled interrupts against HIM fields
 #ifdef PIE1
@@ -365,10 +365,10 @@ zos_nhw
 	bra	zos_nhw		;  }      // interrupt flag in this bit position
 zos_cmp
 	clrf	zOS_MSK		;  if (w) {
-	moviw	zOS_ISH[FSR0]	;    zOS_MSK = 0; //indicates HWI (not SWI) type
-	movwf	PCLATH		;    *(zOS_ISR[fsr0])();
-	moviw	zOS_ISR[FSR0]	;   }
-	movwf	PCL		;  }// if handler refuses, loops to the next job
+	moviw	zOS_ISH[FSR0]	;   zOS_MSK = 0; //indicates HWI (not SWI) type
+	movwf	PCLATH		;   *(zOS_ISR[fsr0])();
+	moviw	zOS_ISR[FSR0]	;  }
+	movwf	PCL		; } // if handler refuses, loops to the next job
 	
 	;; scheduler begins here, called either after HWI/SWI done or zOS_RUN():
 zos_sch
