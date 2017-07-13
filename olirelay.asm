@@ -251,7 +251,8 @@ relayin
 	movwi	1[FSR0]		; 1[fsr0] = 0xff; // bits nonzero indicates init
 	clrf	SAID_HI		; said_hi = 0;
 relaylp
-	movf	SAID_HI,w	; do {
+	clrwdt			; do {
+	movf	SAID_HI,w	;  clrwdt(); // avoid WDT bite watching non-IOC
 	brw			;  if (!said_hi && // haven't announced self yet
 relayhi
 	movf	ALL_IOC,f	;      all_ioc) { // and job 5 running zOS_CON()
@@ -298,7 +299,6 @@ relayld
 	zOS_SWI	zOS_YLD
 	bra	relaylp		;}
 
-
 main
 	clrw			;void main(void) {
 	clrf	ALL_IOC		; volatile uint_8t all_ioc = 0; //job 5 clobbers
@@ -324,7 +324,7 @@ use_swi
 	zOS_ADR	relay,zOS_UNP
 	zOS_LAU	WREG
 	btfss	WREG,2		;  fsr0 = &relay 0x7fff; // relay() unpriv'ed
-;just1:	bra	create		; }
+ nop;	bra	create		; }
 	
 	sublw	zOS_NUM-1	;
 	btfsc	WREG,7		; if (w == zOS_NUM)// no job remains for zOS_MON
