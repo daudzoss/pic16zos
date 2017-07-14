@@ -93,18 +93,23 @@ zOS_TAI	macro	type		;inline void zOS_SWI(const int8_t type) {
 	pagesel	zos_skp
 	goto	zos_skp		;}
 	endm
+
+zOS_BNK	macro	bankf,ignored	;inline void zOS_BNK(const int8_t bankf,
+	movf	bankf,w		;                    const int8_t ignored) {
+	movwf	BSR		; bsr = bankf; // allows "zOS_BNK zOS_ME"
+	endm			;}
 	
-zOS_LAU	macro	stash
+zOS_LAU	macro	stash		;inline void zOS_LAU(int8_t* stash) {
 	local retry
 retry
 	zOS_SWI	zOS_NEW
-	movf	WREG,w
-	btfsc	STATUS,Z
-	bra	retry
+	movf	WREG,w		; do {
+	btfsc	STATUS,Z	;  w = zOS_SWI(zOS_NEW);
+	bra	retry		; } while (w == 0);
 	if (stash - WREG)
-	 movwf	stash
+	 movwf	stash		; *stash = w;
 	endif
-	endm
+	endm			;}
 
 zOS_ARG	macro	arg
 	local num
