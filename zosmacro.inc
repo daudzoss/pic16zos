@@ -89,9 +89,9 @@ zOS_SWI	macro	type		;inline void zOS_SWI(const int8_t type) {
 	endm
 
 zOS_TAI	macro	type		;inline void zOS_SWI(const int8_t type) {
-	movlw	type		; zos_skp(type);
+	movlw	type		; w = type; goto zos_skp;
 	pagesel	zos_skp
-	call	zos_skp		;}
+	goto	zos_skp		;}
 	endm
 	
 zOS_LAU	macro	stash
