@@ -676,6 +676,7 @@ decl
 	clrf	0x20
 	clrf	0x21
 delay0
+	clrwdt
 	incfsz	0x21,f
 	bra	delay0
 	incfsz	0x20,f
@@ -737,6 +738,53 @@ brgvall	set	low brgvalm
 	endm			;}
 
 #if 0
+	;; uses ARG1:ARG0 to access
+zOS_R	macro	swinum?,file
+
+	
+	endm
+
+zOS_W	macro	swinum?,file
+
+
+	endm
+	
+	;; needs to register a SWI for an existing (current) job>0
+	;; that will insert an ISR in front of any existing ISR and
+	;; process the SWI type
+
+zOS_ACC	macro	jobf,swinum,scr2;
+	local	isr,decl
+	bra	decl
+isr
+	;; test for match with swinum
+	
+	;; if not, jumps to scratch2 by writing PCLATH:PCL
+
+	;; bank correctly, access
+
+	;; result into W if _R
+
+	;; jumps to zos_don for economical SWI return w/o stack spins
+
+task
+
+
+
+
+decl
+		
+
+
+
+	endm
+
+
+
+
+
+
+
 ;;; like zOS_CON, but also accepts console input for a full job-management shell
 zOS_MON	macro	p,rat,rts,hb,pin;inline void zOS_MON(int8_t p,int8_t rat,int8_t
 	local task,decl,isr,endmon
