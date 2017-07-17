@@ -737,54 +737,42 @@ brgvall	set	low brgvalm
 	movlb	0		; // still in job "0"
 	endm			;}
 
+	;; macro checks for safety (SFR, not global or another job's local RAM)
+zOS_RW	macro	fsrn,file
+	if file & 0x60
+	 error "tried to access a disallowed RAM range"
+	else
+	 movlw	low file
+	 movwf	FSR#v(fsrn)L
+	 movlw	high file
+	 movwf	FSR#v(fsrn)H
+	endif
+	endm
+
+zOS_R	macro	fsrnum,file
+	local	fsrn
+	if (fsrnum & 3)
+fsrn set 1
+	else
+fsrn set 0
+	endif
+	zOS_RW	fsrn,file
+	moviw	0[FSR#v(fsrn)]
+	endm
+
+zOS_W	macro	fsrnum,file,val
+	local	fsrn
+	if (fsrnum & 3)
+fsrn set 1
+	else
+fsrn set 0
+	endif
+	zOS_RW	fsrn,file
+	movf	val,w
+	movwi	0[FSR#v(fsrn)]
+	endm
+
 #if 0
-	;; uses ARG1:ARG0 to access
-zOS_R	macro	swinum?,file
-
-	
-	endm
-
-zOS_W	macro	swinum?,file
-
-
-	endm
-	
-	;; needs to register a SWI for an existing (current) job>0
-	;; that will insert an ISR in front of any existing ISR and
-	;; process the SWI type
-
-zOS_ACC	macro	jobf,swinum,scr2;
-	local	isr,decl
-	bra	decl
-isr
-	;; test for match with swinum
-	
-	;; if not, jumps to scratch2 by writing PCLATH:PCL
-
-	;; bank correctly, access
-
-	;; result into W if _R
-
-	;; jumps to zos_don for economical SWI return w/o stack spins
-
-task
-
-
-
-
-decl
-		
-
-
-
-	endm
-
-
-
-
-
-
-
 ;;; like zOS_CON, but also accepts console input for a full job-management shell
 zOS_MON	macro	p,rat,rts,hb,pin;inline void zOS_MON(int8_t p,int8_t rat,int8_t
 	local task,decl,isr,endmon
