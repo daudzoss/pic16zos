@@ -746,25 +746,25 @@ zOS_RW	macro	file
 	endif
 	endm
 
-zOS_R	macro	file,bankf,destf;inline int8_t zOS_R(const int8_t* file, int8_t
-	local	yesints
+zOS_R	macro	file,bankf	;inline int8_t zOS_R(const int8_t* file, int8_t
+	movf	INTCON,w	;                    bankf) {
+	bcf	INTCON,GIE	; zOS_AR0 = INTCON;
+	movwf	zOS_AR0		; INTCON &= ~(1<<GIE);
 	zOS_RW	file
-	movf	INTCON,w	;
-	movwf	destf		;
-	bcf	INTCON,GIE	;
-	zOS_PSH	file		;                    bankf, uint8_t* destf) {
-	zOS_BNK	bankf,w		; *destf = *file;//destf our bank, file anywhere
-	btfsc	destf,GIE	;
-	bra	yesints
-	zOS_POP	destf		; return bankf;
-	bsf	INTCON,GIE	;
+	movf	file,w		; BSR = file >> 7;
+	movwf	zOS_AR1		; zOS_AR1 = *file; // any value anywhere
+	movf	bankf,w		;
+	movwf	BSR		; BSR = bankf;
+	movf	zOS_AR1,w	; if (zOS_AR0 & (1<<GIE))
+	btfss	zOS_AR0,GIE	;  INTCON |= 1<<GIE;
+	bsf	INTCON,GIE	; return zOS_AR1;
 	endm			;}
 
-zOS_W	macro	file,bankf
-	zOS_RW	file
-	movwf	file
-	zOS_BNK	bankf,w
-	endm
+zOS_W	macro	file,bankf	;inline int8_t zOS_W(const int8_t* file, int8_t
+	zOS_RW	file		;                    bankf, uint8_t w) {
+	movwf	file		; *file = w;
+	zOS_BNK	bankf,w		; return BSR;
+	endm			;}
 
 #if 0
 ;;; like zOS_CON, but also accepts console input for a full job-management shell
