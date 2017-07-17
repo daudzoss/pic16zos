@@ -94,11 +94,6 @@ zOS_TAI	macro	type		;inline void zOS_SWI(const int8_t type) {
 	goto	zos_skp		;}
 	endm
 
-zOS_BNK	macro	bankf,ignored	;inline void zOS_BNK(const int8_t bankf,
-	movf	bankf,w		;                    const int8_t ignored) {
-	movwf	BSR		; bsr = bankf; // allows "zOS_BNK zOS_ME"
-	endm			;}
-	
 zOS_LAU	macro	stash		;inline void zOS_LAU(int8_t* stash) {
 	local retry
 retry
@@ -737,39 +732,38 @@ brgvall	set	low brgvalm
 	movlb	0		; // still in job "0"
 	endm			;}
 
+zOS_BNK	macro	bankf,ignored	;inline void zOS_BNK(const int8_t bankf,
+	movf	bankf,w		;                    const int8_t ignored) {
+	movwf	BSR		; bsr = bankf; // allows "zOS_BNK zOS_ME"
+	endm			;}
+	
 	;; macro checks for safety (SFR, not global or another job's local RAM)
-zOS_RW	macro	fsrn,file
+zOS_RW	macro	file
 	if file & 0x60
-	 error "tried to access a disallowed RAM range"
+	 error "tried to access disallowed RAM range (global or belongs to job)"
 	else
-	 movlw	low file
-	 movwf	FSR#v(fsrn)L
-	 movlw	high file
-	 movwf	FSR#v(fsrn)H
+	 movlb	file >> 7
 	endif
 	endm
 
-zOS_R	macro	fsrnum,file
-	local	fsrn
-	if (fsrnum & 3)
-fsrn set 1
-	else
-fsrn set 0
-	endif
-	zOS_RW	fsrn,file
-	moviw	0[FSR#v(fsrn)]
-	endm
+zOS_R	macro	file,bankf,destf;inline int8_t zOS_R(const int8_t* file, int8_t
+	local	yesints
+	zOS_RW	file
+	movf	INTCON,w	;
+	movwf	destf		;
+	bcf	INTCON,GIE	;
+	zOS_PSH	file		;                    bankf, uint8_t* destf) {
+	zOS_BNK	bankf,w		; *destf = *file;//destf our bank, file anywhere
+	btfsc	destf,GIE	;
+	bra	yesints
+	zOS_POP	destf		; return bankf;
+	bsf	INTCON,GIE	;
+	endm			;}
 
-zOS_W	macro	fsrnum,file,val
-	local	fsrn
-	if (fsrnum & 3)
-fsrn set 1
-	else
-fsrn set 0
-	endif
-	zOS_RW	fsrn,file
-	movf	val,w
-	movwi	0[FSR#v(fsrn)]
+zOS_W	macro	file,bankf
+	zOS_RW	file
+	movwf	file
+	zOS_BNK	bankf,w
 	endm
 
 #if 0
