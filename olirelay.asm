@@ -166,12 +166,13 @@ MYMASK	equ	0x28
 SAID_HI	equ	0x29
 	
 optoisr
-	zOS_BNK	zOS_ME
+	movf	zOS_JOB,w	;__isr void optoisr(uint8_t zos_job) {
+	movwf	BSR		; bsr = zos_job; // make sure we see our own var
 	zOS_MY2	FSR0
-	movf	RELAYP,w	;__isr void optoisr(uint8_t zos_job) {
+	movf	RELAYP,w	;
 	movwf	FSR1L		; uint8_t *fsr0; // commanded state of output,
 	movlw	high PORTA	; uint8_t *fsr1; //  0xff & (this input & mask)
-	movwf	FSR1H		; bsr = zos_job; // make sure we see our own var
+	movwf	FSR1H		;
 	moviw	1[FSR0]		; fsr0 = 0x70 | (bsr<<1);
 	btfss	STATUS,Z	; fsr1 = (relayp==PORTA&0xff) ? &PORTA : &PORTB;
 	bra	optordy		; if (1[fsr0]) { // initialization has completed

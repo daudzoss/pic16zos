@@ -732,15 +732,10 @@ brgvall	set	low brgvalm
 	movlb	0		; // still in job "0"
 	endm			;}
 
-zOS_BNK	macro	bankf,ignored	;inline void zOS_BNK(const int8_t bankf,
-	movf	bankf,w		;                    const int8_t ignored) {
-	movwf	BSR		; bsr = bankf; // allows "zOS_BNK zOS_ME"
-	endm			;}
-	
 	;; macro checks for safety (SFR, not global or another job's local RAM)
 zOS_RW	macro	file
 	if file & 0x60
-	 error "tried to access disallowed RAM range (global or belongs to job)"
+	 error "tried to access disallowed RAM range (global or another job's)"
 	else
 	 movlb	file >> 7
 	endif
@@ -748,22 +743,23 @@ zOS_RW	macro	file
 
 zOS_R	macro	file,bankf	;inline int8_t zOS_R(const int8_t* file, int8_t
 	movf	INTCON,w	;                    bankf) {
-	bcf	INTCON,GIE	; zOS_AR0 = INTCON;
-	movwf	zOS_AR0		; INTCON &= ~(1<<GIE);
-	zOS_RW	file
-	movf	file,w		; BSR = file >> 7;
-	movwf	zOS_AR1		; zOS_AR1 = *file; // any value anywhere
-	movf	bankf,w		;
-	movwf	BSR		; BSR = bankf;
+	bcf	INTCON,GIE	; int8_t w = INTCON;// interrupts must be off to
+	movwf	zOS_AR0		; INTCON &= ~(1<<GIE); // access zOS_AR* globals
+	zOS_RW	file		; zOS_AR0 = w; // preserve orig. interrupt state
+	movf	file,w1		; BSR = file >> 7;
+	movwf	zOS_AR		; zOS_AR1 = *file; // any 0-0x1f SFR in any bank
+	movf	bankf,w		; BSR = bankf;
+	movwf	BSR		; w = zOS_AR1;
 	movf	zOS_AR1,w	; if (zOS_AR0 & (1<<GIE))
-	btfss	zOS_AR0,GIE	;  INTCON |= 1<<GIE;
-	bsf	INTCON,GIE	; return zOS_AR1;
+	btfss	zOS_AR0,GIE	;  INTCON |= 1<<GIE; // restore interrupt state
+	bsf	INTCON,GIE	; return w;
 	endm			;}
 
 zOS_W	macro	file,bankf	;inline int8_t zOS_W(const int8_t* file, int8_t
 	zOS_RW	file		;                    bankf, uint8_t w) {
-	movwf	file		; *file = w;
-	zOS_BNK	bankf,w		; return BSR;
+	movwf	file		; bsr = file >> 7;
+	movf	bankf,w		; *file = w;
+	movwf	BSR		; return bsr = bankf;
 	endm			;}
 
 #if 0
