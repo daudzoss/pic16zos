@@ -713,7 +713,7 @@ zos_swl
 	btfsc	STATUS,Z	;  if (zOS_PCH[fsr0] == 0)
 	bra	zos_swl		;   continue; // job killed or slot just empty
 	moviw	zOS_SIM[FSR0]	;
-	andwf	zOS_MSK,f	;
+	andwf	zOS_MSK,w	;
 	btfsc	STATUS,Z	;
 	bra	zos_swl		;  else if ((zos_msk &= zOS_SIM[fsr0]) != 0)
 	moviw	zOS_ISH[FSR0]	;
