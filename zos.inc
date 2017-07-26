@@ -696,28 +696,19 @@ zos_bad
 #endif
 	
 	;; else handle the software interrupt with the first registered handler
-;;; FIXME: rewrite with zOS_LIV?
 zos_swh
-	movlw	zOS_NUM		;
+	movlw	1+zOS_NUM	;
 	movwf	zOS_JOB		; zos_job = zOS_NUM;
-	zOS_MEM	FSR0,zOS_JOB,0x10
+	zOS_MEM	FSR0,zOS_JOB,0	; while (zOS_LIV(&fsr0, &zOS_JOB, 0)) { //search
 zos_swl
-	movlw	0-0x10	      	; for (fsr0 = 0x10*(1+zos_job);
-	addwf	FSR0L,w		;
-	movwf	FSR0L		;
-	andlw	0x60		;      fsr0 > 0x10;
-	btfsc	STATUS,Z	;
-	bra	zos_swm		;      fsr0 -= 0x10) {
-	decf	zOS_JOB,f	;  zos_job--;
-	moviw	zOS_PCH[FSR0]	;
-	btfsc	STATUS,Z	;  if (zOS_PCH[fsr0] == 0)
-	bra	zos_swl		;   continue; // job killed or slot just empty
+	zOS_LIV	FSR0,zOS_JOB,0,zos_swm
 	moviw	zOS_SIM[FSR0]	;
 	andwf	zOS_MSK,w	;
 	btfsc	STATUS,Z	;
-	bra	zos_swl		;  else if ((zos_msk &= zOS_SIM[fsr0]) != 0)
-	moviw	zOS_ISH[FSR0]	;
-	movwf	PCLATH		;   goto (void*)(zOS_ISR[fsr0]); // will zOS_RFI
+	bra	zos_swl		;  if ((zos_msk & zOS_SIM[fsr0]) != 0) { //found
+	movwf	zOS_MSK		;   zos_msk &= zOS_SIM[fsr0];
+	moviw	zOS_ISH[FSR0]	;   goto (void*)(zOS_ISR[fsr0]); // will zOS_RFI
+	movwf	PCLATH		;  }
 	moviw	zOS_ISR[FSR0]	; }
 	movwf	PCL		; zOS_RFI(WREG = 0);
 	
