@@ -291,7 +291,7 @@ relayop
 	btfss	STATUS,Z	;
 	bra	relayld		;
 	movf	OPTOB,w		;
-	andwf	PORTA,w		;
+	andwf	PORTA,w		; /*<-----FIXME: not in correct bank for PORTA*/
 	movwf	NEW_LST		;
 	xorwf	OPTOLST,w	;    OPTOLST = OPTOB & PORTA; // save new value
 	btfsc	STATUS,Z	;    zOS_SWI(NON_IOC); // and tell ISR to look
