@@ -430,7 +430,7 @@ zos_itr
 	movwf	WREG_SHAD	;     WREG_SHAD = *fsr0++;
 	movf	zOS_JOB,w	;     //point to correct 80-byte local SRAM page
 	movwf	BSR_SHAD	;     BSR_SHAD = zOS_JOB; // not STKPTR
-	moviw	++FSR0		;
+	moviw	++FSR0		;     //^^ notice BSR = zOS_JOB upon retfie! ^^
 	movwf	PCLATH_SHAD	;     PCLATH_SHAD = *++fsr0;
 	moviw	++FSR0		;
 	movwf	FSR0L_SHAD	;     FSR0L_SHAD = *++fsr0;

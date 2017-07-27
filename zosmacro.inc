@@ -741,17 +741,23 @@ zOS_RW	macro	file
 	endif
 	endm
 
-zOS_R	macro	file,bankf	;inline int8_t zOS_R(const int8_t* file, int8_t
-	movf	INTCON,w	;                    bankf) {
-	bcf	INTCON,GIE	; int8_t w = INTCON;// interrupts must be off to
-	movwf	zOS_AR0		; INTCON &= ~(1<<GIE); // access zOS_AR* globals
-	zOS_RW	file		; zOS_AR0 = w; // preserve orig. interrupt state
-	movf	file,w1		; BSR = file >> 7;
-	movwf	zOS_AR		; zOS_AR1 = *file; // any 0-0x1f SFR in any bank
-	movf	bankf,w		; BSR = bankf;
-	movwf	BSR		; w = zOS_AR1;
-	movf	zOS_AR1,w	; if (zOS_AR0 & (1<<GIE))
-	btfss	zOS_AR0,GIE	;  INTCON |= 1<<GIE; // restore interrupt state
+zOS_R	macro	file,bankf,prsrv;inline int8_t zOS_R(const int8_t* file, int8_t
+	if prsrv
+	 movf	INTCON,w	;                    bank, int8_t prsrv) {
+	endif
+	bcf	INTCON,GIE	; if (prsrv)
+	if prsrv
+	 movwf	zOS_AR1		;  zOS_AR1 = INTCON;
+	endif
+	zOS_RW	file		; INTCON &= ~(1<<GIE); // access zOS_AR* globals
+	movf	file,w		; bsr = file >> 7;
+	movwf	zOS_AR0		; zOS_AR0 = *file; // any 0-0x1f SFR in any bank
+	movf	bankf,w		; bsr = bankf;
+	movwf	BSR		; w = zOS_AR0;
+	movf	zOS_AR0,w	; if (prsrv && (zOS_AR1 & (1<<GIE)))
+	if prsrv
+	 btfss	zOS_AR1,GIE	;  INTCON |= 1<<GIE; // restore interrupt state
+	endif
 	bsf	INTCON,GIE	; return w;
 	endm			;}
 

@@ -164,7 +164,7 @@ OPTOCUR	equ	0x26
 OPTOLST	equ	0x27
 MYMASK	equ	0x28
 SAID_HI	equ	0x29
-NEW_LST	equ	0x2a
+TMP_LST	equ	0x2a
 	
 optoisr
 	movf	zOS_JOB,w	;__isr void optoisr(uint8_t zos_job) {
@@ -287,16 +287,16 @@ relayop
 	movwf	INDF1		;
 
 	movf	OPTOP,w		;  if (OPTOP == PORTA) { // watch in tight loop
-	xorlw	low PORTA	;   if (OPTOLST != OPTOB & PORTA) { // changed!
+	xorlw	low PORTA	;   if (OPTOLST != PORTA & OPTOB) { // changed!
 	btfss	STATUS,Z	;
 	bra	relayld		;
-	movf	OPTOB,w		;
-	andwf	PORTA,w		; /*<-----FIXME: not in correct bank for PORTA*/
-	movwf	NEW_LST		;
-	xorwf	OPTOLST,w	;    OPTOLST = OPTOB & PORTA; // save new value
+	zOS_R	PORTA,zOS_JOB,0
+	andwf	OPTOB,w		;
+	movwf	TMP_LST		;
+	xorwf	OPTOLST,w	;    OPTOLST = PORTA & OPTOB; // save new value
 	btfsc	STATUS,Z	;    zOS_SWI(NON_IOC); // and tell ISR to look
 	bra	relaylp		;   }
-	movf	NEW_LST,w	;  } else
+	movf	TMP_LST,w	;  } else
 	movwf	OPTOLST		;   zOS_SWI(zOS_YLD);//let next job run (no ARG)
 	zOS_SWI	NON_IOC
 	bra	relaylp		; } while (1);
