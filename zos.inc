@@ -86,7 +86,7 @@ zOS_AR3	equ	0x7f
 ;;; job/shadow register offsets from zOS_J0M, zOS_J1M,...
 zOS_HDL	equ	0x00		; handle, the start address of the job
 zOS_HDH	equ	0x01		;
-zOS_PRB	equ	7		;  MSB of HDL indicates privilege(manage others)
+zOS_PRB	equ	7		;  MSB of HDH indicates privilege(manage others)
 zOS_RAM	equ	0		;
 zOS_FLA	equ	1		;
 zOS_UNP	equ	0		;

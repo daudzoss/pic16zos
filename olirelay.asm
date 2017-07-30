@@ -200,18 +200,22 @@ optoswi
 	btfsc	STATUS,Z	;  }
 	bra	opto_lo		;  1[FSR0] = (w & *fsr1) ? 0xff : ~zOS_MSK;
 opto_hi
-	movlw	0xff		;  zOS_ARG(0,(w & *fsr1) ? 'H' : 'L');
-	movwi	1[FSR0]		;  zOS_TAI(OUTCHAR);
-	movlw	'H'		;
-	bra	optoclr		;  // zOS_RFI() implicitly done after zOS_TAI()
+	movlw	0xff		;  if (all_ioc) { // console out has been inited
+	movwi	1[FSR0]		;   zOS_ARG(0,(w & *fsr1) ? 'H' : 'L');
+	movlw	'H'		;   zOS_TAI(OUTCHAR);
+	bra	optoclr		;   // zOS_RFI() implicitly done after zOS_TAI()
 opto_lo
-	comf	zOS_MSK,w	; }
-	movwi	1[FSR0]		; zOS_RET();
-	movlw	'L'		;}
+	comf	zOS_MSK,w	;  }
+	movwi	1[FSR0]		;
+	movlw	'L'		; }
 optoclr
+	movf	ALL_IOC,f	; zOS_RET();
+	btfsc	STATUS,Z	;}
+	bra	optodon
 	zOS_ARG	0
 	zOS_TAI	OUTCHAR
-
+optodon
+	zOS_RET
 greet
 	da	"\r\nActivated relay ",0
 relay
@@ -240,10 +244,11 @@ relay
 	pagesel	mychan
 	decf	zOS_ME		;
 	call	mychan		; static uint8_t mymask = mychan1(bsr);
-	movwf	MYMASK		; relayin: uint8_t* fsr0 = 0x70 | (bsr << 1);
+	movwf	MYMASK		;
+	zOS_SWI	zOS_YLD		; zOS_SWI(zOS_YLD); // encourage console to init
 relayin
 	zOS_MY2	FSR0
-	movf	RELAYP,w	;
+	movf	RELAYP,w	; relayin: uint8_t* fsr0 = 0x70 | (bsr << 1);
 	movwf	FSR1L		; uint8_t* fsr1;
 	movlw	high PORTA	;
 	movwf	FSR1H		; fsr1 = (relayp==PORTA&0xff) ? &PORTA : &PORTB;

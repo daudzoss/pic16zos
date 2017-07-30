@@ -106,6 +106,16 @@ retry
 	endif
 	endm			;}
 
+zOS_DIS	macro	fsr,job		;inline void zOS_DIS(int8_t* *fsr, int8_t job) {
+	zOS_MEM	fsr,job,zOS_HDH	; *fsr = 0x10 * (1 + job) + zOS_HDH;//priv check
+	btfsc	INDF0,zOS_PRV	; if (**fsr & (1<<zOS_PRV))
+	bcf	INTCON,GIE	;  INTCON &= ~(1<<GIE);
+	endm			;}
+	
+zOS_ENA	macro			;inline void zOS_ENA(void) {
+	bsf	INTCON,GIE	; INTCON |= 1<<GIE;
+	endm			;}
+
 zOS_ARG	macro	arg
 	local num
 num set (arg & 0x03)
@@ -488,9 +498,10 @@ uatxmit	 set	TX#v(p)REG
 rtsflag	 set	TX#v(p)IF
 	endif
 task
-	movlw	high uatbase	; goto decl;
-	movwf	FSR0H		;// all init that requires knowledge of BSR here
-	zOS_MY2	FSR0		;task:
+	zOS_DIS	FSR0,zOS_JOB	; goto decl;
+	movlw	high uatbase	;// all init that requires knowledge of BSR here
+	movwf	FSR0H		;task:
+	zOS_MY2	FSR0		; zOS_DIS(&fsr0, zOS_JOB); // interrupts off!
 	movlw	0xff		; fsr0 = 0x70 + (bsr<<1);//global always visible
 	movwi	t0div[FSR0]	; 0[fsr0] = 0xff;// live TMR0 postscaler divider
 	movlw	0x00		;
@@ -504,6 +515,7 @@ task
 	movwf	wrap		; const char* wrap = ((bsr&1)<<7) | buf;
 	movwf	p0		;
 	movwf	p1		; p0 = p1 = wrap; // reset value if they max out
+	zOS_ENA			; zOS_ENA(); // interrupts on after init done
 #if 0
 	zOS_ASC	buf,"\r\nzOS>",1
 	;; FIXME: zOS_ASC won't build under MPASM
@@ -802,3 +814,4 @@ predecl
 endmon
 	endm
 #endif	
+
