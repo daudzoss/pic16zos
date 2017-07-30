@@ -586,7 +586,15 @@ zos_sw3
 	andlw	0x7f		;   // clear PC MSB (which indicates sleepiness)
 	movwi	zOS_PCH[FSR1]	;   zOS_PCH[fsr1] = zOS_HDH[fsr1] & 0x7f;
 	movlw	zOS_BOS		;   zOS_SSP[fsr1] = zOS_BOS;
-	movwi	zOS_SSP[FSR1]	;  case zOS_YLD: zOS_RFI(zOS_JOB);
+	movwi	zOS_SSP[FSR1]	;
+	
+	rlf	zOS_JOB,w	;
+	andlw	0x0e		;
+	iorlw	0x70		;
+	movwf	FSR1L		;   fsr1 = 0x70 | (zOS_JOB << 1);
+	clrw			;   0[fsr1] = 1[fsr1] = 0; // mailbox guar'ed 0
+	movwi	0[FSR1]		;  case zOS_YLD:
+	movwi	1[FSR1]		;   zOS_RFI(zOS_JOB);
 zos_sw4
 
 #ifdef zOS_MIN
