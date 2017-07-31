@@ -108,7 +108,7 @@ retry
 
 zOS_DIS	macro	fsr,job		;inline void zOS_DIS(int8_t* *fsr, int8_t job) {
 	zOS_MEM	fsr,job,zOS_HDH	; *fsr = 0x10 * (1 + job) + zOS_HDH;//priv check
-	btfsc	INDF0,zOS_PRV	; if (**fsr & (1<<zOS_PRV))
+	btfsc	INDF0,zOS_PRB	; if (**fsr & (1<<zOS_PRB))
 	bcf	INTCON,GIE	;  INTCON &= ~(1<<GIE);
 	endm			;}
 	
