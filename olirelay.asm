@@ -172,7 +172,7 @@ optoisr
 	zOS_MY2	FSR0
 	movf	RELAYP,w	;
 	movwf	FSR1L		; uint8_t *fsr0; // commanded state of output,
-	movlw	high PORTA	; uint8_t *fsr1; //  0xff & (this input & mask)
+	movlw	high RELAYP	; uint8_t *fsr1; //  0xff & (this input & mask)
 	movwf	FSR1H		;
 	moviw	1[FSR0]		; fsr0 = 0x70 | (bsr<<1);
 	btfss	STATUS,Z	; fsr1 = (relayp==PORTA&0xff) ? &PORTA : &PORTB;
@@ -245,7 +245,7 @@ relay
 	decf	zOS_ME		;
 	call	mychan		; static uint8_t mymask = mychan1(bsr);
 	movwf	MYMASK		;
-	zOS_SWI	zOS_YLD		; zOS_SWI(zOS_YLD); // encourage console to init
+	zOS_SWI	zOS_YLD		; zOS_SWI(zOS_YLD); // encourage others to init
 relayin
 	zOS_MY2	FSR0
 	movf	RELAYP,w	; relayin: uint8_t* fsr0 = 0x70 | (bsr << 1);
@@ -262,12 +262,10 @@ relaylp
 	brw			;  if (!said_hi && // haven't announced self yet
 relayhi
 	movf	ALL_IOC,f	;      all_ioc) { // and job 5 running zOS_CON()
-	btfsc	STATUS,Z	;
-	bra	relayrd		;   if (bsr == 1) { // only print job 1 preamble
-	decfsz	zOS_ME		;    zOS_ADR(fsr0 = &greet);
-	bra	relaynm		;    zOS_STR(OUTCHAR); // "\r\nActivated relay "
-	movlw	relayrd-relayhi	;    said_hi = !said_hi;
-	movwf	SAID_HI		;   }
+	btfsc	STATUS,Z	;   said_hi = !said_hi;
+	bra	relayrd		;
+	movlw	relayrd-relayhi	;   zOS_ADR(fsr0 = &greet);
+	movwf	SAID_HI		;   zOS_STR(OUTCHAR); // "\r\nActivated relay "
 	zOS_ADR	greet,zOS_FLA
 	zOS_STR	OUTCHAR		
 relaynm
@@ -334,7 +332,7 @@ use_swi
 	zOS_ADR	relay,zOS_UNP
 	zOS_LAU	WREG
 	btfss	WREG,2		;  fsr0 = &relay 0x7fff; // relay() unpriv'ed
- nop;	bra	create		; }
+	bra	create		; }
 	
 	sublw	zOS_NUM-1	;
 	btfsc	WREG,7		; if (w == zOS_NUM)// no job remains for zOS_MON
