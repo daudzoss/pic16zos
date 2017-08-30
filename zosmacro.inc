@@ -6,7 +6,11 @@
 ;;;  ~256 14-bit words if only zOS_CON() job is started to buffer console output
 ;;;  _??_ 14-bit words for full-featured monitor and job manager shell zOS_MON()
 	
+#ifdef UCFG
+#define	zOS_ME BSR,w : xorlw 0x8; // advance zOS use past DPSRAM; FIXME:untested
+#else
 #define zOS_ME BSR,w		; // "movf/andwf/xorwf zOS_ME" can't clobber BSR
+#endif
 
 zOS_GLO	macro	fsrnum,job
 	local	fsrn
@@ -473,7 +477,7 @@ done
 	endm			;}
 
 zOS_CON	macro	p,rat,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t rat,int8_t
-	local	task,loop,decl,isr
+	local	task,isr,loop,decl
 	bra	decl		;                    rts,int8_t* hb,int8_t pin){
 	
 	;; initialize constants and variables
@@ -484,18 +488,17 @@ p0	set	0x20
 p1	set	0x21
 wrap	set	0x22
 t0scale	set	0x23
-buf	set	0x24
+	;; 0x24~2F reserved for zOS_MON
+buf	set	0x30
 max	set	0x70
 	
-	local	uatbase,uatxmit,rtsflag
-	if (p == 1)
+	local	uatbase,uatxmit
+	if (p == 0)
 uatbase	 set	TXREG & 0xff80
 uatxmit	 set	TXREG & 0x007f
-rtsflag	 set	TXIF
 	else
 uatbase	 set	TX#v(p)REG & 0xff80
-uatxmit	 set	TX#v(p)REG
-rtsflag	 set	TX#v(p)IF
+uatxmit	 set	TX#v(p)REG & 0x007f
 	endif
 task
 	zOS_DIS	FSR0,zOS_JOB	; goto decl;
@@ -528,7 +531,7 @@ loop
 	movwf	FSR1H		;  zOS_SWI(zOS_SLP);
 	movlw	low rts		;  // wait for SWI to store char(s) in buf[]
 	movwf	FSR1L		;  // or HWI to indicate the last one got sent
-	btfss	INDF1,rtsflag	;  if (*(fsr1 = rts) & (1<<rtsflag) == 0) //full
+	btfss	INDF1,TXIF	;  if (*(fsr1 = rts) & (1<<TXIF) == 0) //full
 	bra	loop		;   continue; // sleep (sending previous char)
 	rrf	zOS_ME 		;
 	movwf	FSR1H		;
@@ -551,7 +554,7 @@ loop
 
 	;; SWI will be coming from a job that wants to send a character
 	;;  in which case the ISR stores it, advances p1 and clears zOS_WAI bit
-	;;  and thus afer clearing zOS_WAI the job just re-sleeps if rtsflag==0
+	;;  and thus afer clearing zOS_WAI the job just re-sleeps if TXIF==0
 	;; 
 	;; HWI will be coming from the UART peripheral indicating ready-to-send
 	;;  in which case ISR clears the job's zOS_WAI bit to get scheduled
@@ -600,16 +603,16 @@ nottmr
 	moviw	zOS_PCH[FSR0]	;  fsr0 = 0x10*(1+zos_job); // bank 0 job struct
 	movf	zOS_MSK,f	;  w = zOS_PCH[fsr0]; // will indicate sleeping
 	btfss	STATUS,Z	;  if (zOS_MSK == 0) {// not a SWI so check HWI,
-	bra	do_swi		;   if (rts & (1<<rtsflag)) // clear the rtsflag
+	bra	do_swi		;   if (rts & (1<<TXIF)) // clear the TXIF
 	
-	;; determine whether the HWI is rtsflag (the only HWI line of interest)
+	;; determine whether the HWI is TXIF (the only HWI line of interest)
 	banksel	rts
-	btfsc	rts,rtsflag	;    rts &= ~(1<<rtsflag); // is our HWI for rts
+	btfsc	rts,TXIF	;    rts &= ~(1<<TXIF); // is our HWI for rts
 	bra	clrflag		;   else
 	zOS_RET
 clrflag
 	;; make sure the task is sleeping (else the task() initialization unrun)
-	bcf	rts,rtsflag	;    zOS_RET(); // must have been someone else's
+	bcf	rts,TXIF	;    zOS_RET(); // must have been someone else's
 	andlw	0x7f		;   zOS_PCH[fsr0] = w & 0x7f;// now task can run
 	movwi	zOS_PCH[FSR0]	;   goto done;// (whether sleeping or uninit'ed)
 	bra	done		;  }
@@ -690,11 +693,11 @@ delay0
 	bra	delay0
 #endif
 #if 0
-	banksel	RCSTA
+	banksel	uatbase
 	bcf	RCSTA,SPEN	;decl: // all init that is BSR independent here
 	bcf	RCSTA,CREN	; RCSTA &= ~((1<<SPEN)|(1<<CREN));
 #endif
-	banksel	TXSTA
+	banksel	uatbase
 	bcf	TXSTA,TXEN	; TXSTA &= ~(1<<TXEN);
 	local brgval,brgvalm,brgvalh,brgvall
 #ifdef BRG16
@@ -702,9 +705,9 @@ brgval	set	rat>>2
 brgvalm	set	brgval-1
 brgvalh	set	high brgvalm
 brgvall	set	low brgvalm
-	banksel	BAUDCON
+	banksel	uatbase
 	bsf	BAUDCON,BRG16	; // section 26.1.2.8 of 16F1847 steps below:
-	banksel	TXSTA
+	banksel	uatbase
 	bcf	TXSTA,SYNC	; // (1) "Initialize..the desired baud rate"
 	bsf	TXSTA,BRGH	; BAUDCON |= 1<<BRG16; // 16-bit generator
 	movlw	brgvall		; TXSTA &= ~(1<<SYNC); // async mode
@@ -718,17 +721,17 @@ brgvalm	set	brgval-1
 brgvalh	set	0
 brgvall	set	low brgvalm
 	bsf	TXSTA,BRGH	; TXSTA |= 1<<BRGH; // (1) the desired baud rate
-	banksel	SPBRG
+	banksel	uatbase
 	movlw	brgvall		;
 	movwf	SPBRG		; SPBRG = (rat/16) - 1;
 #endif
 #if 0
-	banksel	RCSTA
+	banksel	uatbase
 	bsf	RCSTA,SPEN	; // (3) "Enable..by setting..SPEN"
 	bcf	RCSTA,RX9	; RCSTA &= ~(1<<RX9);  // (5) "9-bit..set..RX9"
 	bsf	RCSTA,CREN	; RCSTA |= (1<<SPEN) | (1<<CREN); // (6) "CREN" 
 #endif
-	banksel	TXSTA
+	banksel	uatbase
 	bsf	TXSTA,TXEN	; TXSTA |= 1<<TXEN; // (5) "Enable..by..TXEN"
 #if 0
 	banksel	PIE1
@@ -783,34 +786,91 @@ zOS_W	macro	file,bankf	;inline int8_t zOS_W(const int8_t* file, int8_t
 #if 0
 ;;; like zOS_CON, but also accepts console input for a full job-management shell
 zOS_MON	macro	p,rat,rts,hb,pin;inline void zOS_MON(int8_t p,int8_t rat,int8_t
-	local task,decl,isr,endmon
-	call	predecl		;                    rts,int8_t* hb,int8_t pin){
-	zOS_CON	p,rat,rts,hb
-pstdecl	nop
-	bra	endmon
+	local rxtask,rxdecl,rxisr,endmon
+	bra	rxdecl		;                    rts,int8_t* hb,int8_t pin){
+	
+	;; initialize constants and variables
+	local	rxflag,rxreg,isradrl,isradrh,tskadrl,tskadrh,accumul,accumuh
+	local	char_io,destreg,max
+	if (p == 0)
+rxflag	 set	RCIF
+rxreg	 set	RCREG
+rxsta	 set	RCSTA
+	else
+rxflag	 set	RC#v(p)IF
+rxreg	 set	RC#v(p)REG
+rxsta	 set	RC#v(p)STA
+	endif
+isradrl	set	0x25
+isradrh	set	0x26
+tskadrl	set	0x27
+tskadrh	set	0x28
+destreg	set	0x29
+accumul	set	0x2a
+accumuh	set	0x2b
+char_io	set	0x2c	
+lastvar ser	0x2f
+max	set	0x70
 
-	task
+rxtask
+	movf	tskadrh,w	;
+	movwf	PCLATH		;
+	movf	tskadrl,w	;
+	movwf	PCL	;callw	;
 
-loop
+rxloop
 
 	bra 	loop
-isr <---this is the one for input characters as output is handled by the zOS_CON() isr
 
+
+rxisr
+	movf	isradrh,w	;
+	movwf	PCLATH		;
+	movf	isradrl,w	;  if (rts && (1<<rxflag) == 0)
+	banksel	rts
+	btfss	rts,rxflag	;   goto isradrh<<8 | isradrl;
+	movwf	PCL		;  else {
+	
+	bcf	rts,rxflag	;
+	banksel	rxreg
+#ifdef CAUTIOUS
+	btfss	rxsta,OERR	;
+	bra	noovrrn		; if (RCSTA & OERR)
+	movlw	'!'		;  zOS_PUT(max, '!');
+	zOS_PUT	max
+noovrrn
+#endif
+
+	movf	rxreg,w		;
+	movwf	char_io		;
+
+#ifdef CAUTIOUS
+	banksel	rxsta		;
+	btfss	rxsta,OERR	; if (RCSTA & (1<<OERR)) // rx overrun
+	bcf	rxsta,CREN	;  RCSTA &= ~(1<<CREN); // cleared by disable
+	bsf	rxsta,CREN	; RCSTA |= 1<<CREN; // (re-)enable reception
+#endif
+	
 	zOS_RFI
-predecl
-	movlw	low task	; } else {
-	movwf	FSR0L		;  //job#0 means zOS_RUN not encountered yet 
-	movlw	high task	;
-	andlw	0x7f		;
-	movwf	FSR0H		;  FSR0 = isr & 0x7fff; //MSB 0 => unprivileged
-	movlw	low isr		;  w = zOS_ARG(0, isr & 0x00ff)
+
+rxdecl
+	zOS_CON	p,rat,rts,hb,pin
+	movf	zOS_AR0,w	;  zOS_CON(p,rat,rts,hb,pin);// extend zOS_CON()
+	movwf	isradrl		;  isradrl = zOS_AR0;
+	movf	zOS_AR1,w	;
+	movwf	isradrh		;  isradrh = zOS_AR1; // will forward non-rx irq
+	movf	FSR0L,w		;
+	movwf	tskadrl		;  tskadrl = fsr0 & 0x00ff;
+	movf	FSR0H,w		;
+	movwf	tskadrh		;  tskadrh = fsr0 >> 8; // all non-rx tasks here
+	zOS_ADR	rxtask,zOS_PRB
+	movlw	low rxisr	;  w = zOS_ARG(0, rxisr & 0x00ff)
 	zOS_ARG	0
-	movlw	high isr	;  w = zOS_ARG(1, isr >> 8);
+	movlw	high rxisr	;  w = zOS_ARG(1, rxisr >> 8);
 	zOS_ARG	1
-	movlw	1<<RCIF		;
-	iorlw	1<<TXIF		;  w = zOS_ARG(2, (1<<RCIF) | (1<<TXIF));
+	movf	zOS_AR2,w	;
+	iorlw	1<<rxflag	;  w = zOS_ARG(2, (1<<rxflag)|(1<<TXIF)|(1<<T0IE));
 	zOS_ARG	2
-	return			;//back to top for zOS_CON()'s decl
 endmon
 	endm
 #endif	
