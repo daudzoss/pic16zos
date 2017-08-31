@@ -273,28 +273,28 @@ zOS_HEA	macro	base,size
 zOS_HEX	macro
 	andlw	0x0f		;
 	addlw	0x06		;
-	btfsc	WREG,4		; inline char zOS_HEX(uint8_t w) { 
-	addlw	0x07		;  return (w & 0x0f > 9) ? '0'+w : 'A'+w-10;
-	addlw	0x2a		; }
+	btfsc	WREG,4		;inline char zOS_HEX(uint8_t w) { 
+	addlw	0x07		; return (w & 0x0f > 9) ? '0'+w : 'A'+w-10;
+	addlw	0x2a		;}
 	endm
 	
 zOS_PUT	macro	max
-	movwi	FSR0++		; inline void zOS_PUT(char* max, char w) {
-	movf	FSR0L,w		;  *fsr0++ = w;
+	movwi	FSR0++		;inline void zOS_PUT(char* max, char w) {
+	movf	FSR0L,w		; *fsr0++ = w;
 	andlw	0x7f		;
 	xorlw	max		;
 	btfss	STATUS,Z	;
-	bra	$+3		;  if (fsr0 & 0x7f == max)
+	bra	$+3		; if (fsr0 & 0x7f == max)
 	moviw	2[FSR1]		;
-	movwf	FSR0L		;   fsr0 = 2[fsr1] /*wrap*/;
-	movf	FSR0L,w		;  1[fsr1] /*p1*/ = fsr0 & 0x00ff;
-	movwi	1[FSR1]		; }
+	movwf	FSR0L		;  fsr0 = 2[fsr1] /*wrap*/;
+	movf	FSR0L,w		; 1[fsr1] /*p1*/ = fsr0 & 0x00ff;
+	movwi	1[FSR1]		;}
 	endm
 
-zOS_UNW	macro	job		; inline void zOS_UNW(int8_t job) { }
-	zOS_MEM	FSR0,job,zOS_PCH;  fsr0 = 0x10 * (1 + job) + zOS_PCH;
-	bcf	INDF0,zOS_WAI	;  *fsr0 &= ~(1 << zOS_WAI); // now runnable
-	endm			; }
+zOS_UNW	macro	job		;inline void zOS_UNW(int8_t job) { }
+	zOS_MEM	FSR0,job,zOS_PCH; fsr0 = 0x10 * (1 + job) + zOS_PCH;
+	bcf	INDF0,zOS_WAI	; *fsr0 &= ~(1 << zOS_WAI); // now runnable
+	endm			;}
 
 #if 0
 ;;; FIXME: major reworking needed still
@@ -476,6 +476,66 @@ done
 	bsf	INTCON,GIE	; } zOS_POP(&bsr); INTCON |= 1<<GIE;
 	endm			;}
 
+	
+zOS_BUF	macro	fsrnum,job,ptr
+	local	fsrn,ascii,err,done
+	if (fsrnum & 3)
+fsrn set 1
+	else
+fsrn set 0
+	endif
+	
+	clrf	FSR1H		;inline int zOS_BUF(uint8_t* fsrnum,uint3_t job,
+	zOS_LOC	FSR1,zOS_JOB,ptr;                   uint8_t ptr /* circ buf */){
+	
+	;; check to make sure there are at least 2 characters free in the buffer
+	moviw	1[FSR#v(fsrn)]	; fsrnum = (zOS_JOB << 7) + p0;
+	andlw	0x7f		; char* p1plus2 = 2 + (1[fsrnum] /*p1*/ & 0x7f);
+	addlw	0x12		;
+	btfss	WREG,7		; if (p1plus2 >= max)
+	addlw	0x90+buf	;  p1plus2 -= (max - buf);
+	addlw	0-0x10		;
+	bcf	INDF#v(fsrn),7	;
+	subwf	INDF#v(fsrn),w	; char* w = p1plus2 - (0[fsrnum] /*p0*/&= 0x7f);
+	
+	incf	FSR#v(fsrn)L,f	; // don't clobber w: OK if it's not 0 or 1
+	btfsc	INDF#v(fsrn),7	;
+	bra	$+4		; if (1[fsrnum++] /*p1*/ & 0x80) {
+	decf	FSR#v(fsrn)L,f	;  0[--fsrnum] /*p0*/ |= 0x80; // p0 restored
+	bsf	INDF#v(fsrn),7	;  fsrnum++; // cancels the above decrement
+	incf	FSR#v(fsrn)L,f	; }
+	decf	FSR#v(fsrn)L,f	; fsrnum--; // cancels increment from the "if"
+
+	iorlw	0x00		;
+	btfsc	STATUS,Z	;
+	bra	err		; if (w == 0)
+	decf	WREG,w		;  goto err;// would wrap around, appear empty
+	btfsc	STATUS,Z	; else if (w == 1)
+	bra	err		;  goto err; // would wrap around to be size 1
+
+	moviw	1[FSR1]		; fsr0 = 1[fsrnum]; // stop examining p1 and use
+	movwf	FSR0L		;
+	movf	zOS_AR0,w	; // we're now certain we won't exceed the buf
+	btfss	STATUS,Z	;
+	bra	ascii		; if (zOS_AR0 == 0) { // print zOS_AR1 as hex
+	
+	swapf	zOS_AR1,w	;  zOS_PUT(max, zOS_HEX(zOS_AR1 >> 4));
+	zOS_HEX
+	zOS_PUT	max
+	movf	zOS_AR1,w	;  zOS_PUT(max, zOS_HEX(zOS_AR1 >> 0));
+	zOS_HEX
+	zOS_PUT	max
+	movlw	2		;  return 2;
+	bra	done		; } else {
+ascii
+	zOS_PUT	max		;  zOS_PUT(max, zOS_AR0);
+	movlw	1		;  return 1;
+	bra	done		; }
+err
+	clrw			; err: return 0;
+done
+	endm			;} // zOS_BUF()
+
 zOS_CON	macro	p,rat,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t rat,int8_t
 	local	task,isr,loop,decl
 	bra	decl		;                    rts,int8_t* hb,int8_t pin){
@@ -625,58 +685,11 @@ do_swi
 	;; point fsr0 to uatbase again, point fsr1 to p0
 	movlw	low uatbase	;
 	movwf	FSR0L		;
-	movlw	high uatbase	;  fsr0 = uatbase;
-	movwf	FSR0H		;  fsr1 = (zOS_JOB << 7);
-	zOS_LOC	FSR1,zOS_JOB,p0	
-
-	;; check to make sure there are at least 2 characters free in the buffer
-	moviw	1[FSR1]		;   char* p1plus2 = 2 + (1[fsr1] /*p1*/ & 0x7f);
-	andlw	0x7f		;
-	addlw	0x12		;
-	btfss	WREG,7		;   if (p1plus2 >= max)
-	addlw	0x90+buf	;    p1plus2 -= (max - buf);
-	addlw	0-0x10		;
-	bcf	INDF1,7		;
-	subwf	INDF1,w		;   char* w = p1plus2 - (0[fsr1] /*p0*/&= 0x7f);
-	
-	incf	FSR1L,f		;   // don't clobber w: OK if it's not 0 or 1
-	btfsc	INDF1,7		;
-	bra	$+4		;   if (1[fsr1++] /*p1*/ & 0x80) {
-	decf	FSR1L,f		;    0[--fsr1] /*p0*/ |= 0x80; // p0 restored
-	bsf	INDF1,7		;    fsr1++; // cancels the above decrement
-	incf	FSR1L,f		;   }
-	decf	FSR1L,f		;   fsr1--; // cancels increment from the "if"
-
-	iorlw	0x00		;
-	btfsc	STATUS,Z	;
-	bra	err		;   if (w == 0)
-	decf	WREG,w		;    goto err;// would wrap around, appear empty
-	btfsc	STATUS,Z	;   else if (w == 1)
-	bra	err		;    goto err; // would wrap around to be size 1
-
-	moviw	1[FSR1]		;   fsr0 = 1[fsr1]; // stop examining p1 and use
-	movwf	FSR0L		;
-	movf	zOS_AR0,w	;   // we're now certain we won't exceed the buf
-	btfss	STATUS,Z	;
-	bra	ascii		;   if (zOS_AR0 == 0) { // print zOS_AR1 as hex
-	
-	swapf	zOS_AR1,w	;    zOS_PUT(max, zOS_HEX(zOS_AR1 >> 4));
-	zOS_HEX
-	zOS_PUT	max
-	movf	zOS_AR1,w	;    zOS_PUT(max, zOS_HEX(zOS_AR1 >> 0));
-	zOS_HEX
-	zOS_PUT	max
-	movlw	2		;    w = 2;
-	bra	done		;   } else {
-ascii
-	zOS_PUT	max		;    zOS_PUT(max, zOS_AR0);
-	movlw	1		;    w = 1;
-	bra	done		;   }
-err
-	clrw			;  }
-done
+	movlw	high uatbase	;
+	movwf	FSR0H		;  fsr0 = uatbase;
+	zOS_BUF	FSR1,zOS_JOB,p0	;  zOS_BUF(fsr1, zos_job, p0); /*print zOS_AR0*/
 	movwf	zOS_MSK	    	;
-	zOS_UNW	zOS_JOB		; err: w = 0;
+	zOS_UNW	zOS_JOB		;
 	zOS_RFI	zOS_MSK		; done: zOS_UNW(zOS_JOB); zOS_RFI (w);}
 	
 	;; intialize the UART peripheral, job handle and first three arguments
@@ -793,13 +806,11 @@ zOS_MON	macro	p,rat,rts,hb,pin;inline void zOS_MON(int8_t p,int8_t rat,int8_t
 	local	rxflag,rxreg,isradrl,isradrh,tskadrl,tskadrh,accumul,accumuh
 	local	char_io,destreg,max
 	if (p == 0)
-rxflag	 set	RCIF
-rxreg	 set	RCREG
-rxsta	 set	RCSTA
+uarbase	 set	RXREG & 0xff80
+uarecv	 set	RXREG & 0x7f
 	else
-rxflag	 set	RC#v(p)IF
-rxreg	 set	RC#v(p)REG
-rxsta	 set	RC#v(p)STA
+uarbase	 set	RX#v(p)REG & 0xff80
+uarecv	 set	RX#v(p)REG & 0x7f
 	endif
 isradrl	set	0x25
 isradrh	set	0x26
@@ -812,44 +823,51 @@ char_io	set	0x2c
 lastvar ser	0x2f
 max	set	0x70
 
+;;; just forget this and jump into task returned by zOS_CON?
 rxtask
+	movf	zOS_JOB,w	;
+	movwf	BSR		;
 	movf	tskadrh,w	;
 	movwf	PCLATH		;
 	movf	tskadrl,w	;
 	movwf	PCL	;callw	;
 
-rxloop
-
-	bra 	loop
-
-
-rxisr
+rxisr	
+	movf	zOS_JOB,w	;rxisr:
+	movwf	BSR		; bsr = zOS_JOB; // isr starts with unknown bank
+	movlw	low uarbase	;
+	movwf	FSR0L		;
+	movlw	high uarbase	;
+	movwf	FSR0H		; fsr0 = uatbase;
+	zOS_LOC	FSR1,zOS_JOB,p0	;
+	
 	movf	isradrh,w	;
 	movwf	PCLATH		;
-	movf	isradrl,w	;  if (rts && (1<<rxflag) == 0)
+	movf	isradrl,w	; if (rts && (1<<RCIF) == 0)
 	banksel	rts
-	btfss	rts,rxflag	;   goto isradrh<<8 | isradrl;
-	movwf	PCL		;  else {
+	btfss	rts,RCIF	;  goto (isradrh<<8)|isradrl; // zOS_CON handler
+	movwf	PCL		; else {
 	
-	bcf	rts,rxflag	;
-	banksel	rxreg
+	bcf	rts,RCIF	;  rts &= ~(1<<RCIF);
+	banksel	uarbase
 #ifdef CAUTIOUS
-	btfss	rxsta,OERR	;
-	bra	noovrrn		; if (RCSTA & OERR)
-	movlw	'!'		;  zOS_PUT(max, '!');
+	btfss	RCSTA,OERR	;
+	bra	noovrrn		;  if ((uarbase | RCSTA) & (1<<OERR))
+	movlw	'!'		;   zOS_PUT(max, '!');
 	zOS_PUT	max
 noovrrn
 #endif
-
-	movf	rxreg,w		;
-	movwf	char_io		;
-
+	movf	RCREG,w		;  // this read removes it from the FIFO
 #ifdef CAUTIOUS
-	banksel	rxsta		;
-	btfss	rxsta,OERR	; if (RCSTA & (1<<OERR)) // rx overrun
-	bcf	rxsta,CREN	;  RCSTA &= ~(1<<CREN); // cleared by disable
-	bsf	rxsta,CREN	; RCSTA |= 1<<CREN; // (re-)enable reception
+	btfss	RCSTA,OERR	; if (RCSTA & (1<<OERR)) // rx overrun
+	bcf	RCSTA,CREN	;  RCSTA &= ~(1<<CREN); // cleared by disable
+	bsf	RCSTA,CREN	; RCSTA |= 1<<CREN; // (re-)enable reception
 #endif
+	banksel	
+	movwf	char_io		;  char_io = w = RCREG;
+	zOS_PUT	max		;  zOS_PUT(max, w); // echo the character
+	xorlw	0x3f		;
+	btfss	
 	
 	zOS_RFI
 
@@ -868,8 +886,8 @@ rxdecl
 	zOS_ARG	0
 	movlw	high rxisr	;  w = zOS_ARG(1, rxisr >> 8);
 	zOS_ARG	1
-	movf	zOS_AR2,w	;
-	iorlw	1<<rxflag	;  w = zOS_ARG(2, (1<<rxflag)|(1<<TXIF)|(1<<T0IE));
+	movf	zOS_AR2,w	;  w =
+	iorlw	1<<RCIF		;     zOS_ARG(2, (1<<RCIF)|(1<<TXIF)|(1<<T0IE));
 	zOS_ARG	2
 endmon
 	endm
