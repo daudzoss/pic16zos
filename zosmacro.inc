@@ -479,8 +479,8 @@ done
 	
 zOS_BUF	macro	job,ptr
 	local	ascii,err,done
-	zOS_LOC	FSR1,job,ptr	;inline int zOS_BUF(uint8_t* fsrnum,uint3_t job,
-	movwf	FSR0H		;  uint8_t ptr) { //parameter in zOS_AR0,zOS_AR1
+	zOS_LOC	FSR1,job,ptr	;inline int zOS_BUF(uint3_t job, uint8_t ptr) {
+	movwf	FSR0H		; // ASCII parameter in zOS_AR0, zOS_AR1 for hex
 	movlw	0x80		; fsr0 = zOS_LOC(fsr1,job,ptr)<<8;//(job<<7)|ptr
 	andwf	FSR1L,w		; // fsr1 now points at ptr variables p0,p1,wrap
 	iorwf	INDF1,w		; fsr0 |= (fsr1 & 0x0080) ? 0x0080 : 0;
@@ -669,7 +669,6 @@ nottmr
 ;FIXME	bra	clrflag		;   else
 	zOS_RET
 clrflag
-	;; make sure the task is sleeping (else the task() initialization unrun)
 	bcf	rts,TXIF	;    zOS_RET(); // must have been someone else's
 	andlw	0x7f		;   zOS_PCH[fsr0] = w & 0x7f;// now task can run
 	movwi	zOS_PCH[FSR0]	;   goto done;// (whether sleeping or uninit'ed)
@@ -796,28 +795,11 @@ zOS_W	macro	file,bankf	;inline int8_t zOS_W(const int8_t* file, int8_t
 
 #if 0
 ;;; like zOS_CON, but also accepts console input for a full job-management shell
-zOS_INP	macro	p,rat,rts,hb,pin;inline void zOS_INP(int8_t p,int8_t rat,int8_t
-	local	rxtask,rxisr
-	zOS_CON	p,rat,rts,hb,pin
-	movf	zOS_AR0,w	;                rts,int8_t* hb,int8_t pin){
-	movwf	isradrl		;  zOS_CON(p,rat,rts,hb,pin);// extend zOS_CON()
-	movf	zOS_AR1,w	;  isradrl = zOS_AR0;
-	movwf	isradrh		;  isradrh = zOS_AR1; // will forward non-rx irq
-	movf	FSR0L,w		;
-	movwf	tskadrl		;  tskadrl = fsr0 & 0x00ff;
-	movf	FSR0H,w		;
-	movwf	tskadrh		;  tskadrh = fsr0 >> 8; // all non-rx tasks here
-	zOS_ADR	rxtask,zOS_PRB
-	movlw	low rxisr	;  w = zOS_ARG(0, rxisr & 0x00ff)
-	zOS_ARG	0
-	movlw	high rxisr	;  w = zOS_ARG(1, rxisr >> 8);
-	zOS_ARG	1
-	movf	zOS_AR2,w	;  w =
-	iorlw	1<<RCIF		;     zOS_ARG(2, (1<<RCIF)|(0<<TXIF)|(1<<T0IF));
-	zOS_ARG	2
-;FIXME	bra	to where?<------------------------
+zOS_INP	macro	p,ra,rt,h,pi,isr;inline void zOS_INP(int8_t p, int8_t ra, int8_t
+	local	rxtask,rxisr,rxdecl
+	bra	rxdecl		;       rt, int8_t* h, int8_t p, (void*)isr()) {
 	
-	;; initialize constants and variables
+	;; reserve constants and variables
 	local	rxflag,rxreg,isradrl,isradrh,tskadrl,tskadrh,accumul,accumuh
 	local	char_io,destreg,max
 	if (p == 0)
@@ -840,17 +822,16 @@ max	set	0x70
 
 ;;; FIXME: just forget this and jump to task returned by zOS_CON? or init first?
 rxtask
-	movf	zOS_JOB,w	;
-	movwf	BSR		;
+	movf	zOS_JOB,w	; goto rxdecl;
+	movwf	BSR		;rxtask:
 	movf	tskadrh,w	;
-	movwf	PCLATH		;
+	movwf	PCLATH		;  goto (tskadrh<<8) | tskadrl;
 	movf	tskadrl,w	;
 	movwf	PCL	;callw	;
 
 rxisr	
 	movf	zOS_JOB,w	;rxisr:
 	movwf	BSR		; bsr = zOS_JOB; // isr starts with unknown bank
-	
 #if 0
 	movlw	low uarbase	;
 	movwf	FSR0L		;
@@ -861,13 +842,12 @@ rxisr
 	
 	movf	isradrh,w	;
 	movwf	PCLATH		;
-	movf	isradrl,w	; if (rts && (1<<RCIF) == 0)
-	banksel	rts
-	btfss	rts,RCIF	;  goto (isradrh<<8)|isradrl; // zOS_CON handler
+	movf	isradrl,w	; if (rt && (1<<RCIF) == 0)
+	banksel	uarbase
+	btfss	rt,RCIF		;  goto (isradrh<<8)|isradrl; // zOS_CON handler
 	movwf	PCL		; else {
 	
-	bcf	rts,RCIF	;  rts &= ~(1<<RCIF);
-	banksel	uarbase
+	bcf	rt,RCIF		;  rt &= ~(1<<RCIF);
 #ifdef CAUTIOUS
 	btfss	RCSTA,OERR	;
 	bra	noovrrn		;  if ((uarbase | RCSTA) & (1<<OERR)) {
@@ -883,28 +863,75 @@ noovrrn
 	bcf	RCSTA,CREN	;   RCSTA &= ~(1<<CREN); // cleared by disable
 	bsf	RCSTA,CREN	;  RCSTA |= 1<<CREN; // (re-)enable reception
 #endif
-	
-;;; FIXME: refuse to echo unprintable characters
+	pagesel	isr		;  if (zOS_AR0)
+	btfss	STATUS,Z	;   goto isr; // continue with parser
+	goto	isr		;  return; // from interrupt
+	zOS_RET			; }
+rxdecl
+	zOS_CON	p,rat,rts,hb,pin
+	movf	zOS_AR0,w	;rxdecl:
+	movwf	isradrl		; zOS_CON(p,rat,rts,hb,pin);// extend zOS_CON()
+	movf	zOS_AR1,w	; isradrl = zOS_AR0;
+	movwf	isradrh		; isradrh = zOS_AR1; // will forward non-rx irq
+	movf	FSR0L,w		;
+	movwf	tskadrl		; tskadrl = fsr0 & 0x00ff;
+	movf	FSR0H,w		;
+	movwf	tskadrh		; tskadrh = fsr0 >> 8; // all non-rx tasks here
+	zOS_ADR	rxtask,zOS_PRB
+	movlw	low rxisr	; w = zOS_ARG(0, rxisr & 0x00ff)
+	zOS_ARG	0
+	movlw	high rxisr	; w = zOS_ARG(1, rxisr >> 8);
+	zOS_ARG	1
+	movf	zOS_AR2,w	; w = zOS_ARG(2, (1<<RCIF)|(0<<TXIF)|(1<<T0IF));
+	iorlw	1<<RCIF		;}
+	zOS_ARG	2
+	endm			;
 
-	zOS_BUF	zOS_JOB,p0	;  // try to echo the character into circ buffer
-	andlw	0x01		;
+zOS_MON	macro	p,ra,rt,h,pi,isr;inline void zOS_MON(int8_t p, int8_t ra, int8_t
+	local	moncrlf,monbuf,monisr,endmon,err
+	zOS_INP	p,ra,rt,h,pi,monisr
+	;; 
+	pagesel	endmon		;       rt, int8_t* h, int8_t p, (void*)isr()) {
+
+//FIXME: monisr
+moncrlf
+	movlw	'\r'		;void moncrlf(uint3_t job, uint8_t ptr) {
+	movwf	zOS_AR0		; zOS_AR0 = '\r';
+	zOS_BUF	zOS_JOB,p0	; if (zOS_BUF(zos_job, ptr) < 1)
+	andlw	0x1		;  return 0;
+	btfss	STATUS,Z	;
+	return			; zOS_AR0 = '\n';
+	movlw	'\n'		; return zOS_BUF(zos_job, ptr);
+	movwf	zOS_AR0		;}
+monbuf
+	zOS_BUF	zOS_JOB,p0	;void monbuf(uint3_t job, uint8_t ptr) {
+	return			; return zOS_BUF(job,ptr); // 0/1/2 printed }
+	
+monisr
+	pagesel	monbuf		;monisr: // from zOS_INP isr with char zOS_AR0>0
+;;; FIXME: should refuse to echo unprintable characters other than '\b' and ^U
+	call	monbuf		;  if (monbuf(zos_job,p0) < 1) {
+	andlw	0x1		;   // successful echo into circular buffer
 	btfsc	STATUS,Z	;
-	bra	err		;  if (zOS_BUF(zOS_JOB, p0) == 0) // can't fit
-	movf	zOS_JOB,w	;   return 0;
-	movwf	BSR		;  return zOS_AR0;
-	movf	zOS_AR0,w	; } // will skip next instruction if nonzero!!!
-	btfsc	STATUS,Z ;[sic]	;} // zOS_INP()
-	endm
+	bra	err		;
+	movf	zOS_JOB,w	;
+	movwf	BSR		;   bsr = zos_job;// to access char_io var et al
+	movf	zOS_AR0,w	;
+	movwf	char_io		;   char_io = zOS_AR0; // FIXME:just use zOS_AR0
 	
-zOS_MON	macro	p,rat,rts,hb,pin;
-	zOS_INP	p,rat,rts,hb,pin;
-	local	skipped
-	bra	skipped
-	movwf	char_io		;   char_io = zOS_AR0;
-	xorlw	0x3f		;
+	xorlw	'?'		;   switch (char_io) {
+	btfss	STATUS,Z	;
+	bra	monchr2		;   case '?':
+	pagesel	moncrlf		;
+	call	moncrlf		;    moncrlf();
+	;; 
+monchr2
 	
-skipped
+	pagesel	isr		;
+	if (isr)
+	 goto	isr		;
 	zOS_RFI
+endmon
 	endm	
 	
 	
