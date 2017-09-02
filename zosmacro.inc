@@ -660,13 +660,13 @@ nottmr
 	zOS_MEM	FSR0,zOS_JOB,0
 	moviw	zOS_PCH[FSR0]	;  fsr0 = 0x10*(1+zos_job); // bank 0 job struct
 	movf	zOS_MSK,f	;  w = zOS_PCH[fsr0]; // will indicate sleeping
-	btfss	STATUS,Z	;  if (zOS_MSK == 0) {// not a SWI so check HWI,
-	bra	do_swi		;   if (rts & (1<<TXIF)) // clear the TXIF
+;FIXME	btfss	STATUS,Z	;  if (zOS_MSK == 0) {// not a SWI so check HWI,
+;FIXME	bra	do_swi		;   if (rts & (1<<TXIF)) // clear the TXIF
 	
 	;; determine whether the HWI is TXIF (the only HWI line of interest)
-	banksel	rts
-	btfsc	rts,TXIF	;    rts &= ~(1<<TXIF); // is our HWI for rts
-	bra	clrflag		;   else
+;FIXME	banksel	rts
+;FIXME	btfsc	rts,TXIF	;    rts &= ~(1<<TXIF); // is our HWI for rts
+;FIXME	bra	clrflag		;   else
 	zOS_RET
 clrflag
 	;; make sure the task is sleeping (else the task() initialization unrun)
@@ -752,8 +752,8 @@ brgvall	set	low brgvalm
 	movlw	low isr		; w = zOS_ARG(0, isr & 0x00ff);
 	zOS_ARG	0
 	movlw	high isr	; w = zOS_ARG(1, isr>>8);
-	zOS_ARG	1		; w = zOS_ARG(2, (1<<TXIF)|(1<<T0IE));
-	movlw (1<<TXIF)|(1<<T0IE)
+	zOS_ARG	1		; w = zOS_ARG(2, (0<<TXIF)|(1<<T0IF));
+	movlw (0<<TXIF)|(1<<T0IF)
 	zOS_ARG	2
 	movlb	0		; // still in job "0"
 	endm			;} // zOS_CON()
@@ -796,9 +796,26 @@ zOS_W	macro	file,bankf	;inline int8_t zOS_W(const int8_t* file, int8_t
 
 #if 0
 ;;; like zOS_CON, but also accepts console input for a full job-management shell
-zOS_MON	macro	p,rat,rts,hb,pin;inline void zOS_MON(int8_t p,int8_t rat,int8_t
-	local rxtask,rxdecl,rxisr,endmon
-	bra	rxdecl		;                    rts,int8_t* hb,int8_t pin){
+zOS_INP	macro	p,rat,rts,hb,pin;inline void zOS_INP(int8_t p,int8_t rat,int8_t
+	local	rxtask,rxisr
+	zOS_CON	p,rat,rts,hb,pin
+	movf	zOS_AR0,w	;                rts,int8_t* hb,int8_t pin){
+	movwf	isradrl		;  zOS_CON(p,rat,rts,hb,pin);// extend zOS_CON()
+	movf	zOS_AR1,w	;  isradrl = zOS_AR0;
+	movwf	isradrh		;  isradrh = zOS_AR1; // will forward non-rx irq
+	movf	FSR0L,w		;
+	movwf	tskadrl		;  tskadrl = fsr0 & 0x00ff;
+	movf	FSR0H,w		;
+	movwf	tskadrh		;  tskadrh = fsr0 >> 8; // all non-rx tasks here
+	zOS_ADR	rxtask,zOS_PRB
+	movlw	low rxisr	;  w = zOS_ARG(0, rxisr & 0x00ff)
+	zOS_ARG	0
+	movlw	high rxisr	;  w = zOS_ARG(1, rxisr >> 8);
+	zOS_ARG	1
+	movf	zOS_AR2,w	;  w =
+	iorlw	1<<RCIF		;     zOS_ARG(2, (1<<RCIF)|(0<<TXIF)|(1<<T0IF));
+	zOS_ARG	2
+;FIXME	bra	to where?<------------------------
 	
 	;; initialize constants and variables
 	local	rxflag,rxreg,isradrl,isradrh,tskadrl,tskadrh,accumul,accumuh
@@ -821,7 +838,7 @@ char_io	set	0x2c
 lastvar ser	0x2f
 max	set	0x70
 
-;;; just forget this and jump into task returned by zOS_CON?
+;;; FIXME: just forget this and jump to task returned by zOS_CON? or init first?
 rxtask
 	movf	zOS_JOB,w	;
 	movwf	BSR		;
@@ -860,44 +877,47 @@ rxisr
 noovrrn
 #endif
 	movf	RCREG,w		;  // this read removes it from the FIFO
-	movwf	zOS_AR0		; zOS_AR0 = RCREG;
+	movwf	zOS_AR0		;  zOS_AR0 = RCREG;
 #ifdef CAUTIOUS
-	btfss	RCSTA,OERR	; if (RCSTA & (1<<OERR)) // rx overrun
-	bcf	RCSTA,CREN	;  RCSTA &= ~(1<<CREN); // cleared by disable
-	bsf	RCSTA,CREN	; RCSTA |= 1<<CREN; // (re-)enable reception
+	btfss	RCSTA,OERR	;  if (RCSTA & (1<<OERR)) // rx overrun
+	bcf	RCSTA,CREN	;   RCSTA &= ~(1<<CREN); // cleared by disable
+	bsf	RCSTA,CREN	;  RCSTA |= 1<<CREN; // (re-)enable reception
 #endif
-	zOS_BUF	zOS_JOB,p0	; // try to echo the character into circ. buffer
+	
+;;; FIXME: refuse to echo unprintable characters
+
+	zOS_BUF	zOS_JOB,p0	;  // try to echo the character into circ buffer
 	andlw	0x01		;
-	btfss	STATUS,Z	;
-	bra	err		; if (zOS_BUF(zOS_JOB, p0) > 0) { // fit in buf
-	movf	zOS_JOB,w	;
-	movwf	BSR		;
-	movf	zOS_AR0		;
-	movwf	char_io		;  char_io = zOS_AR0;
-	
-	xorlw	0x3f		;
-	btfss	
-	
-	zOS_RFI
-rxdecl
-	zOS_CON	p,rat,rts,hb,pin
-	movf	zOS_AR0,w	;  zOS_CON(p,rat,rts,hb,pin);// extend zOS_CON()
-	movwf	isradrl		;  isradrl = zOS_AR0;
-	movf	zOS_AR1,w	;
-	movwf	isradrh		;  isradrh = zOS_AR1; // will forward non-rx irq
-	movf	FSR0L,w		;
-	movwf	tskadrl		;  tskadrl = fsr0 & 0x00ff;
-	movf	FSR0H,w		;
-	movwf	tskadrh		;  tskadrh = fsr0 >> 8; // all non-rx tasks here
-	zOS_ADR	rxtask,zOS_PRB
-	movlw	low rxisr	;  w = zOS_ARG(0, rxisr & 0x00ff)
-	zOS_ARG	0
-	movlw	high rxisr	;  w = zOS_ARG(1, rxisr >> 8);
-	zOS_ARG	1
-	movf	zOS_AR2,w	;  w =
-	iorlw	1<<RCIF		;     zOS_ARG(2, (1<<RCIF)|(1<<TXIF)|(1<<T0IE));
-	zOS_ARG	2
-endmon
+	btfsc	STATUS,Z	;
+	bra	err		;  if (zOS_BUF(zOS_JOB, p0) == 0) // can't fit
+	movf	zOS_JOB,w	;   return 0;
+	movwf	BSR		;  return zOS_AR0;
+	movf	zOS_AR0,w	; } // will skip next instruction if nonzero!!!
+	btfsc	STATUS,Z ;[sic]	;} // zOS_INP()
 	endm
+	
+zOS_MON	macro	p,rat,rts,hb,pin;
+	zOS_INP	p,rat,rts,hb,pin;
+	local	skipped
+	bra	skipped
+	movwf	char_io		;   char_io = zOS_AR0;
+	xorlw	0x3f		;
+	
+skipped
+	zOS_RFI
+	endm	
+	
+	
+	
+
+
+
+
+
+
+
+
+
+
 #endif	
 
