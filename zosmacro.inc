@@ -898,6 +898,21 @@ zOS_ACC	macro	valregs,basereg
 	endm
 	
 
+zOS_PCT	macro	reg
+	movlw	0x7e 		; // 0 <= reg <= 100
+	andwf	reg,w		; w = reg & 0x7e; // 0 <= w <= reg (even, trunc)
+	bcf	STATUS,C	;
+	rlf	reg,f 		;
+	rlf	reg,f		; uint16_t c = reg *= 4; // 0 <= reg <= 400
+	btfsc	STATUS,C	; if (c > 0xff)
+	iorlw	0x01		;  w |= 1;
+	addwf	reg,f		; c = reg += w;
+	btfsc	STATUS,C	; if (c > 0xff)
+	iorlw	0x01		;  w |= 1;
+	rrf	WREG		; // 0 <= (w&1)*256 + reg <= 500
+	rrf	reg,f		; reg = ((w&1)*256 + reg)/2; // 0 <= reg <= 250
+	endm
+	
 zOS_MON	macro	p,ra,rt,h,pi,isr;inline void zOS_MON(int8_t p, int8_t ra, int8_t
 ;;;FIXME: all the below locals need to be moved here for when asm sees the label
 	zOS_INP	p,ra,rt,h,pi,monisr 
@@ -968,24 +983,24 @@ monlsb
 monisr
 	pagesel	monbuf		;monisr: // from zOS_INP isr with char zOS_AR0>0
 ;;; FIXME: should refuse to echo unprintable characters other than '\b' and ^U
-	call	monbuf		;  if (monbuf(zos_job, p0) < 1) {
+	call	monbuf		;  if (monbuf(zos_job, p0) > 0) {
 	andlw	0x1		;   // successful echo into circular buffer
 	btfsc	STATUS,Z	;
 	bra	endmon		;
 	movf	zOS_JOB,w	;
 	movwf	BSR		;   bsr = zos_job;// to access char_io var et al
 	movf	zOS_AR0,w	;
+
+;;; FIXME: convert to lower case for comparison (already printed in actual case)
 	
-	movwf	char_io		;   char_io = zOS_AR0; // FIXME:just use zOS_AR0
+	movwf	char_io		;   char_io = zOS_AR0;
 	xorlw	0x08		;   switch (char_io) {
 	btfss	STATUS,Z	;   case '\b':
-	bra	monchr2		;    monbuf(zos_job, p0, '\r');
-	movlw	'\r'		;    zOS_ACC(&accumul, &numbase); // just reset
+	bra	monchr2		;
+	movlw	'\r'		;
 	pagesel	monbuf
-	call	monbuf		;    zOS_RFI();
-	
-	zOS_ACC	accumul,numbase
-	zOS_RFI
+	call	monbuf		;    monbuf(zos_job, p0, '\r');
+	bra	monprmp		;    goto monprmp;
 	
 	local	monchr2
 monchr2
@@ -1002,18 +1017,15 @@ monchr2
 	movwf	FSR0H		;    fsr0 = destreg;
 	iorwf	FSR0L,w		;
 	btfsc	STATUS,Z	;
-	bra	monskip		;
-	movf	accumul,w	;    if (fsr0) {
-	movwi	FSR0++		;     *fsr0 = accumul & 0x00ff;
-	movf	FSR0L,w		;     destreg++; // advances for next access
-	movwf	destreg		;    }
-	movf	FSR0H,w		;    zOS_ACC(&accumul, &numbase);
-	movwf	1+destreg	;    zOS_RFI();
-
-	local	monskip
-monskip
-	zOS_ACC	accumul,numbase
-	zOS_RFI
+	bra	monprmp		;    if (fsr0) { // destreg was set by ' ' or =
+	movf	accumul,w	;     if (fsr0 & 0x8000 == 0)
+	btfss	FSR0H,7		;
+	movwi	FSR0++		;      *fsr0 = accumul & 0x00ff; // not in flash
+	movf	FSR0L,w		;
+	movwf	destreg		;
+	movf	FSR0H,w		;     destreg++; // advances for next access
+	movwf	1+destreg	;    }
+	bra	monprmp		;    goto monprmp;
 
 	local	monchr3
 monchr3
@@ -1029,46 +1041,110 @@ monchr3
 	local	mondump
 mondump
 	movf	accumul,w	;
+	iorwf	accumuh,w	;
+	btfsc	STATUS,Z	;
+	bra	mondest		;
+	movf	accumul,w	;
 	movwf	destreg		;
+	movf	accumuh,w	;    if (accumul) // typed a value before ' '/=
+	movwf	1+destreg	;     destreg = accumul; // otherwise no clobber
+	
+	local	mondest
+mondest
+	movf	destreg,w	;
 	movwf	FSR0L		;
-	movf	accumuh,w	;
-	movwf	1+destreg	;
-	movwf	FSR0H		;    fsr0 = destreg = accumul;
+	movf	1+destreg,w	;
+	movwf	FSR0H		;    fsr0 = destreg;
 	
 	btfsc	1+destreg,7	;    if (destreg & 0x8000) { // flash, not RAM
-	bra	monram		;     accumuh = 1[fsr0];
-	moviw	1[FSR0]		;     monhex(zos_job, p0, accumuh); // print 0x
-	movwf	accumuh		;     accumuh = 0[fsr0];            //       MSB
+	bra	monram		;
+;;; FIXME: access upper byte in Flash instead of printing it as zero
+	clrf	accumuh		;
 	pagesel	monhex
-	call	monhex		;     monlsb(zos_job, p0, accumuh); //       LSB
-	moviw	0[FSR0]		;     moncrlf(zos_job, p0);         //      \r\n
-	movwf	accumuh		;     zOS_ACC(&accumul, &numbase);
+	call	monhex		;     monhex(zos_job, p0, accumuh=0);// put 0x00
+	movf	destreg,w	;
+	movwf	FSR0L		;
+	movf	1+destreg,w	;
+	movwf	FSR0H		;     fsr0 = destreg; // monhex() clobbered fsr0
+	moviw	FSR0++		;
+	movwf	accumuh		;
+	movf	FSR0L,w		;
+	movwf	destreg		;
+	movf	FSR0H,w		;     accumuh = *(destreg = fsr0++);
+	movwf	1+destreg	;     monlsb(zos_job, p0, accumuh);  //      LSB
 	pagesel	monlsb	
-	call	monlsb		;     zOS_RFI();
-;;; FIXME: disassemble the instruction here
+	call	monlsb		;     moncrlf(zos_job, p0);          //     \r\n
+;;; FIXME: disassemble the instruction here once the upper 6 bits are available
 	pagesel	moncrlf
-	call	moncrlf		;    }
-	zOS_ACC	accumul,numbase
-	zOS_RFI
+	call	moncrlf		;     goto monprmp;
+	bra	monprmp		;    }
 	
 	local	monram
 monram
-	moviw	0[FSR0]		;
-	movwf	accumuh		;    accumuh = *fsr0;
+	moviw	FSR0++		;
+	movf	FSR0L,w		;
+	movwf	destreg		;
+	movf	FSR0H,w		;
+	movwf	1+destreg	;
+	movwf	accumuh		;    accumuh = *(destreg = fsr0++);
 	pagesel	monhex
 	call	monhex		;    monhex(zos_job, p0); // prints 0x, accumuh,
 	movf	char_io,w	;    // followed by 3 backspaces in the ' ' case
 	xorlw	'='		;    // to show that \r will result in a 0 write
-	btfss	STATUS,Z	;    monback(zos_job, p0, (char_io == '=')?0:4);
-	movlw	3		;    zOS_ACC(&accumul, &numbase);
+	btfss	STATUS,Z	;
+	movlw	3		;
 	pagesel	monback
-	call	monback		;    zOS_RFI();
-	zOS_ACC	accumul,numbase
+	call	monback		;    monback(zos_job, p0, (char_io == '=')?0:4);
+	bra	monprmp		;    goto monprmp;
+
+	local	monchr4
+monchr4
+	movf	char_io,w	;
+	xorlw	'x'		;
+	btfss	STATUS,Z	;   case 'x':
+	bra	monchr5		;
+	movlw	0x10		;    numbase = 16;
+	movwf	numbase		;   break;
 	zOS_RFI
 
-monchr4
+	local	monchr5
+monchr5
+	movf	char_io,w	;
+	xorlw	'%'		;
+	btfss	STATUS,Z	;   case '%':
+	bra	monchr6		;
+	movlw	0x9b		;
+	addwf	accumul,w	;
+	movlw	0x66		;
+	btfss	WREG,7		;    if (accumul > 102)
+	movwf	accumul		;     accumul = 102;
+	zOS_PCT	accumul
+	movwf	accumul		;    accumul = zOS_PCT(accumul);
+	movwf	accumuh		;    accumuh = accumul;
+	pagesel	monhex		;    monhex(zos_job, p0); print as e.g. 50%0x7d
+	call	monhex		;    accumuh = 0;
+	clrf	accumuh		;   break;
+	zOS_RFI
+	
+	local	monchr6
+monchr6
 	
 
+
+
+	
+	local	monprmp		; default: zOS_RFI();
+monprmp
+	
+
+;;; prompt will be destreg if (destreg != 0x0000) else blank;
+
+
+	zOS_ACC	accumul,numbase
+	zOS_RFI
+	
+	local	monlast
+monlast
 	pagesel	isr		;
 	if (isr)
 	 goto	isr		;
@@ -1078,12 +1154,14 @@ monchr4
 endmon
 	endm	
 	
+zOS_MAN	macro
+	zOS_MON
+	bra	endman
+manisr
+;;; all the non-general PIC facilities here for zOS job management etc.
+endman
+	endm
 	
-	
-
-;;; prompt will be destreg if (destreg != 0x0000) else blank;
-
-
 
 
 
