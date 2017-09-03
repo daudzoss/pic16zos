@@ -559,6 +559,15 @@ uatbase	 set	TX#v(p)REG & 0xff80
 uatxmit	 set	TX#v(p)REG & 0x007f
 	endif
 task
+	
+;FIXME	banksel	rts
+;FIXME	btfsc	rts,TXIF	;    rts &= ~(1<<TXIF); // is our HWI for rts
+;FIXME	bra	clrflag		;   else
+;FIXME	bcf	rts,TXIF	;    zOS_RET(); // must have been someone else's
+;FIXME	andlw	0x7f		;   zOS_PCH[fsr0] = w & 0x7f;// now task can run
+;FIXME	movwi	zOS_PCH[FSR0]	;   goto done;// (whether sleeping or uninit'ed)
+;FIXME	bra	done		;  }
+	
 	zOS_DIS	FSR0,zOS_JOB	; goto decl;
 	movlw	high uatbase	;// all init that requires knowledge of BSR here
 	movwf	FSR0H		;task:
@@ -614,9 +623,7 @@ loop
 	;;  in which case the ISR stores it, advances p1 and clears zOS_WAI bit
 	;;  and thus afer clearing zOS_WAI the job just re-sleeps if TXIF==0
 	;; 
-	;; HWI will be coming from the UART peripheral indicating ready-to-send
-	;;  in which case ISR clears the job's zOS_WAI bit to get scheduled
-	;; (or HWI will come from a tmr0 expiration for the blinking heartbeat)
+	;; HWI will be coming from a tmr0 expiration for the blinking heartbeat)
 	;; 
 	;; Note: caller needs to make sure to check status of return value for
 	;; != 0, just in case job is in between sleeps or with a full buffer
@@ -660,19 +667,9 @@ nottmr
 	zOS_MEM	FSR0,zOS_JOB,0
 	moviw	zOS_PCH[FSR0]	;  fsr0 = 0x10*(1+zos_job); // bank 0 job struct
 	movf	zOS_MSK,f	;  w = zOS_PCH[fsr0]; // will indicate sleeping
-;FIXME	btfss	STATUS,Z	;  if (zOS_MSK == 0) {// not a SWI so check HWI,
-;FIXME	bra	do_swi		;   if (rts & (1<<TXIF)) // clear the TXIF
-	
-	;; determine whether the HWI is TXIF (the only HWI line of interest)
-;FIXME	banksel	rts
-;FIXME	btfsc	rts,TXIF	;    rts &= ~(1<<TXIF); // is our HWI for rts
-;FIXME	bra	clrflag		;   else
+	btfss	STATUS,Z	;  if (zOS_MSK) { // a SWI to buffer a character
+	bra	do_swi		;   if (rts & (1<<TXIF)) // clear the TXIF
 	zOS_RET
-clrflag
-	bcf	rts,TXIF	;    zOS_RET(); // must have been someone else's
-	andlw	0x7f		;   zOS_PCH[fsr0] = w & 0x7f;// now task can run
-	movwi	zOS_PCH[FSR0]	;   goto done;// (whether sleeping or uninit'ed)
-	bra	done		;  }
 
 	;; make sure the task is sleeping (else the task() initialization unrun)
 do_swi
@@ -822,7 +819,7 @@ destreh	set	0x2e
 lastvar set	0x2f
 max	set	0x70
 
-;;; FIXME: just forget this and jump to task returned by zOS_CON? or init first?
+;;; FIXME: haven't actually written the var init code for zOS_MON et al yet
 rxtask
 	movf	zOS_JOB,w	; goto rxdecl;
 	movwf	BSR		;rxtask:
@@ -844,11 +841,10 @@ rxisr
 	
 	movf	isradrh,w	;
 	movwf	PCLATH		;
-	movf	isradrl,w	; if (rt && (1<<RCIF) == 0)
+	movf	isradrl,w	; if (rt && (1<<RCIF) == 0) // SWI, not inp char
 	banksel	uarbase
-	btfss	rt,RCIF		;  goto (isradrh<<8)|isradrl; // zOS_CON handler
+	btfss	rt,RCIF		;  goto (isradrh<<8)|isradrl;//zOS_CON takes SWI
 	movwf	PCL		; else {
-	
 	bcf	rt,RCIF		;  rt &= ~(1<<RCIF);
 #ifdef CAUTIOUS
 	btfss	RCSTA,OERR	;
@@ -868,7 +864,7 @@ noovrrn
 	pagesel	isr		;  if (zOS_AR0)
 	btfss	STATUS,Z	;   goto isr; // continue with parser
 	goto	isr		;  return; // from interrupt
-	zOS_RET			; }
+	zOS_RFI			; }
 rxdecl
 	zOS_CON	p,rat,rts,hb,pin
 	movf	zOS_AR0,w	;rxdecl:
