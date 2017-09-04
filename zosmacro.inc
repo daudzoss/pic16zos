@@ -978,7 +978,7 @@ monisr
 	call	monbuf		;  if (zOS_AR0 > 31 && monbuf(zos_job,p0) > 0) {
 	andlw	0x1		;   // successful echo into circular buffer
 	btfsc	STATUS,Z	;
-	bra	endmon		;
+	bra	monlast		;
 	movf	zOS_JOB,w	;
 	movwf	BSR		;   bsr = zos_job;// to access char_io var et al
 	btfsc	zOS_AR0,6	;   if (zOS_AR0 & 0x40)
@@ -1091,7 +1091,7 @@ monram
 	local	monchr4
 monchr4
 	movf	char_io,w	;
-	xorlw	'x'		;
+	xorlw	'X'		;
 	btfss	STATUS,Z	;   case 'X':
 	bra	monchr5		;
 	movlw	0x10		;    numbase = 16;
@@ -1122,29 +1122,30 @@ monchr6
 	movlw	0-0x30		;   default:
 	addwf	char_io,f	;
 	btfsc	char_io,7	;
-	bra	monchr7		;    if ((char_io -= '0') >= 0) {
+	bra	monchr9 	;    if ((char_io -= '0') >= 0) {
 	movf	char_io,w	;
-	btfsc	char_io,4	;     if (char_io & 0x10)
-	addlw	0x09		;      char_io += 9;
-	andlw	0x0f		;
-	movwf	char_io		;     char_io &= 0x0f;
-	btfss	STATUS,Z	;
-	bra	monchr7		;     if ((char_io == 0) && // zero digit was
-	movf	accumul,w	;
-	iorwf	accumuh,w	;                           // a leading zero
-	btfss	STATUS,Z	;
-	bra	monchr7		;         (accumul == 0) && (accumuh == 0))
-	bcf	numbase,1	;      numbase &= ~2; // exit decimal mode
+	addlw	0-0x10		;
+	btfsc	WREG,7		;     if (char_io > 0x10)
+	bra	$+3		;
+	movlw	0x09		;
+	addwf	char_io,f	;      char_io += 9;   // 0x41->0x11->0x2a... so
+	movf	char_io,f	;                      // now in range 0x00-0x09
+	btfss	STATUS,Z	;                      // or :=0x0a,...,?=0x0x0f
+	bra	monchr7		;                      // or A=0x2a,B=0x2b,...                      
+	movf	accumul,w	;                      // G=0x30,...,Z=0x43
+	iorwf	accumuh,w	;     if ((char_io == 0) &&
+	btfss	STATUS,Z	;         (accumul == 0) && (accumuh == 0)) {
+	bra	monchr7		;      numbase &= ~2; // digit(s) leading 0(s),
+	bcf	numbase,1	;      zOS_RFI();     // just go into octal mode
 	zOS_RFI
 	
 	local	monchr7
 monchr7
-	movlw	0x0f		;
-	addwf	char_io,w	;      char_io += 9;
+	movlw	0x50		;
 	andwf	char_io,w	;
-	
-;;; fixme: add 0x30 back and go to monchr9 if char_io > 0x0f
-	btfss	numbase,4	;     else if (numbase & 0x10) {
+	btfss	STATUS,Z	;     } else if ((char_io & 0x50 == 0) // 0-9,a-f
+	bra	monchr8		;               && (numbase & 0x10)) { // base 16
+	btfss	numbase,4	;
 	bra	monchr8		;
 	swapf	accumuh,f	;
 	movlw	0xf0		;
@@ -1152,28 +1153,52 @@ monchr7
 	swapf	accumul,w	;
 	andlw	0x0f		;
 	iorwf	accumuh,f	;      accumuh |= accumul >> 4;
+	movlw	0x0f		;
+	andwf	char_io,f	;      char_io &= 0x0f;
+	andwf	accumul,f	;      accumul &= 0x0f;
 	swapf	accumul,w	;
-	andlw	0xf0		;
-	iorwf	char_io,f	;      accumul = (accumul << 4) | char_io;
+	iorwf	char_io,w	;
+	movwf	accumul		;      accumul = (accumul << 4) | char_io;
 	zOS_RFI			;      zOS_RFI();
 	
 	local	monchr8
 monchr8
-;;; fixme
-	movlw	0x1f		;
-	andwf	accumul,f	;
-	bcf	status,c	;
-	rlf	accumul,w	;
-	bcf	status,c	;
-	rlf	accumul,f	;
-	rlf	accumul,f	;
-	rlf	accumul,f	;
-	btfsc	numbase,1	;
-	addwf	accumul,f	;
-	movf	char_io,w	;
-	addwf	accumul,f	;
-;;; fixme
-	local	monprmp		; default: zOS_RFI();
+	movf	char_io,w	;     } else if (char_io <= 9) { //dec only<=99?
+	andlw	0xf0		;      uint16_t sum;
+	btfss	STATUS,Z	;      accumuh <<= 1;
+	bra	monchr9		;      accumuh |= (accumul & 0x80) ? 1 : 0;
+	bcf	STATUS,C	;      accumul <<= 1;
+	rlf	accumul,f	;      w = accumul;//w keeps original accumul<<1
+	rlf	accumuh,f	;      accumuh <<= 1;
+	movf	accumul,w	;      accumuh |= (accumul & 0x80) ? 1 : 0;
+	bcf	STATUS,C	;      accumul <<= 1;
+	rlf	accumul,f	;      accumuh |= (accumul & 0x80) ? 1 : 0;
+	rlf	accumuh,f	;      accumul <<= 1; // accumuh:accumul <<= 3;
+	bcf	STATUS,C	;      if (numbase & 2) { // base 10 presumed
+	rlf	accumul,f	;       sum = (accumuh<<8)+accumul + w;
+	rlf	accumuh,f	;       accumul = sum & 0x00ff;
+	btfss	numbase,1	;       accumuh = sum >> 8;
+	bra	$+4		;      }
+	addwf	accumul,f	;      sum = (accumuh<<8)+accumul + char_io&0x0f;
+	movlw	0		;      accumul = sum & 0x00ff;
+	addwfc	accumuh,f	;      accumuh = sum >> 8;
+	movf	char_io,w	;      zOS_RFI();
+	andlw	0x0f		;     }
+	addwf	accumul,f	;    }
+	movlw	0		;   } // switch
+	addwfc	accumuh,f	;  } // if
+	zOS_RFI
+	
+	local	monchr9
+monchr9
+	pagesel	isr		;
+	if (isr)
+	 goto	isr		;
+	else
+	 zOS_RFI
+	endif
+
+	local	monprmp		;
 monprmp
 	
 
@@ -1181,16 +1206,10 @@ monprmp
 
 
 	zOS_ACC	accumul,numbase
-	zOS_RFI
 	
 	local	monlast
 monlast
-	pagesel	isr		;
-	if (isr)
-	 goto	isr		;
-	else
-	 zOS_RFI
-	endif
+	zOS_RFI
 endmon
 	endm	
 	
