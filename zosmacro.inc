@@ -984,7 +984,7 @@ monisr
 	movwf	BSR		;  bsr = zos_job;// to access char_io var et al
 	btfsc	zOS_AR0,6	;  if (zOS_AR0 & 0x40)
 	bcf	zOS_AR0,5	;   zOS_AR0 &= 0xdf; // convert to lower case
-	movf	zOS_AR0,w	;//FIXME: '0' will map to 0x10, not 0x30!!!!
+	movf	zOS_AR0,w	;
 	movwf	char_io		;//FIXME: ` { | } ~ DEL mapped onto @ [ \ ] ^ _
 	xorlw	0x08		;  switch (char_io = zOS_AR0) {
 	btfss	STATUS,Z	;   case '\b':
@@ -1065,8 +1065,8 @@ mondest
 	moviw	FSR0++		;
 	movwf	accumuh		;
 	movf	FSR0L,w		;
-	movwf	destreg		;
-	movf	FSR0H,w		;    accumuh = *(destreg = fsr0++);
+	movwf	destreg		;    accumuh = *fsr0++;
+	movf	FSR0H,w		;    destreg = fsr0;
 	movwf	1+destreg	;    monlsb(zos_job, p0, accumuh);  //      LSB
 	pagesel	monlsb	
 	call	monlsb		;    moncrlf(zos_job, p0);          //     \r\n
@@ -1089,7 +1089,7 @@ monram
 	movf	char_io,w	;
 	xorlw	'.'		;   // then exits in the '.' case to just print
 	btfss	STATUS,Z	;   if (char_io == '.')
-	bra	monprmp		;    goto monprmp;
+	bra	moncrlp		;    goto moncrlp;
 
 	movf	char_io,w	;   // or follow by 3 backspaces in the ' ' case
 	xorlw	'='		;   // to show that \r will result in a 0 write
@@ -1097,7 +1097,7 @@ monram
 	movlw	3		;
 	pagesel	monback
 	call	monback		;   monback(zos_job, p0, (char_io == '=')?0:3);
-	bra	monprmp		;  break;
+	zOS_RFI			;  break;
 
 	local	monchr4
 monchr4
@@ -1130,19 +1130,18 @@ monchr5
 	
 	local	monchr6
 monchr6
-	movlw	0-0x30		;  default:
+	movlw	0-0x10		;  default:
 	addwf	char_io,f	;
 	btfsc	char_io,7	;
-	bra	monchr9 	;   if ((char_io -= '0') >= 0) {
-	movf	char_io,w	;
-	addlw	0-0x10		;
+	bra	monchr9 	;   if ((char_io -= ('0'&0xdf /*0x10*/)) >= 0) {
+	addwf	char_io,w	;
 	btfsc	WREG,7		;    if (char_io > 0x10)
 	bra	$+3		;
-	movlw	0x09		;
-	addwf	char_io,f	;     char_io += 9;   // 0x41->0x11->0x2a... so
-	movf	char_io,f	;                     // now in range 0x00-0x09
-	btfss	STATUS,Z	;                     // or :=0x0a,...,?=0x0x0f
-	bra	monchr7		;                     // or A=0x2a,B=0x2b,...                      
+	movlw	0xf9		;
+	addwf	char_io,f	;     char_io -= 0x07;// 0x41->0x31->0x2a... so
+	movf	char_io,f	;                     // now in range 0x00-0x09,
+	btfss	STATUS,Z	;                     // or :=0x0a,...,?=0x0f,
+	bra	monchr7		;                     // or A=0x2a,B=0x2b,...
 	movf	accumul,w	;                     // G=0x30,...,Z=0x43
 	iorwf	accumuh,w	;    if ((char_io == 0) &&
 	btfss	STATUS,Z	;        (accumul == 0) && (accumuh == 0)) {
