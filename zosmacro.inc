@@ -1119,11 +1119,60 @@ monchr5
 	
 	local	monchr6
 monchr6
+	movlw	0-0x30		;   default:
+	addwf	char_io,f	;
+	btfsc	char_io,7	;
+	bra	monchr7		;    if ((char_io -= '0') >= 0) {
+	movf	char_io,w	;
+	btfsc	char_io,4	;     if (char_io & 0x10)
+	addlw	0x09		;      char_io += 9;
+	andlw	0x0f		;
+	movwf	char_io		;     char_io &= 0x0f;
+	btfss	STATUS,Z	;
+	bra	monchr7		;     if ((char_io == 0) && // zero digit was
+	movf	accumul,w	;
+	iorwf	accumuh,w	;                           // a leading zero
+	btfss	STATUS,Z	;
+	bra	monchr7		;         (accumul == 0) && (accumuh == 0))
+	bcf	numbase,1	;      numbase &= ~2; // exit decimal mode
+	zOS_RFI
 	
-
-
-
+	local	monchr7
+monchr7
+	movlw	0x0f		;
+	addwf	char_io,w	;      char_io += 9;
+	andwf	char_io,w	;
 	
+;;; fixme: add 0x30 back and go to monchr9 if char_io > 0x0f
+	btfss	numbase,4	;     else if (numbase & 0x10) {
+	bra	monchr8		;
+	swapf	accumuh,f	;
+	movlw	0xf0		;
+	andwf	accumuh,f	;      accumuh <<= 4;
+	swapf	accumul,w	;
+	andlw	0x0f		;
+	iorwf	accumuh,f	;      accumuh |= accumul >> 4;
+	swapf	accumul,w	;
+	andlw	0xf0		;
+	iorwf	char_io,f	;      accumul = (accumul << 4) | char_io;
+	zOS_RFI			;      zOS_RFI();
+	
+	local	monchr8
+monchr8
+;;; fixme
+	movlw	0x1f		;
+	andwf	accumul,f	;
+	bcf	status,c	;
+	rlf	accumul,w	;
+	bcf	status,c	;
+	rlf	accumul,f	;
+	rlf	accumul,f	;
+	rlf	accumul,f	;
+	btfsc	numbase,1	;
+	addwf	accumul,f	;
+	movf	char_io,w	;
+	addwf	accumul,f	;
+;;; fixme
 	local	monprmp		; default: zOS_RFI();
 monprmp
 	
