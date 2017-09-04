@@ -554,20 +554,13 @@ max	set	0x70
 	if (p == 0)
 uatbase	 set	TXREG & 0xff80
 uatxmit	 set	TXREG & 0x007f
+rtsflag	 set	TXIF	
 	else
 uatbase	 set	TX#v(p)REG & 0xff80
 uatxmit	 set	TX#v(p)REG & 0x007f
+rtsflag	 set	TX#v(p)IF	
 	endif
 task
-	
-;FIXME	banksel	rts
-;FIXME	btfsc	rts,TXIF	;    rts &= ~(1<<TXIF); // is our HWI for rts
-;FIXME	bra	clrflag		;   else
-;FIXME	bcf	rts,TXIF	;    zOS_RET(); // must have been someone else's
-;FIXME	andlw	0x7f		;   zOS_PCH[fsr0] = w & 0x7f;// now task can run
-;FIXME	movwi	zOS_PCH[FSR0]	;   goto done;// (whether sleeping or uninit'ed)
-;FIXME	bra	done		;  }
-	
 	zOS_DIS	FSR0,zOS_JOB	; goto decl;
 	movlw	high uatbase	;// all init that requires knowledge of BSR here
 	movwf	FSR0H		;task:
@@ -587,27 +580,28 @@ task
 	movwf	p1		; p0 = p1 = wrap; // reset value if they max out
 	zOS_ENA			; zOS_ENA(); // interrupts on after init done
 #if 0
-	zOS_ASC	buf,"\r\nzOS>",1
+	zOS_ASC	buf,"\r\nWelcome to zOS\r\n",1
 	;; FIXME: zOS_ASC won't build under MPASM
 	addwf	p1,f		; p1 += strlen(strcpy(buf,"\r\nzOS>")) + 1;
 #endif
 	
 loop
-	zOS_SWI	zOS_SLP
-	movlw	high rts	; do {
-	movwf	FSR1H		;  zOS_SWI(zOS_SLP);
+	zOS_SWI	zOS_YLD		; do {
+	movlw	high rts	;  zOS_YLD();
+ 	movwf	FSR1H		;
 	movlw	low rts		;  // wait for SWI to store char(s) in buf[]
 	movwf	FSR1L		;  // or HWI to indicate the last one got sent
-	btfss	INDF1,TXIF	;  if (*(fsr1 = rts) & (1<<TXIF) == 0) //full
-	bra	loop		;   continue; // sleep (sending previous char)
+	btfss	INDF1,rtsflag	;  if (*(fsr1 = rts) & (1<<rtsflag) == 0) //full
+	bra	loop		;   continue; // sleep (still sending or no char)
 	rrf	zOS_ME 		;
+	andlw	0x7f		;
 	movwf	FSR1H		;
 	movf	p0,w		;  // READY TO SEND, AND...       
 	movwf	FSR1L		;
 	xorwf	p1,w		;  fsr1 = (bsr<<7) | p0;
 	btfsc	STATUS,Z	;  if (p0 == p1)
-	bra	loop		;   continue; // nothing to do, somehow (!)
-	moviw	FSR1++		;  // ...WE HAVE SOMETHING IN THE BUFFER TO SEND
+	bra	loop		;   continue; // FIXME: nothing to do isn't poss
+	moviw	FSR1++		;  // we do have something in the buffer to send
 	movwi	uatxmit[FSR0]	;  uatxmit[fsr0] = *fsr1++; // send a character
 	movf	FSR1L,w		;
 	movwf	p0		;  p0 = fsr1 & 0x00ff; // wrap around to buf+0
@@ -623,7 +617,7 @@ loop
 	;;  in which case the ISR stores it, advances p1 and clears zOS_WAI bit
 	;;  and thus afer clearing zOS_WAI the job just re-sleeps if TXIF==0
 	;; 
-	;; HWI will be coming from a tmr0 expiration for the blinking heartbeat)
+	;; HWI will be coming from a tmr0 expiration, for the blinking heartbeat
 	;; 
 	;; Note: caller needs to make sure to check status of return value for
 	;; != 0, just in case job is in between sleeps or with a full buffer
@@ -978,17 +972,18 @@ monlsb
 	local	monisr
 monisr
 	pagesel	monbuf		;monisr: // from zOS_INP isr with char zOS_AR0>0
-;;; FIXME: should refuse to echo unprintable characters other than '\b' and ^U
-	call	monbuf		;  if (monbuf(zos_job, p0) > 0) {
+	movlw	0xe0		;
+	addwf	zOS_AR0,w	;  // refuse to echo unprintable characters
+	btfss	WREG,7		;
+	call	monbuf		;  if (zOS_AR0 > 31 && monbuf(zos_job,p0) > 0) {
 	andlw	0x1		;   // successful echo into circular buffer
 	btfsc	STATUS,Z	;
 	bra	endmon		;
 	movf	zOS_JOB,w	;
 	movwf	BSR		;   bsr = zos_job;// to access char_io var et al
-	movf	zOS_AR0,w	;
-
-;;; FIXME: convert to lower case for comparison (already printed in actual case)
-	
+	btfsc	zOS_AR0,6	;   if (zOS_AR0 & 0x40)
+	bcf	zOS_AR0,5	;    zOS_AR0 &= 0xdf; // convert to lower case
+	movf	zOS_AR0,w	;//FIXME: ` { | } ~ DEL mapped onto @ [ \ ] ^ _
 	movwf	char_io		;   char_io = zOS_AR0;
 	xorlw	0x08		;   switch (char_io) {
 	btfss	STATUS,Z	;   case '\b':
@@ -1097,7 +1092,7 @@ monram
 monchr4
 	movf	char_io,w	;
 	xorlw	'x'		;
-	btfss	STATUS,Z	;   case 'x':
+	btfss	STATUS,Z	;   case 'X':
 	bra	monchr5		;
 	movlw	0x10		;    numbase = 16;
 	movwf	numbase		;   break;
