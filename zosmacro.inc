@@ -595,7 +595,7 @@ loop
 	movlw	low rts		;  // wait for SWI to store char(s) in buf[]
 	movwf	FSR1L		;  // or HWI to indicate the last one got sent
 	btfss	INDF1,rtsflag	;  if (*(fsr1 = rts) & (1<<rtsflag) == 0) //full
-	bra	loop		;   continue; // sleep (still sending or no char)
+	bra	loop		;   continue; // yield (still sending or no char)
 	rrf	zOS_ME 		;
 	andlw	0x7f		;
 	movwf	FSR1H		;
@@ -616,16 +616,15 @@ loop
 	movwf	p0		;
 	bra	loop		; } while (1);
 
-	;; SWI will be coming from a job that wants to send a character
-	;;  in which case the ISR stores it, advances p1 and clears zOS_WAI bit
-	;;  and thus afer clearing zOS_WAI the job just re-sleeps if TXIF==0
-	;; 
 	;; HWI will be coming from a tmr0 expiration, for the blinking heartbeat
 	;; 
+	;; SWI will be coming from a job that wants to send a character
+	;;  in which case the ISR stores it, advancing p1 and returning the
+	;;  number of characters stored in the buffer
 	;; Note: caller needs to make sure to check status of return value for
 	;; != 0, just in case job is in between sleeps or with a full buffer
 isr
-	local	done,ourflag,do_swi,nottmr
+	local	done,do_swi,nottmr
 	
 	;; get fsr0 pointing to tmr0 postscaler/reset value
 	movf	zOS_JOB,w	;isr:
@@ -661,15 +660,15 @@ isr
 	
 	;; check for validated SWI first since it will be in zOS_MSK, else a HWI
 nottmr
-	movf	zOS_MSK,f	;  w = zOS_PCH[fsr0]; // will indicate sleeping
-	btfss	STATUS,Z	;  if (zOS_MSK) { // a SWI to buffer a character
-	bra	do_swi		;   w = zOS_BUF(zos_job, p0); /*prints zOS_AR0*/
+	movf	zOS_MSK,f	;  if (zOS_MSK) { // a SWI to buffer a character
+	btfss	STATUS,Z	;   w = zOS_BUF(zos_job, p0); /*prints zOS_AR0*/
+	bra	do_swi		;   zOS_RFS(w);
 	zOS_RET
 	
 	;; point fsr0 to uatbase again, point fsr1 to p0
 do_swi
-	zOS_BUF	zOS_JOB,p0	;   zOS_RFS(w);
-	zOS_RFS	WREG		;  } else done:  zOS_RFI(); // HWI finished
+	zOS_BUF	zOS_JOB,p0	;  } else done:
+	zOS_RFS	WREG		;   zOS_RFI(); // HWI finished
 done
 	zOS_RFI			; }
 	;; intialize the UART peripheral, job handle and first three arguments
