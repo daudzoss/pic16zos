@@ -791,7 +791,7 @@ zOS_W	macro	file,bankf	;inline int8_t zOS_W(const int8_t* file, int8_t
 ;;; like zOS_CON, but also accepts console input for a full job-management shell
 zOS_INP	macro	p,ra,rt,h,pi,isr;inline void zOS_INP(int8_t p, int8_t ra, int8_t
 	local	rxtask,rxisr,rxdecl
-	bra	rxdecl		;       rt, int8_t* h, int8_t p, (void*)isr()) {
+	bra	rxdecl		;       rt, int8_t* h, int8_t p, void(*isr)()) {
 	
 	;; reserve constants and variables
 	local	uarbase,uarecv,rxflag
@@ -902,15 +902,17 @@ zOS_PCT	macro	reg
 	endm
 	
 zOS_MON	macro	p,ra,rt,h,pi,isr;inline void zOS_MON(int8_t p, int8_t ra, int8_t
-	local	moncrlf,monlf,monbuf,monback,monloop, monhex, monlsb,monisr
-	local	monchr2,monchr3,mondump,mondest,monram,monchr4,monchr5,monchr6
-	local	monchr7,monchr8,monchr9,monprmp,monlast,endmon
+	local	monisr,monchr1,monchr2,monchr3,mondump,mondest,monram,monchr4
+	local	monchr5,monchr6,monchr7,monchr8,monchr9,monprmp,monlast,endmon
 	
 	zOS_INP	p,ra,rt,h,pi,monisr 
-	pagesel	endmon		;       rt, int8_t* h, int8_t p, (void*)isr()) {
+	pagesel	endmon		;       rt, int8_t* h, int8_t p, void(*isr)()) {
 	goto	endmon		; zOS_INP(p,ra,rt,h,pi,monisr); }// isr may be 0
 
 	include	zoscon_h.inc
+;;; FIXME: move the following into zosmon.inc and delete the stuff above
+;FIXME:	local	moncrlf,monlf,monbuf,monback,monloop,monhex,monlsb
+;;; FIXME: these prefices will be non-zOS_-preficed once included
 
 moncrlf
 	movlw	'\r'		;void moncrlf(uint3_t job, uint8_t ptr, char w){
@@ -935,7 +937,6 @@ monback
 	movwf	zOS_AR1		;  
 	movlw	0x08		;
 	movwf	zOS_AR0		;  zOS_AR0 = '\b';
-	
 
 monloop
 	zOS_BUF	zOS_JOB,p0
@@ -965,7 +966,7 @@ monlsb
 	clrf	zOS_AR0		;void monlsb(uint3_t job, uint8_t ptr, char w) {
 	movwf	zOS_AR1		; zOS_AR0 = 0; zOS_AR1 = w; monbuf(job, ptr);
 	bra	monbuf		;} // monlsb()
-
+;;; FIXME: end copy
 monisr
 	pagesel	monbuf		;void monisr(void) {
 	movlw	0xe0		; // from zOS_INP isr with char zOS_AR0>0
@@ -977,12 +978,32 @@ monisr
 	bra	monlast		;
 	movf	zOS_JOB,w	;
 	movwf	BSR		;  bsr = zos_job;// to access char_io var et al
+	
+	movf	zOS_AR0,w	;  // handle '~' before the tolower() conversion
+	xorlw	'~'		;
+	btfss	STATUS,Z	;
+	bra	monchr1		;  if (zOS_AR0 == '~') {
+	comf	accumul,f	;   accumul = ~accumul;
+	comf	accumuh,w	;
+	movwf	accumuh		;
+	movwf	char_io		;   char_io = accumuh = ~accumuh; // preserve
+	pagesel	monhex
+	call	monhex		;   monhex(zos_job, p0);
+	movf	accumul,w	;   accumuh = accumul; // accumuh overwritten
+	movwf	accumuh		;   monlsb(zos_job, p0);
+	pagesel	monlsb
+	call	monlsb		;   accumuh = char_io; // accumuh now restored
+	movf	char_io,w	;   zOS_RFI();
+	movwf	accmuh		;  }
+	zOS_RFI
+
+monchr1
 	btfsc	zOS_AR0,6	;  if (zOS_AR0 & 0x40)
-	bcf	zOS_AR0,5	;   zOS_AR0 &= 0xdf; // convert to lower case
-	movf	zOS_AR0,w	;
-	movwf	char_io		;//FIXME: ` { | } ~ DEL mapped onto @ [ \ ] ^ _
+	bcf	zOS_AR0,5	;   zOS_AR0 &= 0xdf; // zOS_AR0=tolower(zOS_AR0)
+	movf	zOS_AR0,w	;//FIXME: ` { | } ~ DEL mapped onto @ [ \ ] ^ _
+	movwf	char_io		;
 	xorlw	0x08		;  switch (char_io = zOS_AR0) {
-	btfss	STATUS,Z	;   case '\b':
+	btfss	STATUS,Z	;  case '\b':
 	bra	monchr2		;
 	movlw	'\r'		;
 	pagesel	monbuf
@@ -1194,23 +1215,112 @@ monchr9
 	 zOS_RFI
 	endif
 
-;;; prompt will be destreg if (destreg != 0x0000) else blank;
+;;; 
 monprmp
 	movf	1+destreg,w	;monprmp:
-	movwf	accumuh		; accumuh = destreg>>8; monhex(zos_job, p0);
+	movwf	accumuh		; accumuh = destreg>>8;
+	iorwf	destreg,w	; if (destreg) { // prompt with destreg if nonzero
 	pagesel	monhex
-	call	monhex		; accumuh = destreg & 0xff; monlsb(zos_job, p0);
-	movf	destreg,w	;monlast:
-	movwf	accumuh		; zOS_RFI();
+	btfsc	STATUS,Z	;  monhex(zos_job, p0);
+	bra	$+6		;  accumuh = destreg & 0xff;
+	call	monhex		;  monlsb(zos_job, p0);
+	movf	destreg,w	; }
+	movwf	accumuh		;monlast: zOS_ACC(&accumul,&numbase); zOS_RFI();
 	pagesel	monlsb
-	call	monlsb		;}
+	call	monlsb		;} // zOS_MON()
 	zOS_ACC	accumul,numbase
-	
 monlast
 	zOS_RFI
 endmon
 	endm	
+
+zOS_CLC	macro	p,ra,rt,h,pi,isr;inline void zOS_MON(int8_t p, int8_t ra, int8_t
+	local	endclc,clcisr,clcprmp,endclc
+
+	zOS_MON	p,ra,rt,h,pi,clcisr
+	pagesel	endclc
+	goto	endclc		;          rt, int8_t* h, int8_t p, void(*isr)()) {
 	
+	include	zoscon_h.inc
+clcisr
+	movf	zOS_AR0,w	; switch (char_io = zOS_AR0) {
+	movwf	char_io		;
+	xorlw	'+'		;
+	btfss	STATUS,Z	;
+	bra	clcchr2		; case '+':
+
+	movf	accumul,w	;
+	addwf	destreg,f	;
+	movf	accumuh,w	;
+	addwfc	1+destreg,f	;  destreg += (accumuh << 8) | accumul;
+	bra	clcprmp		; break;
+clcchr2
+	movf	char_io,w	;
+	xorlw	'-'		;
+	btfss	STATUS,Z	;
+	bra	clcchr3		; case '-':
+
+	movf	accumul,w	;
+	subwf	destreg,f	;
+	movf	accumuh,w	;
+	subwfc	1+destreg,f	;  destreg -= (accumuh << 8) | accumul;
+	bra	clcprmp		; break;
+	
+clcchr3	;FIXME: multiplication not yet implemented
+	movf	char_io,w	;
+	xorlw	'*'		;
+	btfss	STATUS,Z	;
+	bra	clcchr4		; case '*':
+
+clcchr4	;FIXME: division not yet implemented
+	movf	char_io,w	;
+	xorlw	'/'		;
+	btfss	STATUS,Z	;
+	bra	clcchr5		; case '/':
+
+clcchr5	;FIXME: exponentiation not implemented
+	movf	char_io,w	;
+	xorlw	'^'		;
+	btfss	STATUS,Z	;
+	bra	clcchr6		; case '^':
+
+clcchr6	;FIXME: factorial not yet implemented
+	movf	char_io,w	;
+	xorlw	'!'		;
+	btfss	STATUS,Z	;
+	bra	clcchr7		; case '!':
+
+clcchr7
+
+	
+	movf	accumul,w	; default: zOS_AR1 = accumul; if (isr) goto isr;
+	movwf	zOS_AR1		; }// caller may use zOS_AR1 or accumuh:accumul
+	pagesel	isr		;
+	if(isr)
+	 goto	isr		; zOS_RFI();
+	else
+	 zOS_RFI
+	endif
+	
+clcprmp
+	pagesel	moncrlf
+	call	moncrlf		;clcprmp:
+	movf	1+destreg,w	; moncrlf(zos_job, p0);
+	movwf	accumuh		; accumuh = destreg>>8; monhex(zos_job, p0);
+	pagesel	monhex
+	call	monhex		; accumuh = destreg & 0xff; monlsb(zos_job, p0);
+	movf	destreg,w	; moncrlf(zos_job, p0);
+	movwf	accumuh		;clclast: 
+	pagesel	monlsb
+	call	monlsb		; zOS_ACC(&accumul,&numbase); zOS_RFI();
+	pagesel	moncrlf
+	call	moncrlf		;}
+	zOS_ACC	accumul,numbase
+clclast
+	zOS_RFI
+endclc
+	endm
+
 zOS_MAN	macro
 	zOS_MON
 	bra	endman
@@ -1220,6 +1330,114 @@ endman
 	endm
 	
 
+zOS_MAN	macro	p,ra,rt,h,pi,isr;inline void zOS_MON(int8_t p, int8_t ra, int8_t
+	local	endman,manisr,manprmp,endman
+
+	zOS_MON	p,ra,rt,h,pi,manisr
+	pagesel	endman
+	goto	endman		;          rt, int8_t* h, int8_t p, void(*isr)()) {
+;;; FIXME: do these actions need to get stored in variable run by task, not ISR?
+	include	zoscon_h.inc
+	local	action ; <-pending action from below
+action	set	0x29
+	
+manisr
+	movf	zOS_AR0,w	; switch (char_io = zOS_AR0) {
+	movwf	char_io		;
+	
+	xorlw	'G'		;
+	btfss	STATUS,Z	;
+	bra	manchr		; case 'G': // Generate a fork/duplicate of job
+	
+manchr
+	movf	char_io,w	;
+	xorlw	'H'		;
+	btfss	STATUS,Z	;
+	bra	manchr0		; case 'H': // find job(s) by Handle(start addr)
+
+manchr0
+	movf	char_io,w	;
+	xorlw	'I'		;
+	btfss	STATUS,Z	;
+	bra	manchr1		; case 'I': // send a software Interrupt > 7
+
+manchr1
+	movf	char_io,w	;
+	xorlw	'J'		;
+	btfss	STATUS,Z	;
+	bra	manchr2		; case 'J': // List struct for all/a running job
+
+manchr2
+	movf	char_io,w	;
+	xorlw	'K'		;
+	btfss	STATUS,Z	;
+	bra	manchr3		; case 'K': // Kill a single job (# mandatory)
+
+manchr3
+	movf	char_io,w	;
+	xorlw	'L'		;
+	btfss	STATUS,Z	;
+	bra	manchr4		; case 'L': // Launch another instance of a job
+
+manchr4
+	movf	char_io,w	;
+	xorlw	'N'		;
+	btfss	STATUS,Z	;
+	bra	manchr5		; case 'N': // New (parameterless) job at addr
+
+manchr5
+	movf	char_io,w	;
+	xorlw	'P'		;
+	btfss	STATUS,Z	;
+	bra	manchr6		; case 'P': // Pause job by putting it to Sleep
+
+manchr7
+	movf	char_io,w	;
+	xorlw	'R'		;
+	btfss	STATUS,Z	;
+	bra	manchr8		; case 'R': // Resume a job that's paused/asleep
+	                                    // or Reset if it's not paused!
+manchr8
+	movf	char_io,w	;
+	xorlw	'S'		;
+	btfss	STATUS,Z	;
+	bra	manchr9		; case 'S': // Stack dump
+	
+manchr9
+	movf	char_io,w	;
+	xorlw	'Z'		;
+	btfss	STATUS,Z	;
+	bra	manchr?		; case 'Z': // go to low-power Zzz mode for time
+
+	
+
+	movf	accumul,w	; default: zOS_AR1 = accumul; if (isr) goto isr;
+	movwf	zOS_AR1		; }// caller may use zOS_AR1 or accumuh:accumul
+	pagesel	isr		;
+	if(isr)
+	 goto	isr		; zOS_RFI();
+	else
+	 zOS_RFI
+	endif
+	
+manprmp
+	pagesel	moncrlf
+	call	moncrlf		;manprmp:
+	movf	1+destreg,w	; moncrlf(zos_job, p0);
+	movwf	accumuh		; accumuh = destreg>>8; monhex(zos_job, p0);
+	pagesel	monhex
+	call	monhex		; accumuh = destreg & 0xff; monlsb(zos_job, p0);
+	movf	destreg,w	; moncrlf(zos_job, p0);
+	movwf	accumuh		;manlast: 
+	pagesel	monlsb
+	call	monlsb		; zOS_ACC(&accumul,&numbase); zOS_RFI();
+	pagesel	moncrlf
+	call	moncrlf		;}
+	zOS_ACC	accumul,numbase
+manlast
+	zOS_RFI
+endman
+	endm
 
 
 
