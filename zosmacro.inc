@@ -154,7 +154,7 @@ zOS_T0F	equ	t0flags
 	call	boot		;
 boot	
 	bsf	INTCON,GIE	;void boot(void) { INTCON |= 1<<GIE; zOS_RFI();}
-	zOS_RFI	WREG
+	zOS_RFI
 	endm
 
 zOS_DBG	macro
@@ -625,7 +625,7 @@ loop
 	;; Note: caller needs to make sure to check status of return value for
 	;; != 0, just in case job is in between sleeps or with a full buffer
 isr
-	local err,done,do_swi,ascii,nottmr
+	local	done,ourflag,do_swi,nottmr
 	
 	;; get fsr0 pointing to tmr0 postscaler/reset value
 	movf	zOS_JOB,w	;isr:
@@ -660,29 +660,18 @@ isr
 	bra	done		; } else {
 	
 	;; check for validated SWI first since it will be in zOS_MSK, else a HWI
-nottmr	
-	zOS_MEM	FSR0,zOS_JOB,0
-	moviw	zOS_PCH[FSR0]	;  fsr0 = 0x10*(1+zos_job); // bank 0 job struct
+nottmr
 	movf	zOS_MSK,f	;  w = zOS_PCH[fsr0]; // will indicate sleeping
 	btfss	STATUS,Z	;  if (zOS_MSK) { // a SWI to buffer a character
-	bra	do_swi		;   if (rts & (1<<TXIF)) // clear the TXIF
+	bra	do_swi		;   w = zOS_BUF(zos_job, p0); /*prints zOS_AR0*/
 	zOS_RET
-
-	;; make sure the task is sleeping (else the task() initialization unrun)
-do_swi
-	btfss	WREG,zOS_WAI	;  if (zOS_PCH[fsr0] & (1<<zOS_WAI) == 0) 
-	bra	err		;   goto err;
-
-	;; point fsr0 to uatbase again, point fsr1 to p0
-	movlw	low uatbase	;
-	movwf	FSR0L		;
-	movlw	high uatbase	;
-	movwf	FSR0H		;  fsr0 = uatbase;
-	zOS_BUF	zOS_JOB,p0	;  w = zOS_BUF(zos_job, p0); /*prints zOS_AR0*/
-	movwf	zOS_MSK	    	;
-	zOS_UNW	zOS_JOB		;
-	zOS_RFI	zOS_MSK		; done: zOS_UNW(zos_job); zOS_RFI (w);}
 	
+	;; point fsr0 to uatbase again, point fsr1 to p0
+do_swi
+	zOS_BUF	zOS_JOB,p0	;   zOS_RFS(w);
+	zOS_RFS	WREG		;  } else done:  zOS_RFI(); // HWI finished
+done
+	zOS_RFI			; }
 	;; intialize the UART peripheral, job handle and first three arguments
 decl
 #if 0
@@ -855,7 +844,7 @@ noovrrn
 #endif
 	pagesel	isr		;  if (zOS_AR0)
 	btfss	STATUS,Z	;   goto isr; // continue with parser
-	goto	isr		;  return; // from interrupt
+	goto	isr		;  zOS_RFI(); //return from interrupt
 	zOS_RFI			; }
 rxdecl
 	zOS_CON	p,rat,rts,hb,pin
@@ -1331,15 +1320,13 @@ endman
 	
 
 zOS_MAN	macro	p,ra,rt,h,pi,isr;inline void zOS_MON(int8_t p, int8_t ra, int8_t
-	local	endman,manisr,manprmp,endman
+	local	manisr,manchr,manchr0,manchr1,manchr2,manchr3,manchr4,manchr5
+	local	manchr6,manchr7,manchr8,manchr9,manprmp,manlast,endman
 
 	zOS_MON	p,ra,rt,h,pi,manisr
 	pagesel	endman
 	goto	endman		;          rt, int8_t* h, int8_t p, void(*isr)()) {
-;;; FIXME: do these actions need to get stored in variable run by task, not ISR?
 	include	zoscon_h.inc
-	local	action ; <-pending action from below
-action	set	0x29
 	
 manisr
 	movf	zOS_AR0,w	; switch (char_io = zOS_AR0) {

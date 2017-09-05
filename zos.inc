@@ -67,7 +67,7 @@ zOS_NEW	equ	0x00		; create a job (FSR0==addr,AR1:0==isr,AR3:2==IM)
 ;;; global memory space for 2 scratch registers plus message-passing mailboxes
 zOS_JOB	equ	0x70		; next job to run (0 if unknown)
 zOS_MSK	equ	0x71		; masked-off sofware interrupt for ISR to handle
-zOS_J1L	equ	0x72		;  (repurposeable as scratch after zOS_RFI call)
+zOS_J1L	equ	0x72		;  (repurposeable as scratch after zOS_RFS call)
 zOS_J1H	equ	0x73
 zOS_J2L	equ	0x74
 zOS_J2H	equ	0x75
@@ -223,12 +223,17 @@ zOS_RET	macro
 	endm
 
 ;;; at the end of any interrupt handler goes back to scheduler without stack hit
-zOS_RFI	macro	retreg
-	pagesel	zos_sch		;inline void zOS_RFI(int8_t* retreg) {
+zOS_RFI	macro
+	pagesel	zos_noc
+	goto	zos_noc		;inline void zOS_RFI(void) { goto zos_noc; }
+	endm
+
+zOS_RFS	macro	retreg
+	pagesel	zos_sch		;inline void zOS_RFS(int8_t* retreg) {//from SWI
 	if (retreg-WREG)
-	 movf	retreg,w	; w = *retreg; goto zos_sch;
+	 movf	retreg,w	; w = *retreg; goto zos_sch;//clobbers WREG_SHAD
 	endif
-	goto	zos_sch		;}
+	goto	zos_sch		;} // zOS_RFS()
 	endm
 
 ;;; find something runnable (i.e. PCH != 0, but sleep MSB is OK), at job+/-1
@@ -373,9 +378,11 @@ zos_cmp
 	;; scheduler begins here, called either after HWI/SWI done or zOS_RUN():
 zos_sch
 	banksel	WREG_SHAD
-	movwf	WREG_SHAD	;zos_sch:
-	movf	BSR_SHAD,w	;  // stay in _SHAD/STKPTR/TOS bank until retfie
-	btfsc	STATUS,Z	;  WREG_SHAD = w; // sent via ZOS_RFI()
+	movwf	WREG_SHAD	;zos_sch: // w sent via zOS_RFS()
+zos_noc
+	banksel	WREG_SHAD
+	movf	BSR_SHAD,w	;  WREG_SHAD = w;zos_noc://lobber from zOS_RFI()
+	btfsc	STATUS,Z	;  // stay in _SHAD/STKPTR/TOS bank until retfie
 	bra	zos_don		;  if ((zOS_JOB = BSR_SHAD)!= 0)//2x max or '004
 	movwf	zOS_JOB		;   for (zOS_MSK = 2; zOS_MSK; zOS_MSK--) {
 	movlw	3		;
@@ -528,7 +535,7 @@ zos_dup
 	bra	zos_swk		;   }
 zos_err	
 	clrf	zOS_JOB		;   zos_job = 0;
-	zOS_RFI	zOS_JOB		;   zOS_RFI(zOS_JOB); // perms error or no empty
+	zOS_RFS	zOS_JOB		;   zOS_RFS(zOS_JOB); // perms error or no empty
 	
 	;; see if we're not running inside a job context (1 <= job# <= zOS_NUM)
 	;; in which case need to grab the targeted job from AR0 (if not zOS_NEW)
@@ -573,12 +580,12 @@ zos_sw0
 zos_sw1
 	moviw	zOS_PCH[FSR1]	;  case zOS_SLP:
 	iorlw	0x80		;   zOS_PCH[fsr1] |= 0x80;
-	movwi	zOS_PCH[FSR1]	;   zOS_RFI(zOS_JOB);
-	zOS_RFI	zOS_JOB
+	movwi	zOS_PCH[FSR1]	;   zOS_RFS(zOS_JOB);
+	zOS_RFS	zOS_JOB
 zos_sw2
 	clrw			;  case zOS_END: zOS_PCH[fsr1] = 0;
-	movwi	zOS_PCH[FSR1]	;   zOS_RFI(zOS_JOB); // killing is so quick
-	zOS_RFI	zOS_JOB
+	movwi	zOS_PCH[FSR1]	;   zOS_RFS(zOS_JOB); // killing is so quick
+	zOS_RFS	zOS_JOB
 zos_sw3
 	moviw	zOS_HDL[FSR1]	;  case zOS_RST: zos_sw3:
 	movwi	zOS_PCL[FSR1]	;   // retain HDL MSB (which indicate privilege)
@@ -594,16 +601,16 @@ zos_sw3
 	movwf	FSR1L		;   fsr1 = 0x70 | (zOS_JOB << 1);
 	clrw			;   0[fsr1] = 1[fsr1] = 0; // mailbox guar'ed 0
 	movwi	0[FSR1]		;  case zOS_YLD:
-	movwi	1[FSR1]		;   zOS_RFI(zOS_JOB);
+	movwi	1[FSR1]		;   zOS_RFS(zOS_JOB);
 zos_sw4
 
 #ifdef zOS_MIN
 zos_sw5
 zos_sw6
 zos_sw7
-	zOS_RFI	zOS_JOB
+	zOS_RFS	zOS_JOB
 #else
-	zOS_RFI	zOS_JOB
+	zOS_RFS	zOS_JOB
 zos_sw5
 	;; copy job BSR's 0x20-0x6f into every non-running bank first
 	clrf	FSR1L		;  case zOS_FRK:
@@ -696,11 +703,11 @@ zos_nxt
 	xorwf	zOS_AR1,w	;    int16_t b=(zOS_HDH[fsr0]<<8)|zOS_HDL[fsr0];
 	andlw	0x7f		;
 	btfss	STATUS,Z	;    if (a & 0x7f == b & 0x7f)
-	bra	zos_nxt		;     zOS_RFI (zOS_JOB);
-	zOS_RFI	zOS_JOB		;   }
+	bra	zos_nxt		;     zOS_RFS(zOS_JOB);
+	zOS_RFS	zOS_JOB		;   }
 zos_bad
 	clrw			;
-	zOS_RFI	WREG		;   zOS_RFI(w = 0);
+	zOS_RFS	WREG		;   zOS_RFS(w = 0);
 #endif
 	
 	;; else handle the software interrupt with the first registered handler
@@ -715,14 +722,14 @@ zos_swl
 	btfsc	STATUS,Z	;
 	bra	zos_swl		;  if ((zos_msk & zOS_SIM[fsr0]) != 0) { //found
 	movwf	zOS_MSK		;   zos_msk &= zOS_SIM[fsr0];
-	moviw	zOS_ISH[FSR0]	;   goto (void*)(zOS_ISR[fsr0]); // will zOS_RFI
+	moviw	zOS_ISH[FSR0]	;   goto (void*)(zOS_ISR[fsr0]); // will zOS_RFS
 	movwf	PCLATH		;  }
 	moviw	zOS_ISR[FSR0]	; }
-	movwf	PCL		; zOS_RFI(WREG = 0);
+	movwf	PCL		; zOS_RFS(WREG = 0);
 	
 	;; no registered SWI handler: jump into the hardware interrupt scheduler
 zos_swm
-	zOS_RFI	WREG
+	zOS_RFS	WREG
 
 zos_ini
 	;; clear out page 0 to reflect no running tasks, set global data to 0's
