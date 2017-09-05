@@ -1330,6 +1330,114 @@ endman
 	endm
 	
 
+zOS_MAN	macro	p,ra,rt,h,pi,isr;inline void zOS_MON(int8_t p, int8_t ra, int8_t
+	local	endman,manisr,manprmp,endman
+
+	zOS_MON	p,ra,rt,h,pi,manisr
+	pagesel	endman
+	goto	endman		;          rt, int8_t* h, int8_t p, void(*isr)()) {
+;;; FIXME: do these actions need to get stored in variable run by task, not ISR?
+	include	zoscon_h.inc
+	local	action ; <-pending action from below
+action	set	0x29
+	
+manisr
+	movf	zOS_AR0,w	; switch (char_io = zOS_AR0) {
+	movwf	char_io		;
+	
+	xorlw	'G'		;
+	btfss	STATUS,Z	;
+	bra	manchr		; case 'G': // Generate a fork/duplicate of job
+	
+manchr
+	movf	char_io,w	;
+	xorlw	'H'		;
+	btfss	STATUS,Z	;
+	bra	manchr0		; case 'H': // find job(s) by Handle(start addr)
+
+manchr0
+	movf	char_io,w	;
+	xorlw	'I'		;
+	btfss	STATUS,Z	;
+	bra	manchr1		; case 'I': // send a software Interrupt > 7
+
+manchr1
+	movf	char_io,w	;
+	xorlw	'J'		;
+	btfss	STATUS,Z	;
+	bra	manchr2		; case 'J': // List struct for all/a running job
+
+manchr2
+	movf	char_io,w	;
+	xorlw	'K'		;
+	btfss	STATUS,Z	;
+	bra	manchr3		; case 'K': // Kill a single job (# mandatory)
+
+manchr3
+	movf	char_io,w	;
+	xorlw	'L'		;
+	btfss	STATUS,Z	;
+	bra	manchr4		; case 'L': // Launch another instance of a job
+
+manchr4
+	movf	char_io,w	;
+	xorlw	'N'		;
+	btfss	STATUS,Z	;
+	bra	manchr5		; case 'N': // New (parameterless) job at addr
+
+manchr5
+	movf	char_io,w	;
+	xorlw	'P'		;
+	btfss	STATUS,Z	;
+	bra	manchr6		; case 'P': // Pause job by putting it to Sleep
+
+manchr7
+	movf	char_io,w	;
+	xorlw	'R'		;
+	btfss	STATUS,Z	;
+	bra	manchr8		; case 'R': // Resume a job that's paused/asleep
+	                                    // or Reset if it's not paused!
+manchr8
+	movf	char_io,w	;
+	xorlw	'S'		;
+	btfss	STATUS,Z	;
+	bra	manchr9		; case 'S': // Stack dump
+	
+manchr9
+	movf	char_io,w	;
+	xorlw	'Z'		;
+	btfss	STATUS,Z	;
+	bra	manchr?		; case 'Z': // go to low-power Zzz mode for time
+
+	
+
+	movf	accumul,w	; default: zOS_AR1 = accumul; if (isr) goto isr;
+	movwf	zOS_AR1		; }// caller may use zOS_AR1 or accumuh:accumul
+	pagesel	isr		;
+	if(isr)
+	 goto	isr		; zOS_RFI();
+	else
+	 zOS_RFI
+	endif
+	
+manprmp
+	pagesel	moncrlf
+	call	moncrlf		;manprmp:
+	movf	1+destreg,w	; moncrlf(zos_job, p0);
+	movwf	accumuh		; accumuh = destreg>>8; monhex(zos_job, p0);
+	pagesel	monhex
+	call	monhex		; accumuh = destreg & 0xff; monlsb(zos_job, p0);
+	movf	destreg,w	; moncrlf(zos_job, p0);
+	movwf	accumuh		;manlast: 
+	pagesel	monlsb
+	call	monlsb		; zOS_ACC(&accumul,&numbase); zOS_RFI();
+	pagesel	moncrlf
+	call	moncrlf		;}
+	zOS_ACC	accumul,numbase
+manlast
+	zOS_RFI
+endman
+	endm
 
 
 
