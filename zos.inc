@@ -695,12 +695,12 @@ zos_sw7
 	zOS_MEM	FSR1,zOS_JOB,0	;   fsr1 = 0x10 * (1 + zOS_JOB);
 zos_nxt
 	zOS_LIV	FSR1,zOS_JOB,0,zos_bad
-	moviw	zOS_HDL[FSR1]	;   while (zOS_LIV(&fsr0, &zOS_JOB, 0)) {
+	moviw	zOS_HDL[FSR1]	;   while (zOS_LIV(&fsr1, &zOS_JOB, 0)) {
 	xorwf	zOS_AR0,w	;
 	btfss	STATUS,Z	;
 	bra	zos_nxt		;    
-	moviw	zOS_HDH[FSR1]	;    int16_t a=(zOS_AR1<<8)|zOS_AR0;
-	xorwf	zOS_AR1,w	;    int16_t b=(zOS_HDH[fsr0]<<8)|zOS_HDL[fsr0];
+	moviw	zOS_HDH[FSR1]	;    void (*a)() = (zOS_AR1<<8)|zOS_AR0;
+	xorwf	zOS_AR1,w	;    void (*b)() = (zOS_HDH[fsr1]<<8)|zOS_HDL[fsr1];
 	andlw	0x7f		;
 	btfss	STATUS,Z	;    if (a & 0x7f == b & 0x7f)
 	bra	zos_nxt		;     zOS_RFS(zOS_JOB);
