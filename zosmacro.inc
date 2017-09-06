@@ -1339,12 +1339,17 @@ endman
 	
 
 zOS_MAN	macro	p,ra,rt,h,pi,isr;inline void zOS_MON(int8_t p, int8_t ra, int8_t
+	local	mantask
 	local	manisr,manchr,manchr0,manchr1,manchr2,manchr3,manchr4,manchr5
 	local	manchr6,manchr7,manchr8,manchr9,manprmp,manlast,endman
 
 	zOS_MON	p,ra,rt,h,pi,manisr
+	movlw	low mantask	;          rt, int8_t* h, int8_t p, void(*isr)()) {
+	movwf	optadrl		; zOS_MON(p,ra,rt,h,pi,manisr);
+	movlw	high mantask	; optadrl = mantask & 0x00ff;
+	movwf	optadrh		; optadrh = mantask >> 8;
 	pagesel	endman
-	goto	endman		;          rt, int8_t* h, int8_t p, void(*isr)()) {
+	goto	endman		; return;
 	include	zoscon_h.inc
 	
 manisr
@@ -1354,69 +1359,79 @@ manisr
 	xorlw	'G'		;
 	btfss	STATUS,Z	;
 	bra	manchr		; case 'G': // Generate a fork/duplicate of job
+	zOS_RFI			;  zOS_RFI(); // will be handled in task
 	
 manchr
 	movf	char_io,w	;
 	xorlw	'H'		;
 	btfss	STATUS,Z	;
 	bra	manchr0		; case 'H': // find job(s) by Handle(start addr)
+	zOS_RFI			;  zOS_RFI(); // will be handled in task
 
 manchr0
 	movf	char_io,w	;
 	xorlw	'I'		;
 	btfss	STATUS,Z	;
 	bra	manchr1		; case 'I': // send a software Interrupt > 7
+	zOS_RFI			;  zOS_RFI(); // will be handled in task
 
 manchr1
 	movf	char_io,w	;
 	xorlw	'J'		;
 	btfss	STATUS,Z	;
 	bra	manchr2		; case 'J': // List struct for all/a running job
+	zOS_RFI			;  zOS_RFI(); // will be handled in task
 
 manchr2
 	movf	char_io,w	;
 	xorlw	'K'		;
 	btfss	STATUS,Z	;
 	bra	manchr3		; case 'K': // Kill a single job (# mandatory)
+	zOS_RFI			;  zOS_RFI(); // will be handled in task
 
 manchr3
 	movf	char_io,w	;
 	xorlw	'L'		;
 	btfss	STATUS,Z	;
 	bra	manchr4		; case 'L': // Launch another instance of a job
+	zOS_RFI			;  zOS_RFI(); // will be handled in task
 
 manchr4
 	movf	char_io,w	;
 	xorlw	'N'		;
 	btfss	STATUS,Z	;
 	bra	manchr5		; case 'N': // New (parameterless) job at addr
+	zOS_RFI			;  zOS_RFI(); // will be handled in task
 
 manchr5
 	movf	char_io,w	;
 	xorlw	'P'		;
 	btfss	STATUS,Z	;
 	bra	manchr6		; case 'P': // Pause job by putting it to Sleep
+	zOS_RFI			;  zOS_RFI(); // will be handled in task
 
 manchr7
 	movf	char_io,w	;
 	xorlw	'R'		;
 	btfss	STATUS,Z	;
 	bra	manchr8		; case 'R': // Resume a job that's paused/asleep
+	zOS_RFI			;  zOS_RFI(); // will be handled in task
 	                                    // or Reset if it's not paused!
 manchr8
 	movf	char_io,w	;
 	xorlw	'S'		;
 	btfss	STATUS,Z	;
 	bra	manchr9		; case 'S': // Stack dump
+	zOS_RFI			;  zOS_RFI(); // will be handled in task
 	
 manchr9
 	movf	char_io,w	;
 	xorlw	'Z'		;
 	btfss	STATUS,Z	;
-	bra	manchr?		; case 'Z': // go to low-power Zzz mode for time
+	bra	mannone		; case 'Z': // go to low-power Zzz mode for time
+	zOS_RFI			;  zOS_RFI(); // will be handled in task
 
-	
-
+mannone
 	movf	accumul,w	; default: zOS_AR1 = accumul; if (isr) goto isr;
 	movwf	zOS_AR1		; }// caller may use zOS_AR1 or accumuh:accumul
 	pagesel	isr		;
