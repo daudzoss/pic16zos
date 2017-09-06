@@ -808,7 +808,7 @@ rxtask
 	bra	no_opt		;
 	movf	optadrl,w	;  if ((optadrh<<8) | optadrl)
 	callw			;   (*(optadrh<<8) | optadrl)) (); //returns to:
-	
+;;; FIXME: do anything interesting with return value? 0 sent if nothing happened
 no_opt
 	movf	tskadrh,w	;
 	movwf	PCLATH		;  goto (tskadrh<<8) | tskadrl;// zOS_CON() code
@@ -1334,58 +1334,97 @@ zOS_MAN	macro	p,ra,rt,h,pi,isr;inline void zOS_MON(int8_t p, int8_t ra, int8_t
 	local	manchr5,manchr6,manchr7,manchr8,manchr9,manprmp,manlast,endman
 
 	zOS_MON	p,ra,rt,h,pi,0;instead of manisr
-	movlw	low mantask	;          rt, int8_t* h, int8_t p, void(*isr)()) {
+	movlw	low mantask	;       rt, int8_t* h, int8_t p, void(*isr)()) {
 	movwf	optadrl		; zOS_MON(p,ra,rt,h,pi,manisr);
 	movlw	high mantask	; optadrl = mantask & 0x00ff;
 	movwf	optadrh		; optadrh = mantask >> 8;
 	pagesel	endman
-	goto	endman		; return;
+	goto	endman		;}
 	include	zoscon_h.inc
 	
 mantask
-	clrwdt			; do {
-	movf	zOS_JOB		;mantask: // prm0=destreg,prm1=accumul,mode=char
-	movwf	BSR		;  do {
-	movf	char_io,w	;   clrwdt();
-	btfsc	STATUS,Z	;   bsr = zos_job;
-	bra	mantask		;  } while (char_io == 0);
+	movf	zOS_JOB,w	;int8_t mantask(void) {//destreg,accumul,char_io
+	movwf	BSR		; bsr = zos_job; // to access char_io
+	movf	char_io,w	; if (char_io == 0)
+	btfsc	STATUS,Z	;  return 0; // back to zOS_CON task
+	return			; switch (char_io) {
 
-	xorlw	'G'		;  switch (char_io) {
-	btfss	STATUS,Z	;  caseG:
-	bra	manchr		;  case 'G': // Generate a fork/duplicate of job
-	clrf	char_io		;   char_io = 0;
+	xorlw	'G'		;
+	btfss	STATUS,Z	; caseG:
+	bra	manchr		; case 'G': // Generate a fork/duplicate of job
+	clrf	char_io		;  char_io = 0; // presume failure
 	
-	movf	accumul,w	;   if (accumul == 0)
-	clrf	accumul		;    continue;
-	btfsc	STATUS,Z	;   zOS_ARG(0, accumul);
-	bra	mantask		;   accumul = 0;
+	movf	accumul,w	;  if (accumul == 0)
+	btfsc	STATUS,Z	;   return 0;
+	return			;  zOS_ARG(0, accumul);
 	zOS_ARG	0
-	movlw	'J'		;
-	movwf	char_io		;   if (zOS_SWI(zOS_FRK))
+	zOS_ACC	accumul,numbase
+	movlw	'J'		;  zOS_ACC(&accumul, &numbase); // reset
+	movwf	char_io		;  if (zOS_SWI(zOS_FRK))
 	zOS_SWI	zOS_FRK
-	andlw	0x00		;    goto caseJ; // success, prints in job list
-	btfsc	STATUS,Z	;   else
-	clrf	char_io		;    break;
+	andlw	0x00		;   goto caseJ; // success, prints in job list
+	btfsc	STATUS,Z	;  else
+	clrf	char_io		;   break; // failure, drop to end of switch()
 manchr
 	movf	char_io,w	;
 	xorlw	'H'		;
-	btfss	STATUS,Z	;  caseH:
-	bra	manchr0		;  case 'H': // find jobs by Handle (start addr)
-	clrf	char_io		;   char_io = 0;
+	btfss	STATUS,Z	; caseH:
+	bra	manchr0		; case 'H': // find jobs by Handle (start addr)
+	clrf	char_io		;  char_io = 0;
 
+	movf	accumul,w	;  if (accumul == 0)
+	iorwf	accumuh,w	;
+	btfsc	STATUS,Z	;   return 0;
+	return			;  zOS_ARG(0, accumul);
+	movf	accumul,w	;
+	zOS_ARG	0
+	movf	accumuh,w	;
+	zOS_ARG	1
+	zOS_ACC	accumul,numbase
+	movlw	'J'		;  zOS_ACC(&accumul, &numbase);
+	movwf	char_io		;  if (zOS_SWI(zOS_FND))
+	zOS_SWI	zOS_FND
+	andlw	0x00		;   goto caseJ; // FIXME: prints just one match
+	btfsc	STATUS,Z	;  else
+	clrf	char_io		;   break;
+	
 manchr0
 	movf	char_io,w	;
 	xorlw	'I'		;
-	btfss	STATUS,Z	;
-	bra	manchr1		;  case 'I': // send a software Interrupt > 7
-	clrf	char_io		;   char_io = 0;
+	btfss	STATUS,Z	; caseI:
+	bra	manchr1		; case 'I': // send a software Interrupt > 7
+	clrf	char_io		;  char_io = 0; // with destreg zOS_AR1:zOS_AR0
+	
+	movf	destreg,w	;  zOS_ARG(0, destreg);
+	zOS_ARG	0
+	movf	1+destreg,w	;  zOS_ARG(1, destreh);
+	zOS_ARG	1
+	movlw	0xf8		;
+	andwf	accumul,w	;  if (accumul == 0)
+	btfsc	STATUS,Z	;   return 0;
+	return			;
+	movlp	0		;  zOS_SWI(w); // interrupts need to be disabled
+	call	0x02		;  INTCON &= ~(1<<GIE); // for zOS_AR and _BUF()
+	bcf	INTCON,GIE	;  zOS_ARG(1, zOS_AR0);
+	clrf	zOS_AR1		;  zOS_ARG(0, 0);
+	xorwf	zOS_AR1,f	;  zOS_BUF(zos_job, p0); // print hex SWI result
+	xorwf	zOS_AR0,f	;  zOS_ENA();  // re-enable interrupts
+	zOS_BUF	zOS_JOB,p0
+	zOS_ENA
+	zOS_ACC	accumul,numbase
+	movlw	'J'		;  zOS_ACC(&accumul, &numbase); // reset
+	movwf	char_io		;  if (zOS_SWI(zOS_FRK))
+	movlp
+	andlw	0x00		;   goto caseJ; // success, prints in job list
+	btfsc	STATUS,Z	;  else
+	clrf	char_io		;   break; // failure, drop to end of switch()
 
 manchr1
 	movf	char_io,w	;
 	xorlw	'J'		;
 	btfss	STATUS,Z	;
-	bra	manchr2		;  case 'J': // List struct for all running jobs
-	clrf	char_io		;   char_io = 0;
+	bra	manchr2		; case 'J': // List struct for all running jobs
+	clrf	char_io		;  char_io = 0;
 
 	zOS_ACC	accumul,numbase
 	
@@ -1393,55 +1432,55 @@ manchr2
 	movf	char_io,w	;
 	xorlw	'K'		;
 	btfss	STATUS,Z	;
-	bra	manchr3		;  case 'K': // Kill a single job (# mandatory)
-	clrf	char_io		;   char_io = 0;
+	bra	manchr3		; case 'K': // Kill a single job (# mandatory)
+	clrf	char_io		;  char_io = 0;
 
 manchr3
 	movf	char_io,w	;
 	xorlw	'L'		;
 	btfss	STATUS,Z	;
-	bra	manchr4		;  case 'L': // Launch another instance of a job
-	clrf	char_io		;   char_io = 0;
+	bra	manchr4		; case 'L': // Launch another instance of a job
+	clrf	char_io		;  char_io = 0;
 
 manchr4
 	movf	char_io,w	;
 	xorlw	'N'		;
 	btfss	STATUS,Z	;
-	bra	manchr5		;  case 'N': // New (parameterless) job at addr
-	clrf	char_io		;   char_io = 0;
+	bra	manchr5		; case 'N': // New (parameterless) job at addr
+	clrf	char_io		;  char_io = 0;
 
 manchr5
 	movf	char_io,w	;
 	xorlw	'P'		;
 	btfss	STATUS,Z	;
-	bra	manchr6		;  case 'P': // Pause job by putting it to Sleep
-	clrf	char_io		;   char_io = 0;
+	bra	manchr6		; case 'P': // Pause job by putting it to Sleep
+	clrf	char_io		;  char_io = 0;
 
 manchr7
 	movf	char_io,w	;
 	xorlw	'R'		;
 	btfss	STATUS,Z	;
-	bra	manchr8		;  case 'R': // Resume a pause/asleep job 
-	clrf	char_io		;   char_io = 0;
-;	zOS_RFI			;   zOS_RFI(); // will be handled in task
+	bra	manchr8		; case 'R': // Resume a pause/asleep job 
+	clrf	char_io		;  char_io = 0;
+;	zOS_RFI			;  zOS_RFI(); // will be handled in task
 	                                       // or Reset if it's not paused!
 manchr8
 	movf	char_io,w	;
 	xorlw	'S'		;
 	btfss	STATUS,Z	;
-	bra	manchr9		;  case 'S': // Stack dump
-	clrf	char_io		;   char_io = 0;
+	bra	manchr9		; case 'S': // Stack dump
+	clrf	char_io		;  char_io = 0;
 	
 manchr9
 	movf	char_io,w	;
 	xorlw	'Z'		;
 	btfss	STATUS,Z	;
-	bra	mannone		;  case 'Z': // go to low-power Zz mode for time
-	clrf	char_io		;   char_io = 0;
+	bra	mannone		; case 'Z': // go to low-power Zz mode for time
+	clrf	char_io		;  char_io = 0;
 	
 mannone
-	clrf	char_io		;  } } default: char_io = 0; //don't sit here 2x
-	bra	mantask		;}
+	clrf	char_io		; }return char_io=0; //naught to do
+	return			;}
 endman
 	endm
 
