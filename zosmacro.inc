@@ -93,7 +93,7 @@ zOS_SWI	macro	type		;inline void zOS_SWI(const int8_t type) {
 	call	0x02		;} // zOS_SWI()
 	endm
 
-zOS_TAI	macro	type		;inline void zOS_SWI(const int8_t type) {
+zOS_TAI	macro	type		;inline void zOS_TAI(const int8_t type) {
 	movlw	type		; w = type; goto zos_skp;
 	pagesel	zos_skp
 	goto	zos_skp		;} // zOS_TAI()
@@ -778,7 +778,7 @@ zOS_W	macro	file,bankf	;inline int8_t zOS_W(const int8_t* file, int8_t
 #if 0
 ;;; like zOS_CON, but also accepts console input for a full job-management shell
 zOS_INP	macro	p,ra,rt,h,pi,isr;inline void zOS_INP(int8_t p, int8_t ra, int8_t
-	local	rxtask,rxisr,rxdecl
+	local	rxtask,no_opt,rxisr,rxdecl
 	bra	rxdecl		;       rt, int8_t* h, int8_t p, void(*isr)()) {
 	
 	;; reserve constants and variables
@@ -796,15 +796,22 @@ rxflag	 set	RC#v(p)IF
 	local	isradrl,isradrh,tskadrl,tskadrh
 isradrl	set	0x25
 isradrh	set	0x26
-tskadrl	set	0x27
-tskadrh	set	0x28
 	include	zoscon_h.inc
 ;;; FIXME: haven't actually written the var init code for zOS_MON et al yet
 rxtask
 	movf	zOS_JOB,w	; goto rxdecl;
 	movwf	BSR		;rxtask:
+	movf	optadrh,w	;
+	movwf	PCLATH		;
+	iorwf	optadrl,w	;
+	btfsc	STATUS,Z	;
+	bra	no_opt		;
+	movf	optadrl,w	;  if ((optadrh<<8) | optadrl)
+	callw			;   (*(optadrh<<8) | optadrl)) (); //returns to:
+	
+no_opt
 	movf	tskadrh,w	;
-	movwf	PCLATH		;  goto (tskadrh<<8) | tskadrl;
+	movwf	PCLATH		;  goto (tskadrh<<8) | tskadrl;// zOS_CON() code
 	movf	tskadrl,w	;
 	movwf	PCL	;callw	;
 
@@ -855,6 +862,9 @@ rxdecl
 	movwf	tskadrl		; tskadrl = fsr0 & 0x00ff;
 	movf	FSR0H,w		;
 	movwf	tskadrh		; tskadrh = fsr0 >> 8; // all non-rx tasks here
+	clrf	optadrl		;
+	clrf	optadrh		; optadrh = optadrl = ((*void)()) 0; // no func
+	clrf	char_io		; char_io = 0; // nonzero means action to take
 	zOS_ADR	rxtask,zOS_PRB
 	movlw	low rxisr	; w = zOS_ARG(0, rxisr & 0x00ff)
 	zOS_ARG	0
@@ -981,8 +991,9 @@ monisr
 	movwf	accumuh		;   monlsb(zos_job, p0);
 	pagesel	monlsb
 	call	monlsb		;   accumuh = char_io; // accumuh now restored
-	movf	char_io,w	;   zOS_RFI();
-	movwf	accmuh		;  }
+	movf	char_io,w	;   char_io = 0; // completely handled in ISR
+	movwf	accmuh		;   zOS_RFI();
+	clrf	char_io		;  }
 	zOS_RFI
 
 monchr1
@@ -1096,6 +1107,7 @@ monram
 	movlw	3		;
 	pagesel	monback
 	call	monback		;   monback(zos_job, p0, (char_io == '=')?0:3);
+	clrf	char_io		;   char_io = 0;
 	zOS_RFI			;  break;
 
 monchr4
@@ -1104,7 +1116,8 @@ monchr4
 	btfss	STATUS,Z	;  case 'X':
 	bra	monchr5		;
 	movlw	0x10		;   numbase = 16;
-	movwf	numbase		;  break;
+	movwf	numbase		;   char_io = 0;
+	clrf	char_io		;  break;
 	zOS_RFI
 
 monchr5
@@ -1122,7 +1135,8 @@ monchr5
 	movwf	accumuh		;   accumuh = accumul;
 	pagesel	monhex		;   monhex(zos_job, p0); print as e.g. 50%0x7d
 	call	monhex		;   accumuh = 0;
-	clrf	accumuh		;  break;
+	clrf	accumuh		;   char_io = 0;
+	clrf	char_io		;  break;
 	zOS_RFI
 	
 monchr6
@@ -1142,7 +1156,8 @@ monchr6
 	iorwf	accumuh,w	;    if ((char_io == 0) &&
 	btfss	STATUS,Z	;        (accumul == 0) && (accumuh == 0)) {
 	bra	monchr7		;     numbase &= ~2; // digit(s) leading 0(s),
-	bcf	numbase,1	;     break;         // just go into octal mode
+	bcf	numbase,1	;     char_io = 0;
+	clrf	char_io		;     break;         // just go into octal mode
 	zOS_RFI
 	
 monchr7
@@ -1164,6 +1179,7 @@ monchr7
 	swapf	accumul,w	;
 	iorwf	char_io,w	;
 	movwf	accumul		;     accumul = (accumul << 4) | char_io;
+	clrf	char_io		;     char_io = 0;
 	zOS_RFI			;     break;
 	
 monchr8
@@ -1189,8 +1205,9 @@ monchr8
 	movf	char_io,w	;     break;
 	andlw	0x0f		;    }
 	addwf	accumul,f	;   } // if ()
-	movlw	0		;   zOS_AR1 = accumul;
-	addwfc	accumuh,f	;   if (isr) goto isr; // with zOS_AR1=accumul
+	movlw	0		;   char_io = 0;
+	addwfc	accumuh,f	;   zOS_AR1 = accumul;
+	clrf	char_io		;   if (isr) goto isr; // with zOS_AR1=accumul
 	zOS_RFI
 	
 monchr9
@@ -1198,8 +1215,9 @@ monchr9
 	movwf	zOS_AR1		; } // if ()
 	pagesel	isr
 	if (isr)
-	 goto	isr		; zOS_RFI(); // reached only if isr == 0
+	 goto	isr		; char_io = 0; // unhandled
 	else
+	 clrf	char_io		; zOS_RFI(); // reached only if isr == 0
 	 zOS_RFI
 	endif
 
@@ -1215,9 +1233,10 @@ monprmp
 	movf	destreg,w	; }
 	movwf	accumuh		;monlast: zOS_ACC(&accumul,&numbase); zOS_RFI();
 	pagesel	monlsb
-	call	monlsb		;} // zOS_MON()
+	call	monlsb		;         char_io = 0;
 	zOS_ACC	accumul,numbase
 monlast
+	clrf	char_io		;} // zOS_MON()
 	zOS_RFI
 endmon
 	endm	
@@ -1302,9 +1321,10 @@ clcprmp
 	pagesel	monlsb
 	call	monlsb		; zOS_ACC(&accumul,&numbase); zOS_RFI();
 	pagesel	moncrlf
-	call	moncrlf		;}
+	call	moncrlf		; char_io = 0;
 	zOS_ACC	accumul,numbase
 clclast
+	clrf	char_io		;}
 	zOS_RFI
 endclc
 	endm
@@ -1401,8 +1421,9 @@ manchr9
 	movwf	zOS_AR1		; }// caller may use zOS_AR1 or accumuh:accumul
 	pagesel	isr		;
 	if(isr)
-	 goto	isr		; zOS_RFI();
+	 goto	isr		; char_io = 0;
 	else
+	 clrf	char_io		; zOS_RFI();
 	 zOS_RFI
 	endif
 	
@@ -1418,9 +1439,10 @@ manprmp
 	pagesel	monlsb
 	call	monlsb		; zOS_ACC(&accumul,&numbase); zOS_RFI();
 	pagesel	moncrlf
-	call	moncrlf		;}
+	call	moncrlf		; char_io = 0;
 	zOS_ACC	accumul,numbase
 manlast
+	clrf	char_io		;}
 	zOS_RFI
 endman
 	endm
