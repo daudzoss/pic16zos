@@ -1,6 +1,7 @@
 ;;; demo_zos.asm
 ;;;
 ;;; demonstration (and, frankly, bring-up) app for zOS
+;;; to build: gpasm -D GPASM demo_zos.asm
 ;;;
 ;;; after starting job #1 as a console output buffer (zOS_CON() in zosmacro.inc)
 ;;; to demonstrate privileged mode (able to kill or otherwise tweak other tasks)

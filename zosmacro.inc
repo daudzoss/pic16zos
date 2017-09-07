@@ -66,7 +66,6 @@ zOS_ADR	macro	adr,msb
 	endif
 	endm
 
-#if 0
 zOS_INT	macro	lhw,lsw
 	if (lhw|lsw)
 	movf	FSR0L,w		;inline void zOS_INT(const lhw, const lsw) {
@@ -87,7 +86,6 @@ zOS_INT	macro	lhw,lsw
 	zOS_ARG	3
 	endif
 	endm
-#endif
 
 zOS_SWI	macro	type		;inline void zOS_SWI(const int8_t type) {
 	movlw	type		;
@@ -1652,7 +1650,7 @@ jobinfo
 	movlw	's'		;
 	movwi	FSR1++		;
 	movlw	'w'		;
-	movwi	FSR1++		;   // print (hw HwIMask sw SwIMask) scrunched up
+	movwi	FSR1++		;  // print (hw HwIMask sw SwIMask) scrunched up
 	zOS_IHF	zOS_SIM,FSR0,FSR1
 	movlw	')'		;   p1 += sprintf(p1, "(hw%02Xsw%02X)",
 	movwi	FSR1++		;                 zOS_HIM[fsr0], zOS_SIM[fsr0]);
