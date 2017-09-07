@@ -652,6 +652,7 @@ zos_cp2
 	bra	zos_cp1		;   }
 zos_cpd
 	;; now copy job BSR's bank0 struct to the zOS_AR registers and zOS_NEW()
+;;;FIXME: should copy the rest of state, i.e. memory variables to be a true fork
 	movf	BSR,w		;
 	movwf	zOS_JOB		;   zOS_JOB = BSR;
 	zOS_MEM	FSR1,zOS_JOB,0
