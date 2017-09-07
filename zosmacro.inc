@@ -279,6 +279,23 @@ zOS_HEX	macro
 	addlw	0x2a		;} // zOS_HEX()
 	endm
 	
+zOS_IHF	macro	ofs,fsrnum,file
+	local	fsrn
+	if (fsrnum & 3)
+fsrn set 1
+	else
+fsrn set 0
+	endif
+	moviw	ofs[FSR#v(fsrn)];inline void zOS_IHF(int8_t ofs, int fsrnum,
+	swapf	WREG,w		;                                char* file) {
+	zOS_HEX
+	movwf	file		; file[0] = zOS_HEX(ofs[fsrnum] >> 4);
+	moviw 1+ofs[FSR#v(fsrn)]; file[1] = zOS_HEX(ofs[fsrnum]);
+	zOS_HEX
+	movwf	1+file		;}
+	endm
+
+
 zOS_PUT	macro	max
 	movwi	FSR0++		;inline void zOS_PUT(char* max, char w) {
 	movf	FSR0L,w		; // fsr0 must be pointing into buffer at p0
@@ -1422,11 +1439,24 @@ manchr0
 manchr1
 	movf	char_io,w	;
 	xorlw	'J'		;
-	btfss	STATUS,Z	;
+	btfss	STATUS,Z	; caseJ:
 	bra	manchr2		; case 'J': // List struct for all running jobs
-	clrf	char_io		;  char_io = 0;
 
-	zOS_ACC	accumul,numbase
+	movf	accumul,w	; // keep char_io until the last job line prints
+	andlw	0x07		;
+	btfsc	STATUS,Z	;  if ((accumul < 1) ||
+	return			;
+	addlw	7-zOS_NUM	;
+	btfsc	WREG,3		;      (accumul > zOS_NUM))
+	retlw	0		;   return 0;
+	pagesel	jobinfo
+	bcf	INTCON,GIE	;  INTCON &= ~(1<<GIE); // to keep p0==p1 atomic
+	movf	p0,w		;
+	xorwf	p1,w		;  if (p0 == p1)
+	btfsc	STATUS,Z	;   return jobinfo();
+	goto	jobinfo		;  zOS_ENA(); // re-enable interrupts if p0!=p1
+	zOS_ENA
+	retlw	0		;  return 0;//try again after caller advances p0
 	
 manchr2
 	movf	char_io,w	;
@@ -1481,6 +1511,32 @@ manchr9
 mannone
 	clrf	char_io		; }return char_io=0; //naught to do
 	return			;}
+
+;;fill40	macro	start,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12,a13,a14,a15,a16,a17,a18,a19,a20,a21
+	;guaranteed to arrive with p0=p1, interrupts off and in the correct bank:
+jobinfo
+	movf	wrap,f		;int8_t jobinfo(void) {
+	movwf	p0		; p0 = p1 = wrap;
+	movwf	p1		; fsr0 = 0x10 * (1 + accumul);
+	zOS_MEM	FSR0,accumul,0
+	movlw	'\r'		;
+	movwf	0+buf		;
+	movlw	'\n'		;
+	movwf	1+buf		;
+	zOS_IHF	zOS_HDH,FSR0,2+buf
+	zOS_IHF	zOS_HDL,FSR0,4+buf
+	movlw	' '		;
+	movwf	6+buf		;
+	movlw	'P'		;
+	movwf	7+buf		;
+	movlw
+
+	decf	accumul,f	;
+	btfsc	STATUS,Z	;
+	clrf	char_io		;
+	zOS_ENA
+	return			;}
+
 endman
 	endm
 
