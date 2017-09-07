@@ -63,7 +63,7 @@ splalp
 	zOS_ARG	0
 	movlw	high spitjob	;  zOS_ARG(1, spitjob >> 8);
 	zOS_ARG	1
-	decf	SPLVAR,w	;  zOS_ARG(2, splvar);      
+	decf	SPLVAR,w	;  zOS_ARG(2, splvar);  // max job# to find
 	btfsc	STATUS,Z	;  splvar = zOS_SWI(zOS_FND);      
 	bra	spldone		;  if (splvar)
 	zOS_ARG	2
