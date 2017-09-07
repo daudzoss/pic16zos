@@ -798,7 +798,6 @@ zOS_W	macro	file,bankf	;inline int8_t zOS_W(const int8_t* file, int8_t
 	movwf	BSR		; return bsr = bankf;
 	endm			;} // zOS_W()
 
-#if 0
 ;;; like zOS_CON, but also accepts console input for a full job-management shell
 zOS_INP	macro	p,ra,rt,h,pi,isr;inline void zOS_INP(int8_t p, int8_t ra, int8_t
 	local	rxtask,no_opt,rxisr,rxdecl
@@ -807,12 +806,12 @@ zOS_INP	macro	p,ra,rt,h,pi,isr;inline void zOS_INP(int8_t p, int8_t ra, int8_t
 	;; reserve constants and variables
 	local	uarbase,uarecv,rxflag
 	if (p == 0)
-uarbase	 set	RXREG & 0xff80
-uarecv	 set	RXREG & 0x7f
+uarbase	 set	RCREG & 0xff80
+uarecv	 set	RCREG & 0x7f
 rxflag	 set	RCIF
 	else
-uarbase	 set	RX#v(p)REG & 0xff80
-uarecv	 set	RX#v(p)REG & 0x7f
+uarbase	 set	RC#v(p)REG & 0xff80
+uarecv	 set	RC#v(p)REG & 0x7f
 rxflag	 set	RC#v(p)IF
 	endif
 	
@@ -1671,14 +1670,6 @@ crlf
 	return			;}
 endman
 	endm
-
-
-
-
-
-#endif	
-
-
 
 
 
