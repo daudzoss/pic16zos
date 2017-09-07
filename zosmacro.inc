@@ -279,20 +279,26 @@ zOS_HEX	macro
 	addlw	0x2a		;} // zOS_HEX()
 	endm
 	
-zOS_IHF	macro	ofs,fsrnum,file
-	local	fsrn
-	if (fsrnum & 3)
-fsrn set 1
+zOS_IHF	macro	ofs,fsrsrc,fsrdst
+	local	src,dst
+	if (fsrsrc & 3)
+src set 1	
 	else
-fsrn set 0
+src set 0
 	endif
-	moviw	ofs[FSR#v(fsrn)];inline void zOS_IHF(int8_t ofs, int fsrnum,
+	if (fsrdst & 3)
+dst set 1	
+	else
+dst set 0
+	endif
+	
+	moviw	ofs[FSR#v(src)]	;inline void zOS_IHF(int8_t ofs, int fsrnum,
 	swapf	WREG,w		;                                char* file) {
 	zOS_HEX
-	movwf	file		; file[0] = zOS_HEX(ofs[fsrnum] >> 4);
-	moviw 1+ofs[FSR#v(fsrn)]; file[1] = zOS_HEX(ofs[fsrnum]);
+	movwi	FSR#v(dst)++	; file[0] = zOS_HEX(ofs[fsrnum] >> 4);
+	moviw	ofs[FSR#v(src)]	; file[1] = zOS_HEX(ofs[fsrnum]);
 	zOS_HEX
-	movwf	1+file		;}
+	movwf	FSR#v(dst)++	;}
 	endm
 
 
@@ -796,7 +802,7 @@ zOS_W	macro	file,bankf	;inline int8_t zOS_W(const int8_t* file, int8_t
 ;;; like zOS_CON, but also accepts console input for a full job-management shell
 zOS_INP	macro	p,ra,rt,h,pi,isr;inline void zOS_INP(int8_t p, int8_t ra, int8_t
 	local	rxtask,no_opt,rxisr,rxdecl
-	bra	rxdecl		;       rt, int8_t* h, int8_t p, void(*isr)()) {
+	bra	rxdecl		;      rt, int8_t* h, int8_t pi, void(*isr)()) {
 	
 	;; reserve constants and variables
 	local	uarbase,uarecv,rxflag
@@ -895,9 +901,10 @@ rxdecl
 
 zOS_ACC	macro	valregs,basereg
 	clrf	valregs		;inline uint8_t zOS_ACC(uint8_t* valregs,uint8_t
-	clrf	1+valregs	;                      *basereg) { *valregs = 0;
-	movlw	0x0a		; return *basereg = 10; // decimal by default
-	movwf	basereg		;}
+	clrf	1+valregs	;                   *basereg) { // w unclobbered
+	clrf	basereg		; *valregs = 0;
+	bsf	basereg,4	; return *basereg = 10; // decimal by default
+	bsf	basereg,2	;} // zOS_ACC()
 	endm
 	
 
@@ -921,7 +928,7 @@ zOS_MON	macro	p,ra,rt,h,pi,isr;inline void zOS_MON(int8_t p, int8_t ra, int8_t
 	local	monchr5,monchr6,monchr7,monchr8,monchr9,monprmp,monlast,endmon
 	
 	zOS_INP	p,ra,rt,h,pi,monisr 
-	pagesel	endmon		;       rt, int8_t* h, int8_t p, void(*isr)()) {
+	pagesel	endmon		;      rt, int8_t* h, int8_t pi, void(*isr)()) {
 	goto	endmon		; zOS_INP(p,ra,rt,h,pi,monisr); }// isr may be 0
 
 	include	zoscon_h.inc
@@ -1263,7 +1270,7 @@ zOS_CLC	macro	p,ra,rt,h,pi,isr;inline void zOS_MON(int8_t p, int8_t ra, int8_t
 
 	zOS_MON	p,ra,rt,h,pi,clcisr
 	pagesel	endclc
-	goto	endclc		;       rt, int8_t* h, int8_t p, void(*isr)()) {
+	goto	endclc		;      rt, int8_t* h, int8_t pi, void(*isr)()) {
 	
 	include	zoscon_h.inc
 clcisr
@@ -1346,12 +1353,13 @@ endclc
 	endm
 
 
-zOS_MAN	macro	p,ra,rt,h,pi,isr;inline void zOS_MON(int8_t p, int8_t ra, int8_t
-	local	mantask,manisr,manchr,manchr0,manchr1,manchr2,manchr3,manchr4
-	local	manchr5,manchr6,manchr7,manchr8,manchr9,manprmp,manlast,endman
+zOS_MAN	macro	p,rat,rts,hb,pin;inline void zOS_MON(int8_t p, int8_t rat,
+	local	mantask,manisr,manchr,manchr0,reenable,manchr1,manchr2,manchr3
+	local	manchr4,manchr5,manchr6,manchr7,manchr8,manchr9,mannone,jobinfo
+	local	endman
 
-	zOS_MON	p,ra,rt,h,pi,0;instead of manisr
-	movlw	low mantask	;       rt, int8_t* h, int8_t p, void(*isr)()) {
+	zOS_MON	p,rat,rts,hb,pin,0
+	movlw	low mantask	;                      int8_t* hb, int8_t pin) {
 	movwf	optadrl		; zOS_MON(p,ra,rt,h,pi,manisr);
 	movlw	high mantask	; optadrl = mantask & 0x00ff;
 	movwf	optadrh		; optadrh = mantask >> 8;
@@ -1369,7 +1377,7 @@ mantask
 	xorlw	'G'		;
 	btfss	STATUS,Z	; caseG:
 	bra	manchr		; case 'G': // Generate a fork/duplicate of job
-	clrf	char_io		;  char_io = 0; // presume failure
+	clrf	char_io		;  char_io = 0; // presume failure, so no retry
 	
 	movf	accumul,w	;  if (accumul == 0)
 	btfsc	STATUS,Z	;   return 0;
@@ -1382,6 +1390,7 @@ mantask
 	andlw	0x00		;   goto caseJ; // success, prints in job list
 	btfsc	STATUS,Z	;  else
 	clrf	char_io		;   break; // failure, drop to end of switch()
+
 manchr
 	movf	char_io,w	;
 	xorlw	'H'		;
@@ -1401,7 +1410,7 @@ manchr
 	movlw	'J'		;  zOS_ACC(&accumul, &numbase);
 	movwf	char_io		;  if (zOS_SWI(zOS_FND))
 	zOS_SWI	zOS_FND
-	andlw	0x00		;   goto caseJ; // FIXME: prints just one match
+	andlw	0x00		;   goto caseJ; // FIXME: table, from match down
 	btfsc	STATUS,Z	;  else
 	clrf	char_io		;   break;
 	
@@ -1416,25 +1425,22 @@ manchr0
 	zOS_ARG	0
 	movf	1+destreg,w	;  zOS_ARG(1, destreh);
 	zOS_ARG	1
-	movlw	0xf8		;
-	andwf	accumul,w	;  if (accumul == 0)
-	btfsc	STATUS,Z	;   return 0;
-	return			;
-	movlp	0		;  zOS_SWI(w); // interrupts need to be disabled
-	call	0x02		;  INTCON &= ~(1<<GIE); // for zOS_AR and _BUF()
-	bcf	INTCON,GIE	;  zOS_ARG(1, zOS_AR0);
-	clrf	zOS_AR1		;  zOS_ARG(0, 0);
-	xorwf	zOS_AR1,f	;  zOS_BUF(zos_job, p0); // print hex SWI result
-	xorwf	zOS_AR0,f	;  zOS_ENA();  // re-enable interrupts
-	zOS_BUF	zOS_JOB,p0
-	zOS_ENA
+	movlw	0xf8		;  zOS_ACC(&accumul, &numbase); // reset
+	andwf	accumul,w	;
 	zOS_ACC	accumul,numbase
-	movlw	'J'		;  zOS_ACC(&accumul, &numbase); // reset
-	movwf	char_io		;  if (zOS_SWI(zOS_FRK))
-	movlp
-	andlw	0x00		;   goto caseJ; // success, prints in job list
-	btfsc	STATUS,Z	;  else
-	clrf	char_io		;   break; // failure, drop to end of switch()
+	btfsc	STATUS,Z	;  if (accumul) {
+	bra	reenabl		;   int w = zOS_SWI(accumul); // disable again
+	movlp	0		;   INTCON &= ~(1<<GIE);// for zOS_AR and _BUF()
+	call	0x02		;   zOS_ARG(1, w);
+	bcf	INTCON,GIE	;   zOS_ARG(0, 0);
+	clrf	zOS_AR1		;   zOS_BUF(zos_job, p0); // print hex SWI result
+	xorwf	zOS_AR1,f	;   zOS_ENA();
+	xorwf	zOS_AR0,f	;   goto caseJ;
+	zOS_BUF	zOS_JOB,p0
+	movlw	'J'		;  } else
+	movwf	char_io		;   zOS_ENA(); break;
+reenabl
+	zOS_ENA
 
 manchr1
 	movf	char_io,w	;
@@ -1442,18 +1448,19 @@ manchr1
 	btfss	STATUS,Z	; caseJ:
 	bra	manchr2		; case 'J': // List struct for all running jobs
 
-	movf	accumul,w	; // keep char_io until the last job line prints
+	movf	accumul,w	; // keep char_io='J' until last job line prints
 	andlw	0x07		;
 	btfsc	STATUS,Z	;  if ((accumul < 1) ||
 	return			;
 	addlw	7-zOS_NUM	;
-	btfsc	WREG,3		;      (accumul > zOS_NUM))
+	andlw	0xf8		;
+	btfss	STATUS,Z	;      (accumul > zOS_NUM))
 	retlw	0		;   return 0;
 	pagesel	jobinfo
 	bcf	INTCON,GIE	;  INTCON &= ~(1<<GIE); // to keep p0==p1 atomic
 	movf	p0,w		;
 	xorwf	p1,w		;  if (p0 == p1)
-	btfsc	STATUS,Z	;   return jobinfo();
+	btfsc	STATUS,Z	;   return jobinfo(); // will decrement accumul
 	goto	jobinfo		;  zOS_ENA(); // re-enable interrupts if p0!=p1
 	zOS_ENA
 	retlw	0		;  return 0;//try again after caller advances p0
@@ -1512,31 +1519,96 @@ mannone
 	clrf	char_io		; }return char_io=0; //naught to do
 	return			;}
 
-;;fill40	macro	start,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12,a13,a14,a15,a16,a17,a18,a19,a20,a21
 	;guaranteed to arrive with p0=p1, interrupts off and in the correct bank:
 jobinfo
 	movf	wrap,f		;int8_t jobinfo(void) {
 	movwf	p0		; p0 = p1 = wrap;
 	movwf	p1		; fsr0 = 0x10 * (1 + accumul);
 	zOS_MEM	FSR0,accumul,0
+	zOS_LOC	FSR1,zOS_JOB,p1
 	movlw	'\r'		;
-	movwf	0+buf		;
+	movwi	FSR1++		;
 	movlw	'\n'		;
-	movwf	1+buf		;
-	zOS_IHF	zOS_HDH,FSR0,2+buf
-	zOS_IHF	zOS_HDL,FSR0,4+buf
-	movlw	' '		;
-	movwf	6+buf		;
-	movlw	'P'		;
-	movwf	7+buf		;
-	movlw
-
-	decf	accumul,f	;
+	movf	accumul,w	;
+	zOS_HEX
+	movwi	FSR1++		;
+	swapf	accumul,w	; // print this job number 05/04/03/02/01
+	zOS_HEX
+	movwi	FSR1++		; p1 += sprintf(p1, "\r\n%02X", accumul);
+	
+	moviw	zOS_HDH[FSR0]	;
+	andlw	1<<zOS_PRB	;
+	movlw	':'		; // print '*' if the job is privileged else ':'
 	btfsc	STATUS,Z	;
-	clrf	char_io		;
+	movlw	'*'		; p1 += sprintf(p1, "%c", (zOS_HDH[fsr0] &
+	moviw	FSR1++		;                    (1<<zOS_PRB)) ? '*' : ':');
+	
+	zOS_IHF	zOS_HDH,FSR0,FSR1
+	zOS_IHF	zOS_HDL,FSR0,FSR1
+	movlw	' '		; 
+	movwi	FSR1++		;
+	movlw	'P'		; // print the 4-hex-digit header then PC
+	movwi	FSR1++		;
+	movlw	'C'		; p1 += sprintf(p1, "%04X PC",
+	movwi	FSR1++		;         (zOS_HDH[fsr0] << 8) + zOS_HDL[fsr0]);
+	
+	moviw	zOS_PCH[FSR0]	;
+	andlw	1<<zOS_WAI	;
+	movlw	'='		; // print '=' if the job is sleeping else 'z'
+	mtfsc	STATUS,Z	;
+	movlw	'z'		; p1 += sprintf(p1, "%c", (zOS_PCH[fsr0] &
+	movwi	FSR1++		;                    (1<<zOS_WAI)) ? 'z' : ':');
+	
+	zOS_IHF	zOS_PCH,FSR0,FSR1
+	moviw	zOS_PCH[FSR0]	; // drop out after PCH if 0 (job is deleted)
+	btfsc	STATUS,Z	; p1 += sprintf(p1, "%02X", zOS_PCH[fsr0]);
+	bra	crlf		; if (zOS_PCH[fsr0] & 0xff00) {
+	zOS_IHF	zOS_PCL,FSR0,FSR1
+
+	movlw	' '		;  // print the low byte of program counter
+	movwi	FSR1++		;  p1 += sprintf(p1, "%02X", zOS_PCL[fsr0]); 
+	moviw	zOS_ISH[FSR0]	;
+	btfss	STATUS,Z	;  // drop out after PCL if no interrupt routine
+	bra	crlf		;  if (zOS_ISH[fsr0] & 0xff00) {
+	movlw	'I'		;
+	movwi	FSR1++		;
+	movlw	'S'		;
+	movwi	FSR1++		;
+	movlw	'R'		;
+	movwi	FSR1++		;
+	movlw	'@'		;
+	movwi	FSR1++		;
+	zOS_IHF	zOS_ISH,FSR0,FSR1
+	zOS_IHF	zOS_ISR,FSR0,FSR1   // print ISR@ then 4-hex-digit routine addr
+	movlw	'('		;   p1 += sprintf(p1, " ISR@%04X",
+	movwi	FSR1++		;         (zOS_ISH[fsr0] << 8) + zOS_ISR[fsr0]);
+	movlw	'h'		;
+	movwi	FSR1++		;
+	movlw	'w'		;
+	movwi	FSR1++		;
+	zOS_IHF	zOS_HIM,FSR0,FSR1
+	movlw	's'		;
+	movwi	FSR1++		;
+	movlw	'w'		;
+	movwi	FSR1++		;   // print (hw HwIMask sw SwIMask) scrunched up
+	zOS_IHF	zOS_SIM,FSR0,FSR1
+	movlw	')'		;   p1 += sprintf(p1, "(hw%02Xsw%02X)",
+	movwi	FSR1++		;                 zOS_HIM[fsr0], zOS_SIM[fsr0]);
+crlf
+	movlw	'\r'		;  }
+	movwi	FSR1++		; }
+	movlw	'\n'		; // print a second \r\n, double-spacing table  
+	movwi	FSR1++		; p1 += sprintf(p1, "\r\n");
+	
+	movf	FSR1L,w		;
+	subwf	wrap,w		;
+	movwf	p1		; w = accumul--; // return with w as nonzero job
+	movf	accumul,w	; if (accumul == 0)
+	decf	accumul,f	;  char_io = 0;// final row in table was printed
+	btfsc	STATUS,Z	; zOS_ENA(); // interrupts back ON!
+	clrf	char_io		; return w;
 	zOS_ENA
 	return			;}
-
 endman
 	endm
 
@@ -1545,4 +1617,19 @@ endman
 
 
 #endif	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
