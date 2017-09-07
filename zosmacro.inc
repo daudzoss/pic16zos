@@ -66,6 +66,7 @@ zOS_ADR	macro	adr,msb
 	endif
 	endm
 
+#if 0
 zOS_INT	macro	lhw,lsw
 	if (lhw|lsw)
 	movf	FSR0L,w		;inline void zOS_INT(const lhw, const lsw) {
@@ -86,6 +87,7 @@ zOS_INT	macro	lhw,lsw
 	zOS_ARG	3
 	endif
 	endm
+#endif
 
 zOS_SWI	macro	type		;inline void zOS_SWI(const int8_t type) {
 	movlw	type		;
@@ -1468,41 +1470,102 @@ manchr1
 manchr2
 	movf	char_io,w	;
 	xorlw	'K'		;
-	btfss	STATUS,Z	;
+	btfss	STATUS,Z	; caseK:
 	bra	manchr3		; case 'K': // Kill a single job (# mandatory)
 	clrf	char_io		;  char_io = 0;
 
+	movf	accumul,w	;  if (accumul == 0)
+	btfsc	STATUS,Z	;   return 0;
+	return			;  zOS_ARG(0, accumul);
+	zOS_ARG	0
+	zOS_ACC	accumul,numbase
+	movlw	'J'		;  zOS_ACC(&accumul, &numbase);
+	movwf	char_io		;  zOS_SWI(zOS_END); // listed indicates failure
+	zOS_SWI	zOS_END
+;;; FIXME: put J at bottom so K onward don't pay a performance penalty awaiting
+	
 manchr3
 	movf	char_io,w	;
 	xorlw	'L'		;
-	btfss	STATUS,Z	;
-	bra	manchr4		; case 'L': // Launch another instance of a job
+	btfss	STATUS,Z	; caseL:
+	bra	manchr4		; case 'L': // Launch a fresh instance of a job
 	clrf	char_io		;  char_io = 0;
+
+	movf	accumul,w	;  if (accumul == 0)
+	btfsc	STATUS,Z	;   return 0;
+	return			;  zOS_ARG(0, accumul);
+	zOS_ARG	0
+	zOS_ACC	accumul,numbase
+	movlw	'J'		;  zOS_ACC(&accumul, &numbase); // reset
+	movwf	char_io		;  if ((w = zOS_SWI(zOS_FRK)) != 0) {
+	zOS_SWI	zOS_FRK
+	andlw	0x00		;   zOS_ARG(0,w); zOS_SWI(zOS_RST);
+	btfsc	STATUS,Z	;   goto caseJ; // success, prints in job list
+	clrf	char_io		;  } else
+	zOS_ARG	0
+	zOS_SWI	zOS_RST		;   break; // failure, drop to end of switch()
 
 manchr4
 	movf	char_io,w	;
 	xorlw	'N'		;
-	btfss	STATUS,Z	;
+	btfss	STATUS,Z	; caseN:
 	bra	manchr5		; case 'N': // New (parameterless) job at addr
-	clrf	char_io		;  char_io = 0;
+
+	movf	accumul,w	;
+	movwf	FSR0L		;
+	movf	accumuh,w	;
+	movwf	FSR0L		;
+	clrw			;
+	zOS_ARG	0
+	zOS_ARG	1
+	zOS_ARG	2
+	zOS_ADR	0
+	zOS_SWI	zOS_NEW
+	zOS_ARG	0
+	zOS_BUF	zOS_JOB,p0
+	movlw	'J'		;
+	movwf	char_io		;
 
 manchr5
 	movf	char_io,w	;
 	xorlw	'P'		;
-	btfss	STATUS,Z	;
+	btfss	STATUS,Z	; caseP:
 	bra	manchr6		; case 'P': // Pause job by putting it to Sleep
 	clrf	char_io		;  char_io = 0;
 
+	movf	accumul,w	;  if (accumul == 0)
+	btfsc	STATUS,Z	;   return 0;
+	return			;  zOS_ARG(0, accumul);
+	zOS_ARG	0
+	zOS_ACC	accumul,numbase
+	movlw	'J'		;  zOS_ACC(&accumul, &numbase);
+	movwf	char_io		;  if ((w = zOS_SWI(zOS_SLP)) != 0) {
+	zOS_SWI	zOS_SLP
+	andlw	0xff		;   accumul = w;
+	movwf	accumul		;   goto caseJ;
+	btfsc	STATUS,Z	;  } else
+	clrf	char_io		;   break;
+	
 manchr7
 	movf	char_io,w	;
 	xorlw	'R'		;
-	btfss	STATUS,Z	;
+	btfss	STATUS,Z	; caseR:
 	bra	manchr8		; case 'R': // Resume a pause/asleep job 
 	clrf	char_io		;  char_io = 0;
-;	zOS_RFI			;  zOS_RFI(); // will be handled in task
-	                                       // or Reset if it's not paused!
+
+	movf	accumul,w	;  if (accumul == 0)
+	btfsc	STATUS,Z	;   return 0;
+	return			;  fsr1 = 0x10 * (1 + accumul) + zOS_PCH;
+	movlw	'J'		;
+	movwf	char_io		;  if (*fsr1 &= ~(1<<zOS_WAI)) {
+	zOS_MEM	FSR1,accumul,zOS_PCH
+	movlw	0x7f		;   goto caseJ;
+	andwf	INDF1,f		;  } else {
+	btfsc	STATUS,Z	;   zOS_ACC(&accumul, &numbase); //FIXME, no ACC
+	clrf	char_io		;   break;
+	
 manchr8
-	movf	char_io,w	;
+	movf	char_io,w	;  }
 	xorlw	'S'		;
 	btfss	STATUS,Z	;
 	bra	manchr9		; case 'S': // Stack dump
@@ -1516,8 +1579,7 @@ manchr9
 	clrf	char_io		;  char_io = 0;
 	
 mannone
-	clrf	char_io		; }return char_io=0; //naught to do
-	return			;}
+	retlw	0		; } return 0; //naught to do }
 
 	;guaranteed to arrive with p0=p1, interrupts off and in the correct bank:
 jobinfo
