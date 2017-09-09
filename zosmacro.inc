@@ -563,19 +563,43 @@ zOS_CON	macro	p,rat,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t rat,int8_t
 	bra	decl		;                    rts,int8_t* hb,int8_t pin){
 	
 	;; initialize constants and variables
-	local	t0div,t0rst,p0,p1,wrap,buf,max
-t0div	set	0
-t0rst	set	1
+	local	t0div,t0rst
+t0div	set 0
+t0rst	set 1
+	
+	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,accumul
+	local	accumuh,numbase,destreg,destreh,char_io,buf,max
+
+	;; 0x20~24 reserved for zOS_CON
 p0	set	0x20
 p1	set	0x21
 wrap	set	0x22
 t0scale	set	0x23
+	
+	;; 0x24~28 reserved for zOS_INP
+isradrl	set	0x24
+isradrh	set	0x25
+tskadrl	set	0x26
+tskadrh	set	0x27
+
+	;; 0x28~2F reserved for zOS_MON and derivations e.g. zOS_MAN
+optadrl	set	0x28
+optadrh	set	0x29
+accumul	set	0x2a
+accumuh	set	0x2b
+numbase	set	0x2c	
+destreg	set	0x2d
+destreh	set	0x2e
+char_io	set	0x2f
 buf	set	0x30
-	include	zoscon_h.inc
 max	set	0x70		;FIXME: "max" has no purpose (just advisory that
 				; local variable space is capped at the bottom
-				; of the globals) so it can be nixed
-	
+				; of the globals), so it can be nixed
+
+;copy the preceding lines rather than including this file, as definitions for
+;zOS_MON()-derived macros referring to these local variables wouldn't open it
+;until expansion and would throw an undefined-var error during the processing
+
 	local	uatbase,uatxmit
 	if (p == 0)
 uatbase	 set	TXREG & 0xff80
@@ -804,6 +828,38 @@ zOS_INP	macro	p,ra,rt,h,pi,isr;inline void zOS_INP(int8_t p, int8_t ra, int8_t
 	bra	rxdecl		;      rt, int8_t* h, int8_t pi, void(*isr)()) {
 	
 	;; reserve constants and variables
+	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,accumul
+	local	accumuh,numbase,destreg,destreh,char_io,buf,max
+	;; 0x20~24 reserved for zOS_CON
+p0	set	0x20
+p1	set	0x21
+wrap	set	0x22
+t0scale	set	0x23
+	
+	;; 0x24~28 reserved for zOS_INP
+isradrl	set	0x24
+isradrh	set	0x25
+tskadrl	set	0x26
+tskadrh	set	0x27
+
+	;; 0x28~2F reserved for zOS_MON and derivations e.g. zOS_MAN
+optadrl	set	0x28
+optadrh	set	0x29
+accumul	set	0x2a
+accumuh	set	0x2b
+numbase	set	0x2c	
+destreg	set	0x2d
+destreh	set	0x2e
+char_io	set	0x2f
+buf	set	0x30
+max	set	0x70		;FIXME: "max" has no purpose (just advisory that
+				; local variable space is capped at the bottom
+				; of the globals), so it can be nixed
+
+;copy the preceding lines rather than including this file, as definitions for
+;zOS_MON()-derived macros referring to these local variables wouldn't open it
+;until expansion and would throw an undefined-var error during the processing
+
 	local	uarbase,uarecv,rxflag
 	if (p == 0)
 uarbase	 set	RCREG & 0xff80
@@ -815,10 +871,6 @@ uarecv	 set	RC#v(p)REG & 0x7f
 rxflag	 set	RC#v(p)IF
 	endif
 	
-	local	isradrl,isradrh,tskadrl,tskadrh
-isradrl	set	0x25
-isradrh	set	0x26
-	include	zoscon_h.inc
 ;;; FIXME: haven't actually written the var init code for zOS_MON et al yet
 rxtask
 	movf	zOS_JOB,w	; goto rxdecl;
@@ -930,27 +982,38 @@ zOS_MON	macro	p,ra,rt,h,pi,isr;inline void zOS_MON(int8_t p, int8_t ra, int8_t
 	pagesel	endmon		;      rt, int8_t* h, int8_t pi, void(*isr)()) {
 	goto	endmon		; zOS_INP(p,ra,rt,h,pi,monisr); }// isr may be 0
 
-	include	zoscon_h.inc
-;;; FIXME: move the following into zosmon.inc and delete the stuff above
-;FIXME:	local	moncrlf,monlf,monbuf,monback,monloop,monhex,monlsb
-;;; FIXME: these prefices will be non-zOS_-preficed once included
+	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,accumul
+	local	accumuh,numbase,destreg,destreh,char_io,buf,max
+	;; 0x20~24 reserved for zOS_CON
+p0	set	0x20
+p1	set	0x21
+wrap	set	0x22
+t0scale	set	0x23
+	
+	;; 0x24~28 reserved for zOS_INP
+isradrl	set	0x24
+isradrh	set	0x25
+tskadrl	set	0x26
+tskadrh	set	0x27
 
-moncrlf
-	movlw	'\r'		;void moncrlf(uint3_t job, uint8_t ptr, char w){
-	movwf	zOS_AR0		; zOS_AR0 = '\r';
-	zOS_BUF	zOS_JOB,p0	; if (zOS_BUF(zos_job, ptr) < 1)
-	andlw	0x1		;  return 0;
-	btfss	STATUS,Z	;
-	return			; zOS_AR0 = '\n';
-	
-monlf
-	movlw	'\n'		; return zOS_BUF(zos_job, ptr, w);
-	movwf	zOS_AR0		;} // moncrlf() monlf()
-	
-monbuf
-	zOS_BUF	zOS_JOB,p0	;void monbuf(uint3_t job, uint8_t ptr, char w) {
-	return			; return zOS_BUF(job,ptr,w); } // 0/1/2 printed
-	
+	;; 0x28~2F reserved for zOS_MON and derivations e.g. zOS_MAN
+optadrl	set	0x28
+optadrh	set	0x29
+accumul	set	0x2a
+accumuh	set	0x2b
+numbase	set	0x2c	
+destreg	set	0x2d
+destreh	set	0x2e
+char_io	set	0x2f
+buf	set	0x30
+max	set	0x70		;FIXME: "max" has no purpose (just advisory that
+				; local variable space is capped at the bottom
+				; of the globals), so it can be nixed
+
+;copy the preceding lines rather than including this file, as definitions for
+;zOS_MON()-derived macros referring to these local variables wouldn't open it
+;until expansion and would throw an undefined-var error during the processing
+
 monback
 	andlw	0x3f		;void monback(uint3_t job, uint8_t ptr, char w){
 	btfsc	STATUS,Z	; if (w &= 0x3f) {
@@ -987,7 +1050,23 @@ monlsb
 	clrf	zOS_AR0		;void monlsb(uint3_t job, uint8_t ptr, char w) {
 	movwf	zOS_AR1		; zOS_AR0 = 0; zOS_AR1 = w; monbuf(job, ptr);
 	bra	monbuf		;} // monlsb()
-;;; FIXME: end copy
+	
+moncrlf
+	movlw	'\r'		;void moncrlf(uint3_t job, uint8_t ptr, char w){
+	movwf	zOS_AR0		; zOS_AR0 = '\r';
+	zOS_BUF	zOS_JOB,p0	; if (zOS_BUF(zos_job, ptr) < 1)
+	andlw	0x1		;  return 0;
+	btfss	STATUS,Z	;
+	return			; zOS_AR0 = '\n';
+	
+monlf
+	movlw	'\n'		; return zOS_BUF(zos_job, ptr, w);
+	movwf	zOS_AR0		;} // moncrlf() monlf()
+	
+monbuf
+	zOS_BUF	zOS_JOB,p0	;void monbuf(uint3_t job, uint8_t ptr, char w) {
+	return			; return zOS_BUF(job,ptr,w); } // 0/1/2 printed
+	
 monisr
 	pagesel	monbuf		;void monisr(void) {
 	movlw	0xe0		; // from zOS_INP isr with char zOS_AR0>0
@@ -1015,7 +1094,7 @@ monisr
 	pagesel	monlsb
 	call	monlsb		;   accumuh = char_io; // accumuh now restored
 	movf	char_io,w	;   char_io = 0; // completely handled in ISR
-	movwf	accmuh		;   zOS_RFI();
+	movwf	accumuh		;   zOS_RFI();
 	clrf	char_io		;  }
 	zOS_RFI
 
@@ -1122,7 +1201,8 @@ monram
 	movf	char_io,w	;
 	xorlw	'.'		;   // then exits in the '.' case to just print
 	btfss	STATUS,Z	;   if (char_io == '.')
-	bra	moncrlp		;    goto moncrlp;
+	pagesel	moncrlf
+	goto	moncrlf		;    goto moncrlf;
 
 	movf	char_io,w	;   // or follow by 3 backspaces in the ' ' case
 	xorlw	'='		;   // to show that \r will result in a 0 write
@@ -1271,7 +1351,38 @@ zOS_CLC	macro	p,ra,rt,h,pi,isr;inline void zOS_MON(int8_t p, int8_t ra, int8_t
 	pagesel	endclc
 	goto	endclc		;      rt, int8_t* h, int8_t pi, void(*isr)()) {
 	
-	include	zoscon_h.inc
+	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,accumul
+	local	accumuh,numbase,destreg,destreh,char_io,buf,max
+	;; 0x20~24 reserved for zOS_CON
+p0	set	0x20
+p1	set	0x21
+wrap	set	0x22
+t0scale	set	0x23
+	
+	;; 0x24~28 reserved for zOS_INP
+isradrl	set	0x24
+isradrh	set	0x25
+tskadrl	set	0x26
+tskadrh	set	0x27
+
+	;; 0x28~2F reserved for zOS_MON and derivations e.g. zOS_MAN
+optadrl	set	0x28
+optadrh	set	0x29
+accumul	set	0x2a
+accumuh	set	0x2b
+numbase	set	0x2c	
+destreg	set	0x2d
+destreh	set	0x2e
+char_io	set	0x2f
+buf	set	0x30
+max	set	0x70		;FIXME: "max" has no purpose (just advisory that
+				; local variable space is capped at the bottom
+				; of the globals), so it can be nixed
+
+;copy the preceding lines rather than including this file, as definitions for
+;zOS_MON()-derived macros referring to these local variables wouldn't open it
+;until expansion and would throw an undefined-var error during the processing
+
 clcisr
 	movf	zOS_AR0,w	; switch (char_io = zOS_AR0) {
 	movwf	char_io		;
@@ -1364,7 +1475,39 @@ zOS_MAN	macro	p,rat,rts,hb,pin;inline void zOS_MON(int8_t p, int8_t rat,
 	movwf	optadrh		; optadrh = mantask >> 8;
 	pagesel	endman
 	goto	endman		;}
-	include	zoscon_h.inc
+	
+	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,accumul
+	local	accumuh,numbase,destreg,destreh,char_io,buf,max
+	;; 0x20~24 reserved for zOS_CON
+p0	set	0x20
+p1	set	0x21
+wrap	set	0x22
+t0scale	set	0x23
+	
+	;; 0x24~28 reserved for zOS_INP
+isradrl	set	0x24
+isradrh	set	0x25
+tskadrl	set	0x26
+tskadrh	set	0x27
+
+	;; 0x28~2F reserved for zOS_MON and derivations e.g. zOS_MAN
+optadrl	set	0x28
+optadrh	set	0x29
+accumul	set	0x2a
+accumuh	set	0x2b
+numbase	set	0x2c	
+destreg	set	0x2d
+destreh	set	0x2e
+char_io	set	0x2f
+buf	set	0x30
+max	set	0x70		;FIXME: "max" has no purpose (just advisory that
+				; local variable space is capped at the bottom
+				; of the globals), so it can be nixed
+
+;copy the preceding lines rather than including this file, as definitions for
+;zOS_MON()-derived macros referring to these local variables wouldn't open it
+;until expansion and would throw an undefined-var error during the processing
+
 	
 mantask
 	movf	zOS_JOB,w	;int8_t mantask(void) {//destreg,accumul,char_io
@@ -1516,7 +1659,6 @@ manchr4
 	zOS_ARG	0
 	zOS_ARG	1
 	zOS_ARG	2
-	zOS_ADR	0
 	zOS_SWI	zOS_NEW
 	zOS_ARG	0
 	zOS_BUF	zOS_JOB,p0
