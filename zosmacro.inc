@@ -1665,13 +1665,6 @@ manchr4
 	movlw	'J'		;
 	movwf	char_io		;
 
-manchr5
-	movf	char_io,w	;
-	xorlw	'P'		;
-	btfss	STATUS,Z	; caseP:
-	bra	manchr6		; case 'P': // Pause job by putting it to Sleep
-	clrf	char_io		;  char_io = 0;
-
 	movf	accumul,w	;  if (accumul == 0)
 	btfsc	STATUS,Z	;   return 0;
 	return			;  zOS_ARG(0, accumul);
@@ -1685,6 +1678,20 @@ manchr5
 	btfsc	STATUS,Z	;  } else
 	clrf	char_io		;   break;
 	
+manchr5
+	movf	char_io,w	;
+	xorlw	'P'		;
+	btfss	STATUS,Z	; caseP:
+	bra	manchr6		; case 'P': // Pause job by putting it to Sleep
+	clrf	char_io		;  char_io = 0;
+
+manchr6
+	movf	char_io,w	;
+	xorlw	'Q'		;
+	btfss	STATUS,Z	; caseQ:
+	bra	manchr7		; case 'Q': // Quit without wake (off)
+	clrf	char_io		;  char_io = 0;
+
 manchr7
 	movf	char_io,w	;
 	xorlw	'R'		;
