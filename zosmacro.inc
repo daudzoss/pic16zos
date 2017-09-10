@@ -298,7 +298,7 @@ dst set 0
 	movwi	FSR#v(dst)++	; file[0] = zOS_HEX(ofs[fsrnum] >> 4);
 	moviw	ofs[FSR#v(src)]	; file[1] = zOS_HEX(ofs[fsrnum]);
 	zOS_HEX
-	movwf	FSR#v(dst)++	;}
+	movwi	FSR#v(dst)++	;}
 	endm
 
 
@@ -1200,8 +1200,8 @@ monram
 
 	movf	char_io,w	;
 	xorlw	'.'		;   // then exits in the '.' case to just print
-	btfss	STATUS,Z	;   if (char_io == '.')
 	pagesel	moncrlf
+	btfss	STATUS,Z	;   if (char_io == '.')
 	goto	moncrlf		;    goto moncrlf;
 
 	movf	char_io,w	;   // or follow by 3 backspaces in the ' ' case
@@ -1466,7 +1466,7 @@ endclc
 zOS_MAN	macro	p,rat,rts,hb,pin;inline void zOS_MON(int8_t p, int8_t rat,
 	local	mantask,manisr,manchr,manchr0,reenable,manchr1,manchr2,manchr3
 	local	manchr4,manchr5,manchr6,manchr7,manchr8,manchr9,mannone,jobinfo
-	local	endman
+	local	crlf,endman
 
 	zOS_MON	p,rat,rts,hb,pin,0
 	movlw	low mantask	;                      int8_t* hb, int8_t pin) {
@@ -1659,6 +1659,7 @@ manchr4
 	zOS_ARG	0
 	zOS_ARG	1
 	zOS_ARG	2
+	zOS_ARG	3
 	zOS_SWI	zOS_NEW
 	zOS_ARG	0
 	zOS_BUF	zOS_JOB,p0
@@ -1677,7 +1678,7 @@ manchr4
 	movwf	accumul		;   goto caseJ;
 	btfsc	STATUS,Z	;  } else
 	clrf	char_io		;   break;
-	
+
 manchr5
 	movf	char_io,w	;
 	xorlw	'P'		;
@@ -1685,6 +1686,19 @@ manchr5
 	bra	manchr6		; case 'P': // Pause job by putting it to Sleep
 	clrf	char_io		;  char_io = 0;
 
+	movf	accumul,w	;  if (accumul == 0)
+	btfsc	STATUS,Z	;   return 0;
+	return			;  fsr1 = 0x10 * (1 + accumul) + zOS_PCH;
+	movlw	'J'		;
+	movwf	char_io		;
+	zOS_MEM	FSR1,accumul,zOS_PCH
+	movf	INDF1,w		;  if (*fsr1) {
+	btfsc	STATUS,Z	;
+	clrf	char_io		;
+	iorlw	0x80		;
+	movwf	INDF1		;
+	
+	
 manchr6
 	movf	char_io,w	;
 	xorlw	'Q'		;
@@ -1763,7 +1777,7 @@ jobinfo
 	moviw	zOS_PCH[FSR0]	;
 	andlw	1<<zOS_WAI	;
 	movlw	'='		; // print '=' if the job is sleeping else 'z'
-	mtfsc	STATUS,Z	;
+	btfsc	STATUS,Z	;
 	movlw	'z'		; p1 += sprintf(p1, "%c", (zOS_PCH[fsr0] &
 	movwi	FSR1++		;                    (1<<zOS_WAI)) ? 'z' : ':');
 	
@@ -1772,7 +1786,6 @@ jobinfo
 	btfsc	STATUS,Z	; p1 += sprintf(p1, "%02X", zOS_PCH[fsr0]);
 	bra	crlf		; if (zOS_PCH[fsr0] & 0xff00) {
 	zOS_IHF	zOS_PCL,FSR0,FSR1
-
 	movlw	' '		;  // print the low byte of program counter
 	movwi	FSR1++		;  p1 += sprintf(p1, "%02X", zOS_PCL[fsr0]); 
 	moviw	zOS_ISH[FSR0]	;
@@ -1785,9 +1798,9 @@ jobinfo
 	movlw	'R'		;
 	movwi	FSR1++		;
 	movlw	'@'		;
-	movwi	FSR1++		;
+	movwi	FSR1++		;   // print ISR@ then 4-hex-digit routine addr
 	zOS_IHF	zOS_ISH,FSR0,FSR1
-	zOS_IHF	zOS_ISR,FSR0,FSR1   // print ISR@ then 4-hex-digit routine addr
+	zOS_IHF	zOS_ISR,FSR0,FSR1
 	movlw	'('		;   p1 += sprintf(p1, " ISR@%04X",
 	movwi	FSR1++		;         (zOS_ISH[fsr0] << 8) + zOS_ISR[fsr0]);
 	movlw	'h'		;
