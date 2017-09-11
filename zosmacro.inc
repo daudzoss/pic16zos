@@ -640,7 +640,7 @@ loop
 	movlw	high rts	;  zOS_YLD();
  	movwf	FSR1H		;
 	movlw	low rts		;  // wait for SWI to store char(s) in buf[]
-	movwf	FSR1L		;  // or HWI to indicate the last one got sent
+	movwf	FSR1L		;
 	btfss	INDF1,rtsflag	;  if (*(fsr1 = rts) & (1<<rtsflag) == 0) //full
 	bra	loop		;   continue; // yield (still sending or no char)
 	rrf	zOS_ME 		;
@@ -650,8 +650,8 @@ loop
 	movwf	FSR1L		;
 	xorwf	p1,w		;  fsr1 = (bsr<<7) | p0;
 	btfsc	STATUS,Z	;  if (p0 == p1)
-	bra	loop		;   continue; // FIXME: nothing to do isn't poss
-	moviw	FSR1++		;  // we do have something in the buffer to send
+	bra	loop		;   continue; // nothing to do
+	moviw	FSR1++		;
 	movwi	uatxmit[FSR0]	;  uatxmit[fsr0] = *fsr1++; // send a character
 	movf	FSR1L,w		;
 	movwf	p0		;  p0 = fsr1 & 0x00ff; // wrap around to buf+0
@@ -1692,12 +1692,16 @@ manchr5
 	movlw	'J'		;
 	movwf	char_io		;
 	zOS_MEM	FSR1,accumul,zOS_PCH
-	movf	INDF1,w		;  if (*fsr1) {
-	btfsc	STATUS,Z	;
-	clrf	char_io		;
-	iorlw	0x80		;
-	movwf	INDF1		;
-	
+	movf	INDF1,w		;  if (*fsr1) { // is a valid (PCH not 0x00) job
+	btfsc	STATUS,Z	;   *fsr |= 0x80;
+	clrf	char_io		;   goto caseJ;
+	iorlw	0x80		;  } else {
+	movf	INDF1,f		;
+	btfss	STATUS,Z	;
+	movwf	INDF1		;   zOS_ACC(&accumul, &numbase);
+	btfsc	STATUS,Z	;   break; // only clear accumul if not caseJ
+	bra	manchr6		;  }
+	zOS_ACC	accumul,numbase
 	
 manchr6
 	movf	char_io,w	;
@@ -1705,6 +1709,11 @@ manchr6
 	btfss	STATUS,Z	; caseQ:
 	bra	manchr7		; case 'Q': // Quit without wake (off)
 	clrf	char_io		;  char_io = 0;
+	
+	bcf	WDTCON,SWDTEN	;  WDTCON &= ~(1<<SWDTEN);
+	movf	accumul,f	;
+	btfss	STATUS,Z	;  if (accumul)
+	sleep			;   sleep(); // never wakes up
 
 manchr7
 	movf	char_io,w	;
@@ -1719,17 +1728,21 @@ manchr7
 	movlw	'J'		;
 	movwf	char_io		;  if (*fsr1 &= ~(1<<zOS_WAI)) {
 	zOS_MEM	FSR1,accumul,zOS_PCH
-	movlw	0x7f		;   goto caseJ;
+	movlw	0x7f		;   goto caseJ; // valid job won't be 0 or 0x80
 	andwf	INDF1,f		;  } else {
-	btfsc	STATUS,Z	;   zOS_ACC(&accumul, &numbase); //FIXME, no ACC
-	clrf	char_io		;   break;
+	btfss	STATUS,Z	;   zOS_ACC(&accumul, &numbase);
+	bra	manchr8		;
+	zOS_ACC	accumul,numbase
+	clrf	char_io		;   break; // only clear accumul if not caseJ
 	
 manchr8
 	movf	char_io,w	;  }
 	xorlw	'S'		;
 	btfss	STATUS,Z	;
 	bra	manchr9		; case 'S': // Stack dump
-	clrf	char_io		;  char_io = 0;
+	clrf	char_io		;  char_io = 0; // always succeeds, no arg
+	bcf	INTCON,GIE	;  INTCON &= ~(1<<GIE);
+	movlw	high STK
 	
 manchr9
 	movf	char_io,w	;
@@ -1738,6 +1751,15 @@ manchr9
 	bra	mannone		; case 'Z': // go to low-power Zz mode for time
 	clrf	char_io		;  char_io = 0;
 	
+	bsf	WDTCON,SWDTEN	;
+	bcf	STATUS,C	;  if (w = accumul<<1) { // WDT prescaler
+	rlf	accumul,w	;   w |= 1<<SWDTEN; // enable the wakeup
+	btfsc	STATUS,Z	;   
+	bra	mannone		; 
+	iorlw	1<<SWDTEN	;
+	movwf	WDTCON		;
+	sleep			;  break;  // wakes up according to prescaler
+
 mannone
 	retlw	0		; } return 0; //naught to do }
 
