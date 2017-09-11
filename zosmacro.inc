@@ -1589,8 +1589,8 @@ manchr1
 	xorlw	'J'		;
 	btfss	STATUS,Z	; caseJ:
 	bra	manchr2		; case 'J': // List struct for all running jobs
-
-	movf	accumul,w	; // keep char_io='J' until last job line prints
+;;; begin FIXME: let accumul==0 start at 5?
+	movf	accumul,w	; // keep char_io='S' until last job line prints
 	andlw	0x07		;
 	btfsc	STATUS,Z	;  if ((accumul < 1) ||
 	return			;
@@ -1606,7 +1606,7 @@ manchr1
 	goto	jobinfo		;  zOS_ENA(); // re-enable interrupts if p0!=p1
 	zOS_ENA
 	retlw	0		;  return 0;//try again after caller advances p0
-	
+;;; end FIXME
 manchr2
 	movf	char_io,w	;
 	xorlw	'K'		;
@@ -1739,11 +1739,26 @@ manchr8
 	movf	char_io,w	;  }
 	xorlw	'S'		;
 	btfss	STATUS,Z	;
-	bra	manchr9		; case 'S': // Stack dump
+	bra	manchr9		; case 'S': // Stack dump is actually scratch
 	clrf	char_io		;  char_io = 0; // always succeeds, no arg
-	bcf	INTCON,GIE	;  INTCON &= ~(1<<GIE);
-	movlw	high STK
-	
+;;; begin FIXME: update for Stack and let accumul==0 start at 5?
+	movf	accumul,w	; // keep char_io='J' until last job line prints
+	andlw	0x07		;
+	btfsc	STATUS,Z	;  if ((accumul < 1) ||
+	return			;
+	addlw	7-zOS_NUM	;
+	andlw	0xf8		;
+	btfss	STATUS,Z	;      (accumul > zOS_NUM))
+	retlw	0		;   return 0;
+	pagesel	jobinfo
+	bcf	INTCON,GIE	;  INTCON &= ~(1<<GIE); // to keep p0==p1 atomic
+	movf	p0,w		;
+	xorwf	p1,w		;  if (p0 == p1)
+	btfsc	STATUS,Z	;   return jobinfo(); // will decrement accumul
+	goto	jobinfo		;  zOS_ENA(); // re-enable interrupts if p0!=p1
+	zOS_ENA
+	retlw	0		;  return 0;//try again after caller advances p0
+;;; begin FIXME	
 manchr9
 	movf	char_io,w	;
 	xorlw	'Z'		;
@@ -1763,7 +1778,15 @@ manchr9
 mannone
 	retlw	0		; } return 0; //naught to do }
 
-	;guaranteed to arrive with p0=p1, interrupts off and in the correct bank:
+	;guaranteed to arrive with p0=p1, interrupts off and in the correct bank
+stkinfo
+	movlw	low zOS_STK	;
+	movwf	FSR0L		;
+	movlw	high zOS_STK	;
+	movwf	FSR0H		;
+	
+
+	;guaranteed to arrive with p0=p1, interrupts off and in the correct bank
 jobinfo
 	movf	wrap,f		;int8_t jobinfo(void) {
 	movwf	p0		; p0 = p1 = wrap;
