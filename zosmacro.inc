@@ -1466,7 +1466,7 @@ endclc
 zOS_MAN	macro	p,rat,rts,hb,pin;inline void zOS_MON(int8_t p, int8_t rat,
 	local	mantask,manisr,manchr,manchr0,reenable,manchr1,manchr2,manchr3
 	local	manchr4,manchr5,manchr6,manchr7,manchr8,manchr9,mannone,jobinfo
-	local	crlf,endman
+	local	crlf,stkinfo,stkloop,endman
 
 	zOS_MON	p,rat,rts,hb,pin,0
 	movlw	low mantask	;                      int8_t* hb, int8_t pin) {
@@ -1589,24 +1589,22 @@ manchr1
 	xorlw	'J'		;
 	btfss	STATUS,Z	; caseJ:
 	bra	manchr2		; case 'J': // List struct for all running jobs
-;;; begin FIXME: let accumul==0 start at 5?
-	movf	accumul,w	; // keep char_io='S' until last job line prints
+
+	decf	accumul,w	; // keep char_io='S' until last job line prints
 	andlw	0x07		;
-	btfsc	STATUS,Z	;  if ((accumul < 1) ||
-	return			;
-	addlw	7-zOS_NUM	;
-	andlw	0xf8		;
-	btfss	STATUS,Z	;      (accumul > zOS_NUM))
-	retlw	0		;   return 0;
-	pagesel	jobinfo
+	btfsc	WREG,2		;  if ((accumul < 1) || (accumul > 5))
+	movlw	zOS_NUM-1	;
+	addlw	0x01		;
+	movwf	accumul		;   accumul = zOS_NUM;
 	bcf	INTCON,GIE	;  INTCON &= ~(1<<GIE); // to keep p0==p1 atomic
+	pagesel	jobinfo
 	movf	p0,w		;
 	xorwf	p1,w		;  if (p0 == p1)
 	btfsc	STATUS,Z	;   return jobinfo(); // will decrement accumul
 	goto	jobinfo		;  zOS_ENA(); // re-enable interrupts if p0!=p1
 	zOS_ENA
 	retlw	0		;  return 0;//try again after caller advances p0
-;;; end FIXME
+
 manchr2
 	movf	char_io,w	;
 	xorlw	'K'		;
@@ -1741,24 +1739,22 @@ manchr8
 	btfss	STATUS,Z	;
 	bra	manchr9		; case 'S': // Stack dump is actually scratch
 	clrf	char_io		;  char_io = 0; // always succeeds, no arg
-;;; begin FIXME: update for Stack and let accumul==0 start at 5?
-	movf	accumul,w	; // keep char_io='J' until last job line prints
+
+	decf	accumul,w	; // keep char_io='J' until last job line prints
 	andlw	0x07		;
-	btfsc	STATUS,Z	;  if ((accumul < 1) ||
-	return			;
-	addlw	7-zOS_NUM	;
-	andlw	0xf8		;
-	btfss	STATUS,Z	;      (accumul > zOS_NUM))
-	retlw	0		;   return 0;
-	pagesel	jobinfo
+	btfsc	WREG,2		;  if ((accumul < 1) || (accumul > 5))
+	movlw	zOS_NUM-1	;
+	addlw	0x01		;
+	movwf	accumul		;   accumul = zOS_NUM;
 	bcf	INTCON,GIE	;  INTCON &= ~(1<<GIE); // to keep p0==p1 atomic
+	pagesel	stkinfo
 	movf	p0,w		;
 	xorwf	p1,w		;  if (p0 == p1)
 	btfsc	STATUS,Z	;   return jobinfo(); // will decrement accumul
-	goto	jobinfo		;  zOS_ENA(); // re-enable interrupts if p0!=p1
+	goto	stkinfo		;  zOS_ENA(); // re-enable interrupts if p0!=p1
 	zOS_ENA
 	retlw	0		;  return 0;//try again after caller advances p0
-;;; begin FIXME	
+
 manchr9
 	movf	char_io,w	;
 	xorlw	'Z'		;
@@ -1780,28 +1776,65 @@ mannone
 
 	;guaranteed to arrive with p0=p1, interrupts off and in the correct bank
 stkinfo
+	movf	wrap,f		;int8_t stkinfo(void) {
+	movwf	p0		; p0 = p1 = wrap;
+	movwf	p1		;
 	movlw	low zOS_STK	;
 	movwf	FSR0L		;
 	movlw	high zOS_STK	;
 	movwf	FSR0H		;
+	decf	accumul,w	;
+	brw			;
+	addfsr	FSR0,6		;
+	addfsr	FSR0,6		;
+	addfsr	FSR0,6		;
+	addfsr	FSR0,6		; fsr0 = zOS_STK + 6 * (5 - accumul);
+	zOS_LOC	FSR1,zOS_JOB,buf
+	movlw	'\r'		; fsr1 = (zOS_JOB << 7) + buf;
+	movwi	FSR1++		;
+	movlw	'\n'		;
+	movwi	FSR1++		;
+	movlw	'-'		;
+	movwi	FSR1++		;
+	movf	accumul,w	;
+	addlw	-12		; // print this stack offset as -0/-1/-2/-3/-4
+	zOS_HEX
+	movwi	FSR1++		; p1 += sprintf(p1, "\r\n-%1X", accumul & 7);
+	movlw	3		;
+	movwf	accumuh		; for (accumuh = 3; accumuh; accumuh--) {
+stkloop
+	movlw	' '		;
+	movwi	FSR1++		;  p1 += sprintf(p1, " %04X", *((int*) fsr0));
+	moviw	--FSR0		;
+	movwi	FSR1++		;
+	moviw	--FSR0		;
+	movwi	FSR1++		;
+	decfsz	accumuh,f	;
+	bra	stkloop		; }
 	
-
+	movf	FSR1L,w		;
+	movwf	p1		; w = accumul--; // return with w as nonzero job
+	movf	accumul,w	; if (accumul == 0)
+	decf	accumul,f	;  char_io = 0;// final row in table was printed
+	btfsc	STATUS,Z	; zOS_ENA(); // interrupts back ON!
+	clrf	char_io		; return w;
+	zOS_ENA
+	return			;}
+	
 	;guaranteed to arrive with p0=p1, interrupts off and in the correct bank
 jobinfo
 	movf	wrap,f		;int8_t jobinfo(void) {
 	movwf	p0		; p0 = p1 = wrap;
-	movwf	p1		; fsr0 = 0x10 * (1 + accumul);
+	movwf	p1		; fsr0 = 0x10 * (1 + accumul); //FIXME: 2+
 	zOS_MEM	FSR0,accumul,0
-	zOS_LOC	FSR1,zOS_JOB,p1
-	movlw	'\r'		;
+	zOS_LOC	FSR1,zOS_JOB,buf
+	movlw	'\r'		; fsr1 = (zOS_JOB << 7) + buf;
 	movwi	FSR1++		;
 	movlw	'\n'		;
-	movf	accumul,w	;
-	zOS_HEX
 	movwi	FSR1++		;
-	swapf	accumul,w	; // print this job number 05/04/03/02/01
+	movf	accumul,w	; // print this job number 5/4/3/2/1
 	zOS_HEX
-	movwi	FSR1++		; p1 += sprintf(p1, "\r\n%02X", accumul);
+	movwi	FSR1++		; p1 += sprintf(p1, "\r\n%1X", accumul);
 	
 	moviw	zOS_HDH[FSR0]	;
 	andlw	1<<zOS_PRB	;
@@ -1867,7 +1900,6 @@ crlf
 	movwi	FSR1++		; p1 += sprintf(p1, "\r\n");
 	
 	movf	FSR1L,w		;
-	subwf	wrap,w		;
 	movwf	p1		; w = accumul--; // return with w as nonzero job
 	movf	accumul,w	; if (accumul == 0)
 	decf	accumul,f	;  char_io = 0;// final row in table was printed
