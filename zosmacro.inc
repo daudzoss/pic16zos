@@ -501,9 +501,9 @@ done
 	endm			;} // zOS_STR()
 
 	
-zOS_BUF	macro	job,ptr
+zOS_BUF	macro	job,buf,ptr	;inline int zOS_BUF(uint3_t job, uint8_t ptr) {
 	local	ascii,err,done
-	zOS_LOC	FSR1,job,ptr	;inline int zOS_BUF(uint3_t job, uint8_t ptr) {
+	zOS_LOC	FSR1,job,ptr
 	movwf	FSR0H		; // ASCII parameter in zOS_AR0, zOS_AR1 for hex
 	movlw	0x80		; fsr0 = zOS_LOC(fsr1,job,ptr)<<8;//(job<<7)|ptr
 	andwf	FSR1L,w		; // fsr1 now points at ptr variables p0,p1,wrap
@@ -714,7 +714,7 @@ nottmr
 	
 	;; point fsr0 to uatbase again, point fsr1 to p0
 do_swi
-	zOS_BUF	zOS_JOB,p0	;  } else done:
+	zOS_BUF	zOS_JOB,buf,p0	;  } else done:
 	zOS_RFS	WREG		;   zOS_RFI(); // HWI finished
 done
 	zOS_RFI			; }
@@ -897,7 +897,7 @@ rxisr
 	movwf	FSR0L		;
 	movlw	high uarbase	;
 	movwf	FSR0H		; fsr0 = uarbase;
-	zOS_LOC	FSR1,zOS_JOB,p0	;
+	zOS_LOC	FSR1,zOS_JOB,buf,p0	;
 #endif
 	
 	movf	isradrh,w	;
@@ -912,7 +912,7 @@ rxisr
 	bra	noovrrn		;  if ((uarbase | RCSTA) & (1<<OERR)) {
 	movlw	'!'		;   zOS_AR0 = '!';
 	movwf	zOS_AR0		;   zOS_BUF(zOS_JOB, p0);
-	zOS_BUF	zOS_JOB,p0	;  }
+	zOS_BUF	zOS_JOB,buf,p0	;  }
 noovrrn
 #endif
 	movf	RCREG,w		;  // this read removes it from the FIFO
@@ -1023,7 +1023,7 @@ monback
 	movwf	zOS_AR0		;  zOS_AR0 = '\b';
 
 monloop
-	zOS_BUF	zOS_JOB,p0
+	zOS_BUF	zOS_JOB,buf,p0
 	andlw	0x1		;  for (zOS_AR1 = w; zOS_AR1; zOS_AR1--) {
 	btfss	STATUS,Z	;   if (zOS_BUF(job, ptr) == 0) // buff full
 	return			;    return;
@@ -1034,13 +1034,13 @@ monloop
 monhex
 	movlw	'0'		;void monhex(uint3_t job, uint8_t ptr) {
 	movwf	zOS_AR0		; extern uint8_t accumuh;
-	zOS_BUF	zOS_JOB,p0
+	zOS_BUF	zOS_JOB,buf,p0
 	andlw	0x1		; zOS_AR0 = '0';
 	btfss	STATUS,Z	; if (zOS_BUF(job, ptr) == 0) // buf full
 	return			;  return;
 	movlw	'x'		; 
 	movwf	zOS_AR0		; zOS_AR0 = 'x';
-	zOS_BUF	zOS_JOB,p0
+	zOS_BUF	zOS_JOB,buf,p0
 	andlw	0x1		; if (zOS_BUF(job, ptr) == 0) // buf full
 	btfss	STATUS,Z	;  return;
 	return			; monlsb(job, ptr, w = accumuh); // not accumul
@@ -1054,7 +1054,7 @@ monlsb
 moncrlf
 	movlw	'\r'		;void moncrlf(uint3_t job, uint8_t ptr, char w){
 	movwf	zOS_AR0		; zOS_AR0 = '\r';
-	zOS_BUF	zOS_JOB,p0	; if (zOS_BUF(zos_job, ptr) < 1)
+	zOS_BUF	zOS_JOB,buf,p0	; if (zOS_BUF(zos_job, ptr) < 1)
 	andlw	0x1		;  return 0;
 	btfss	STATUS,Z	;
 	return			; zOS_AR0 = '\n';
@@ -1064,7 +1064,7 @@ monlf
 	movwf	zOS_AR0		;} // moncrlf() monlf()
 	
 monbuf
-	zOS_BUF	zOS_JOB,p0	;void monbuf(uint3_t job, uint8_t ptr, char w) {
+	zOS_BUF	zOS_JOB,buf,p0	;void monbuf(uint3_t job, uint8_t ptr, char w) {
 	return			; return zOS_BUF(job,ptr,w); } // 0/1/2 printed
 	
 monisr
@@ -1578,7 +1578,7 @@ manchr0
 	clrf	zOS_AR1		;   zOS_BUF(zos_job, p0); // print hex SWI result
 	xorwf	zOS_AR1,f	;   zOS_ENA();
 	xorwf	zOS_AR0,f	;   goto caseJ;
-	zOS_BUF	zOS_JOB,p0
+	zOS_BUF	zOS_JOB,buf,p0
 	movlw	'J'		;  } else
 	movwf	char_io		;   zOS_ENA(); break;
 reenabl
@@ -1660,7 +1660,7 @@ manchr4
 	zOS_ARG	3
 	zOS_SWI	zOS_NEW
 	zOS_ARG	0
-	zOS_BUF	zOS_JOB,p0
+	zOS_BUF	zOS_JOB,buf,p0
 	movlw	'J'		;
 	movwf	char_io		;
 
