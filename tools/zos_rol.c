@@ -3,7 +3,7 @@
 
 // Daud Zoss
 // 26 Sep 2017
-// usage: yes | ./zos_rol | ./zos_rol 5 [new] | ./zos-rol [new] [new2] [zOS_STK]
+// usage: yes | ./zos_rol | ./zos_rol 5 [new] | .zos_rol [new] [new2] | ...
 
 int stk_init(int* stk) {
   int retval = 0;
@@ -183,7 +183,7 @@ void stk_roll(int* stk, int oldjob, int newjob, int base) {
 void main(int argc, char** argv) { // won't show corruption of STKPTR, only vals
   int stack[16], oldjob, newjob, base;
 
-  oldjob = (argc > 1) ? atoi(argv[1]) : 0;
+  oldjob = (argc > 1) ? atoi(argv[1]) : 5; // call without argument to init 1-5
   newjob = (argc > 2) ? atoi(argv[2]) : 0;
   base = (argc > 3) ? atoi(argv[3]) : 0;
 
