@@ -192,6 +192,8 @@ void main(int argc, char** argv) { // won't show corruption of STKPTR, only vals
     stk_dump(stack); // user didn't supply all values, so echo back
 
   if (oldjob && newjob) {
+    fprintf(stderr, "\n\nRolling stack from %d to %d:\n", oldjob, newjob);
+
     stk_roll(stack, oldjob, newjob, base);
     stk_dump(stack);
   }
