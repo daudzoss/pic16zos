@@ -49,7 +49,7 @@ fsrn set 0
 	else
 	 clrf	FSR#v(fsrn)L	;
 	endif
-	rrf	zOS_ME		;
+	rrf	job,w		;
 	movwf	FSR#v(fsrn)H	; return (*fsrnum = (job<<7) | offset) >> 8;
 	rrf	FSR#v(fsrn)L,f	;} // zOS_LOC()
 	endm
@@ -264,10 +264,95 @@ spinmul
 	endm
 #endif
 
-;;; SWI behavior is malloc() with pointer (0 if too big) returned in zOS_AR1:0
-;;;  if they were zero upon invoke, otherwise is a free() of memory it refers to
-;;; (typically instantiated with base=zOS_STK+30, size = memory size - base)
-zOS_HEA	macro	base,size
+;;; must be defined with 2 SWI flags, one for malloc() and one for free()
+;;; (typically instantiated with base=0x2210, size = memory size - base)
+;;; SWI behavior for malloc(w) is to return pointer in w of 2 middle nybbles
+;;;  in linear address space, e.g. 0x21 for first cell, or 0 in w if no free
+;;;  memory of size w*16 bytes is available
+;;; SWI behavior for free(w) is to return in w the number of bytes now free/16
+;;;  intersecting with the address whose middle nybble is w, or
+;;;  0 in w if w didn't point to a valid previously allocated block of bytes
+zOS_HEA	macro	base,size,mswi,fswi
+	local	isr,decl
+
+	bra	decl
+
+	local	tblsize,addarry,sizarry,membase,memsize,swinums,temp
+tblsize set	76/2
+addarry	set	0x20
+sizarry	set	addarry+tblsize
+membase	set	0x6c
+membase	set	0x6d	
+swinums	set	0x6e		; 7:3 1<<(Malloc SWI#), 2:0 Free SWI#
+temp	set	0x6f	
+isr
+	local	malloc,invalid,free
+	
+	movwf	temp		;
+	
+	movf	zOS_JOB,w	;
+	movwf	BSR		;
+	
+	movlw	0xf8		;
+	andwf	swinums,w	;
+	andwf	zOS_MSK,w	;
+	btfsc	STATUS,Z	;
+	bra	free		;
+	
+free
+	movlw	0x07		;
+	andwf	swinums,w	;
+	brw			;
+	bra	invalid		;
+	bra	invalid		;
+	bra	invalid		;
+	rlf	zOS_MSK,f	;
+	rlf	zOS_MSK,f	;
+	rlf	zOS_MSK,f	;
+	rlf	zOS_MSK,f	;
+	rlf	zOS_MSK,f	;
+	btfss	STATUS,C	;
+	bra	invalid		;
+
+	zOS_LOC	fsr0,BSR,addarry;
+floop
+	moviw	FSR0++		;
+	xorwf	temp,w		;
+	btfsc	STATUS,Z	;
+	bra	ffound		;
+	movlw	sizarry		;
+	xorwf	FSR0L,w		;
+	andlw	0x7f		;
+	btfs	STATUS,Z	;
+	bra	floop		;
+invalid
+	clrw			;
+	zOS_RFS
+ffound
+	if (tblsize > 31)
+	 addfsr	FSR0,31		;
+	 addfsr	FSR0,tblsize-31	;
+	else
+	 addfsr	FSR0,tblsize	;
+	endif
+	clrw			;
+	movwi	--FSR0		;
+	bra	coalesc		;
+task
+
+coalesc
+
+	;;
+	;;
+	;;
+	<<set w to size of memory freed>>
+	btfss	INTCON,GIE
+	bra	
+	zOS_RFS
+	
+	
+decl
+	zOS_ADR	task,zOS_UNP
 	endm
 	
 ;;; simple output-only console job with circular buffer
@@ -822,7 +907,7 @@ zOS_W	macro	file,bankf	;inline int8_t zOS_W(const int8_t* file, int8_t
 	movwf	BSR		; return bsr = bankf;
 	endm			;} // zOS_W()
 
-;;; like zOS_CON, but also accepts console input for a full job-management shell
+;;; like zOS_CON, but also accepts console input for command-line interaction
 zOS_INP	macro	p,ra,rt,h,pi,isr;inline void zOS_INP(int8_t p, int8_t ra, int8_t
 	local	rxtask,no_opt,rxisr,rxdecl
 	bra	rxdecl		;      rt, int8_t* h, int8_t pi, void(*isr)()) {
