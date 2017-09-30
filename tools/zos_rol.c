@@ -64,7 +64,7 @@ void stk_vars(const char* instr,
   }
 }
 
-inline void stk_echo(const char* instr) {
+void stk_echo(const char* instr) {
   fprintf(stderr, "%s\n", instr);
 }
 
