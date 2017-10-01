@@ -513,19 +513,19 @@ task
 	zOS_DIS	GIE,0
 	zOS_LOC	FSR0,BSR,0x70
 iniarry
-	clrw			;
-	movwi	--FSR0		;
-	movlw	adrarry		;
-	xorwf	FSR0L,w		;
+	clrw			; INTCON &= ~(1<<GIE);
+	movwi	--FSR0		; for (fsr0 = (bsr<<7)|(adrarry+tblsize);
+	movlw	adrarry		;      fsr > adrarry; fsr--)
+	xorwf	FSR0L,w		;  *fsr = 0; // zero each address and size entry
 	btfss	STATUS,Z	;
 	bra	iniarry		;
 	
 	zOS_MY2	FSR1
 
-	movlw	membase		;
+	movlw	membase		; // except first address entry is start of heap
 	movwi	0[FSR1]		; (0x70|(bsr<<1))[0] =
 	movwf	0[FSR0]		; adrarry[0] = membase; // first allocatable
-	movlw	membase+memsize	;
+	movlw	membase+memsize	; // and second addres entry is the end of heap
 	movwi	1[FSR1]		; (0x70|(bsr<<1))[1] =
 	movwf	2[FSR0]		; adrarry[2] = membase+memsize;//max allocatable
 	zOS_ENA
@@ -535,13 +535,13 @@ coalesc
 	zOS_LOC	FSR0,BSR,adrarry+1
 	zOS_LOC	FSR1,BSR,sizarry
 coaloop
-	moviw	++FSR0		; do {
+	moviw	++FSR0		; do { // combine adjacent rows whose size are 0
 	btfsc	STATUS,Z	;  zOS_SWI(zOS_YLD); // only 1 pass per schedule
 	bra	coalesc		;  for (fsr0 = &adrarry[1], fsr1 = &sizarry[0];
 	moviw	FSR1++		;       *++fsr0;
 	btfss	STATUS,Z	;       fsr1++)
 	bra	coaloop		;   if (0[fsr1] === 0 && 1[fsr1] == 0) {
-	moviw	0[FSR1]		;   // fsr1->redundant row siz, trails fsr0->adr
+	moviw	0[FSR1]		;    // fsr1->redundant row siz, trails fsr0->adr
 	btfss	STATUS,Z	;    do {
 	bra	coaloop		;     uint8_t w = *++fsr1;
 coscoot
@@ -551,22 +551,19 @@ coscoot
 	movwi	-2[FSR0]	;    break;
 	btfss	STATUS,Z	;   }
 	bra	coscoot		; } while (1);
-	bra	coalesc		;}
+	bra	coalesc		;} // zOS_HEA()
 
-
-
-
-
-	
-	
 decl
-
-
-	
-
-
-	
-	zOS_ADR	task,zOS_UNP
+	zOS_ADR	task,zOS_UNP	; fsr0 = task & 0x7fff;// MSB 0 => unprivileged
+	movlw	low isr		; w = zOS_ARG(0, isr & 0x00ff);
+	zOS_ARG	0
+	movlw	high isr	; w = zOS_ARG(1, isr>>8);
+	zOS_ARG	1
+	movlw	0		; w = zOS_ARG(2, 0); // no hardware interrupts
+	zOS_ARG	2
+	movlw	mi|fi		; w = zOS_ARG(3, mi/*malloc()*/ | fi/*free()*/);
+	zOS_ARG	3
+	zOS_INI	0,0
 	endm
 	
 ;;; simple output-only console job with circular buffer
