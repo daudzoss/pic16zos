@@ -264,82 +264,195 @@ spinmul
 	endm
 #endif
 
-;;; must be defined with 2 SWI flags, one for malloc() and one for free()
+zOS_PAG	macro	fsrnum
+	local	fsrn
+	if (fsrnum & 3)
+fsrn set 1
+	else
+fsrn set 0
+	endif
+
+	swapf	FSR#v(fsrn)L,w	;uint8_t zOS_PAG(void* fsrnum) {
+	andlw	0x0f		;
+	bcf	FSR#v(fsrn)L,4	;
+	swapf	FSR#v(fsrn)L,f	; 
+	iorwf	FSR#v(fsrn)L,w	;
+	swapf	FSR#v(fsrn)L,f	; return w = (fsrnum >> 4);
+	bsf	FSR#v(fsrn)L,4	;} // zOS_PAG()
+	endm
+	
+zOS_PTR	macro	fsrnum
+	local	fsrn
+	if (fsrnum & 3)
+fsrn set 1
+	else
+fsrn set 0
+	endif
+
+	swapf	WREG,w	     	;void zOS_PTR(void** fsrnum, uint8_t w) {
+	movwf	FSR#v(fsrn)H	;
+	movwf	FSR#v(fsrn)L	;
+	movlw	0x0f		;
+	andwf	FSR#v(fsrn)H,f	;
+	bsf	FSR#v(fsrn)H,4	;
+	movlw	0xf0		; *fsrnum = 0x2000 | w<<4;
+	andwf	FSR#v(fsrn)L,f	;} // zOS_PTR()
+	endm
+
+;;; must be defined with 2 SWI flags: one for malloc(), a different for free()
 ;;; (typically instantiated with base=0x2210, size = memory size - base)
 ;;; SWI behavior for malloc(w) is to return pointer in w of 2 middle nybbles
 ;;;  in linear address space, e.g. 0x21 for first cell, or 0 in w if no free
-;;;  memory of size w*16 bytes is available
+;;;  memory of size zOS_AR0*16 bytes was available
 ;;; SWI behavior for free(w) is to return in w the number of bytes now free/16
-;;;  intersecting with the address whose middle nybble is w, or
-;;;  0 in w if w didn't point to a valid previously allocated block of bytes
-zOS_HEA	macro	base,size,mswi,fswi
-	local	isr,decl
+;;;  intersecting with the address whose middle nybble is zOS_AR0, or 0 in w if
+;;;  zOS_AR0 didn't point to a valid (i.e. previously allocated) block of bytes
+;;; 
+;;; FIXME: demo idea would be two heap allocators running for two differently
+;;; targeted (quantum) allocation heaps, leaving final SWI remaining for zOS_CON
+zOS_HEA	macro	base,size,mi,fi	;void zOS_HEA(void* base, void* size, uint8_t
+	local	isr,decl	;             mi/*malloc*/,uint8_t fi/*free*/) {
 
-	bra	decl
+	bra	decl		; goto decl;
 
-	local	tblsize,addarry,sizarry,membase,memsize,swinums,temp
-tblsize set	76/2
-addarry	set	0x20
-sizarry	set	addarry+tblsize
-membase	set	0x6c
-membase	set	0x6d	
-swinums	set	0x6e		; 7:3 1<<(Malloc SWI#), 2:0 Free SWI#
-temp	set	0x6f	
+	local	adrarry,tblsize,tblrows,sizarry
+	local	maxnon0,swinums,always0,temp
+maxnon0	equ	0x6c
+swinums	equ	0x6d		; 7:3 1<<(Malloc SWI#), 2:0 Free SWI#
+always0	equ	0x6e
+temp	equ	0x6f	
+adrarry	equ	0x20
+tblsize equ	0x50
+tblrows	equ	tblsize/2	
+sizarry	equ	adrarry+tblrows
+	
 isr
 	local	malloc,invalid,free
 	
+	movf	zOS_JOB,w	; isr:
+	movwf	BSR		; bsr = zOS_JOB;
+	
+	movf	zOS_MSK,w	;
+	movwf	temp		; temp = zOS_MSK & 0xf8; // zOS_MSK guaranteed>7
+	andwf	swinums,w	; //////////////////////////////////////////////
+	btfsc	STATUS,Z	; /////             malloc()                  //
+	bra	free		; if (temp & swinums) { // bits 7:3 => malloc()
+
+	zOS_LOC	fsr0,BSR,adrarry;  for (fsr0 = (bsr<<7)+adrarry,
+	zOS_LOC	fsr1,BSR,sizarry;       fsr1 = (bsr<<7)+sizarry;
+mloop
+	moviw	FSR0++		;       (temp = *fsr0++);// next allocated/-able
+	btfss	STATUS,Z	;       fsr1++) {
+	bra	invalid		;
 	movwf	temp		;
-	
-	movf	zOS_JOB,w	;
-	movwf	BSR		;
-	
-	movlw	0xf8		;
-	andwf	swinums,w	;
-	andwf	zOS_MSK,w	;
+	moviw	FSR1++		;   w = *fsr1++; // number of bytes used,0=freed
 	btfsc	STATUS,Z	;
-	bra	free		;
+	bra	mcandid		;   if (w == 0) { // allocatable
+mnoroom
+	movlw	adrarry+tblrows	;
+	xorwf	FSR0L,w		;
+	andlw	0x7f		;
+	btfsc	STATUS,Z	;
+	bra	mloop		;
+mcandid
+	moviw	0[FSR0]		;    w = *fsr0;// upper limit to allocating here
+	btfss	STATUS,Z	;    if (w == 0)
+	bra	invalid		;     goto invalid; // past the highest address
+	subwf	temp,w		;
+	movwf	temp		;
+	subwf	zOS_AR0,w	;
+	btfsc	WREG,7		;    else if ((temp = w - temp) < zOS_AR0)
+	bra	mnoroom		;     continue; // not enough allocatable here
+	btfss	STATUS,Z	;
+	bra	mnotall		;
+	movf	temp,w		;    if (temp == zOS_AR0) { // exactly enough!
+	movwi	-1[FSR1]	;     w = -1[fsr1] = temp;
+	bra	done		;     goto done;
+mnotall	
+	movf	maxnon0,f	;    } else if (adrarry[tblrows-2] == 0) // full
+	btfss	STATUS,Z	;     goto invalid;
+	bra	invalid		;
+	movwf	temp		;    -1[fsr1] = zOS_AR0;
+	movf	zOS_AR0,w	;    for (w = -1[fsr0] + (temp -= zOS_AR0);
+	movwi	-1[FSR1]	; // w == addr to insert, temp == size to insert
+	moviw	-1[FSR0]	;         *fsr0;
+	addwf	temp,w		;         fsr0++, fsr1++) {
+mloop		
+	xorwf	INDF0,f		;   // w  == contents for inserted cell for fsr0
+	xorwf	INDF0,w		;   // *fsr0 == contents to overwrite in fsr0
+	xorwf	INDF0,f		;     swap(&w, fsr0);
+
+	xorwf	temp,f		;   // w == contents just overwritten in fsr0
+	xorwf	temp,w		;   // temp == contents for inserted cell (fsr1)
+	xorwf	temp,f		;     swap(&w, &temp);
 	
+	xorwf	INDF1,f		;   // w == contents for inserted cell in fsr1
+	xorwf	INDF1,w		;   // *fsr1 == contents to overwrite in fsr1
+	xorwf	INDF1,f		;     swap(&w, fsr1);
+
+	xorwf	temp,f		;   // w == contents just overwritten in fsr1
+	xorwf	temp,w		;   // temp == contents just overwritten in fsr0
+	xorwf	temp,f		;     swap(&w, &temp);
+
+	addfsr	FSR0,+1		;   // w == contents just overwritten in fsr0
+	addfsr	FSR1,+1		;   // temp = contents just overwritten in fsr1
+
+	movf	INDF0,f		;
+	btfss	STATUS,Z	;
+	bra	mloop		;    }
+	
+	movwi	0[FSR0]		;    // append the final overwritten contents
+	movf	temp,w		;    *fsr0 = w; // this will be maxnon0 for last
+	movwf	0[FSR1]		;    *fsr1 = temp;
+	movf	zOS_AR0,w	;    w = zOS_AR0;
+	bra	done		;    goto done;
+
 free
-	movlw	0x07		;
-	andwf	swinums,w	;
+	movlw	0x07		; //////////////////////////////////////////////
+	andwf	swinums,w	; //////////       free()                ///////
 	brw			;
 	bra	invalid		;
 	bra	invalid		;
 	bra	invalid		;
-	rlf	zOS_MSK,f	;
-	rlf	zOS_MSK,f	;
-	rlf	zOS_MSK,f	;
-	rlf	zOS_MSK,f	;
-	rlf	zOS_MSK,f	;
+	rlf	temp,f		;
+	rlf	temp,f		;
+	rlf	temp,f		;
+	rlf	temp,f		;
+	rlf	temp,f		;
 	btfss	STATUS,C	;
-	bra	invalid		;
+	bra	invalid		; } else if (temp & (1<<(swinums & 7)) > 7)
 
-	zOS_LOC	fsr0,BSR,addarry;
+	zOS_LOC	fsr0,BSR,adrarry
 floop
-	moviw	FSR0++		;
-	xorwf	temp,w		;
-	btfsc	STATUS,Z	;
+	moviw	FSR0++		;  for (fsr0 = (bsr<<7) + adrarry;
+	xorwf	zOS_AR0,w	;       fsr0 < adrarry + tblrows;//FIXME:sorted!
+	btfsc	STATUS,Z	;       fsr0++)              //could quit early!
 	bra	ffound		;
-	movlw	sizarry		;
+	movlw	adrarry+tblrows ;
 	xorwf	FSR0L,w		;
 	andlw	0x7f		;
-	btfs	STATUS,Z	;
+	btfsc	STATUS,Z	;
 	bra	floop		;
-invalid
-	clrw			;
-	zOS_RFS
-ffound
-	if (tblsize > 31)
-	 addfsr	FSR0,31		;
-	 addfsr	FSR0,tblsize-31	;
-	else
-	 addfsr	FSR0,tblsize	;
-	endif
-	clrw			;
-	movwi	--FSR0		;
-	bra	coalesc		;
-task
 
+	bra	invalid		;   if (*fsr0 == zOS_AR0) {
+ffound
+	if (tblrows > 31)
+	 addfsr	FSR0,+31	;
+	 addfsr	FSR0,tblrows-31	;
+	else
+	 addfsr	FSR0,tblrows	;    fsr0 = sizarry + (fsr0 - adrarry);
+	endif
+	moviw	--FSR0		;    w = *--fsr0;
+	clrf	INDF0		;    *fsr0 = 0;
+	bra	done		;   }
+invalid
+	clrw			; else invalid: w = 0; // can't malloc nor free
+done
+	zOS_RFS	WREG		; done: return w;
+	
+task
+	
+;;; make all variable space zero? doesn't this happen automatically in zOS?
 coalesc
 
 	;;
@@ -1429,7 +1542,7 @@ monlast
 endmon
 	endm	
 
-zOS_CLC	macro	p,ra,rt,h,pi,isr;inline void zOS_MON(int8_t p, int8_t ra, int8_t
+zOS_CLC	macro	p,ra,rt,h,pi,isr;inline void zOS_CLC(int8_t p, int8_t ra, int8_t
 	local	endclc,clcisr,clcprmp,endclc
 
 	zOS_MON	p,ra,rt,h,pi,clcisr
@@ -1548,7 +1661,7 @@ endclc
 	endm
 
 
-zOS_MAN	macro	p,rat,rts,hb,pin;inline void zOS_MON(int8_t p, int8_t rat,
+zOS_MAN	macro	p,rat,rts,hb,pin;inline void zOS_MAN(int8_t p, int8_t rat,
 	local	mantask,manisr,manchr,manchr0,reenable,manchr1,manchr2,manchr3
 	local	manchr4,manchr5,manchr6,manchr7,manchr8,manchr9,mannone,jobinfo
 	local	crlf,stkinfo,stkloop,endman
