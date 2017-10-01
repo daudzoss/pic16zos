@@ -535,20 +535,23 @@ coalesc
 	zOS_LOC	FSR0,BSR,adrarry+1
 	zOS_LOC	FSR1,BSR,sizarry
 coaloop
-	moviw	++FSR0		;
-	btfsc	STATUS,Z	;
-	bra	coalesc		;
-	
-	moviw	FSR1++		;
-	btfss	STATUS,Z	;
-	bra	coaloop		;
-	moviw	FSR1++		;
-	btfss	STATUS,Z	;
-	bra	coaloop		;
-
-//both are zero
-
-
+	moviw	++FSR0		; do {
+	btfsc	STATUS,Z	;  zOS_SWI(zOS_YLD); // only 1 pass per schedule
+	bra	coalesc		;  for (fsr0 = &adrarry[1], fsr1 = &sizarry[0];
+	moviw	FSR1++		;       *++fsr0;
+	btfss	STATUS,Z	;       fsr1++)
+	bra	coaloop		;   if (0[fsr1] === 0 && 1[fsr1] == 0) {
+	moviw	0[FSR1]		;   // fsr1->redundant row siz, trails fsr0->adr
+	btfss	STATUS,Z	;    do {
+	bra	coaloop		;     uint8_t w = *++fsr1;
+coscoot
+	moviw	++FSR1		;     -1[fsr1] = w;
+	movwi	-1[FSR1]	;     w = *fsr0++;
+	moviw	FSR0++		;    } while ((-2[fsr0] = w) != 0);
+	movwi	-2[FSR0]	;    break;
+	btfss	STATUS,Z	;   }
+	bra	coscoot		; } while (1);
+	bra	coalesc		;}
 
 
 
@@ -559,6 +562,7 @@ coaloop
 decl
 
 
+	
 
 
 	
