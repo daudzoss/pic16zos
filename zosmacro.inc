@@ -20,7 +20,7 @@ fsrn set 1
 	else
 fsrn set 0
 	endif
-	movlw	0x3f		;// documentation suggests 5 but BSR now 6 bits!
+	movlw	0x1f		;// documentation suggests 5 but BSR now 6 bits!
 	andwf	FSR#v(fsrn)H,f	;inline int8_t zOS_GLO(int8_t* *fsrnum,
 	if (job)
 	 rlf	job,w		;                      int8_t* job) {
@@ -111,9 +111,32 @@ retry
 	endif
 	endm			;} // zOS_LAU()
 
+zOS_INI	macro	fsrnum,val0,val1
+	if (fsrnum & 3)
+fsrn	 set 1
+	else
+fsrn	 set 0
+	endif
+;after:	zOS_LAU	FSR#v(fsrn)L
+	rlf	FSR#v(fsrn)L,f	;
+	movlw	0x70		;
+	iorwf	FSR#v(fsrn)L,f	;
+	bcf	FSR#v(fsrn)L,0	;
+	clrf	FSR#v(fsrn)H	;
+	movlw	val0		;
+	movwi	FSR#v(fsrn)++	;
+	movlw	val1		;
+	movwi	FSR#v(fsrn)--	;
+	rrf	FSR#v(fsrn),w	;
+	andlw	0x07		;
+	endm
+
+
 zOS_DIS	macro	fsr,job		;inline void zOS_DIS(int8_t* *fsr, int8_t job) {
+	if (job)
 	zOS_MEM	fsr,job,zOS_HDH	; *fsr = 0x10 * (1 + job) + zOS_HDH;//priv check
-	btfsc	INDF0,zOS_PRB	; if (**fsr & (1<<zOS_PRB))
+	 btfsc	INDF0,zOS_PRB	; if (**fsr & (1<<zOS_PRB))
+	endif
 	bcf	INTCON,GIE	;  INTCON &= ~(1<<GIE);
 	endm			;} // zOS_DIS()
 	
@@ -316,27 +339,35 @@ zOS_HEA	macro	base,size,mi,fi	;void zOS_HEA(void* base, void* size, uint8_t
 	bra	decl		; goto decl;
 
 	local	adrarry,tblsize,tblrows,sizarry
-	local	maxnon0,swinums,always0,temp
-maxnon0	equ	0x6c
-swinums	equ	0x6d		; 7:3 1<<(Malloc SWI#), 2:0 Free SWI#
-always0	equ	0x6e
-temp	equ	0x6f	
-adrarry	equ	0x20
-tblsize equ	0x50
-tblrows	equ	tblsize/2	
-sizarry	equ	adrarry+tblrows
+	local	maxnon0,temp1,always0,temp
+maxnon0	set	0x6c
+temp1	set	0x6d
+always0	set	0x6e
+temp	set	0x6f	
+adrarry	set	0x20
+tblsize set	0x50
+tblrows	set	tblsize/2	
+sizarry	set	adrarry+tblrows
+memroun	set	base+0xf
+membase	set	memroun>>4
+memsize	set	size>>4
 	
 isr
 	local	malloc,invalid,free
 	
 	movf	zOS_JOB,w	; isr:
 	movwf	BSR		; bsr = zOS_JOB;
-	
+
+	zOS_MY2	FSR1		; fsr1 = 0x70|(bsr<<1);
+	moviw	FSR1++		;
+	iorwf	INDF1,w		;
+	btfss	STATUS,Z	; if (0[fsr1] | 1[fsr1])
+	bra	invalid		;  goto invalid;// not init'ed according to mbox
+
 	movf	zOS_MSK,w	;
-	movwf	temp		; temp = zOS_MSK & 0xf8; // zOS_MSK guaranteed>7
-	andwf	swinums,w	; //////////////////////////////////////////////
+	andlw	mi		; //////////////////////////////////////////////
 	btfsc	STATUS,Z	; /////             malloc()                  //
-	bra	free		; if (temp & swinums) { // bits 7:3 => malloc()
+	bra	free		; if (zOS_MSK & mi) {
 
 	zOS_LOC	FSR0,BSR,adrarry;  for (fsr0 = (bsr<<7)+adrarry,
 	zOS_LOC	FSR1,BSR,sizarry;       fsr1 = (bsr<<7)+sizarry;
@@ -365,6 +396,23 @@ mcandid
 	bra	mnoroom		;     continue; // not enough allocatable here
 	btfss	STATUS,Z	;
 	bra	mnotall		;
+#if 0
+	movf	FSR1L,w		; // dynamically use the mailbox as range for mgt
+	movwf	temp1		;
+	zOS_MY2	FSR1		;
+	moviw	-1[FSR0]	;
+	subwf	INDF1,w		;
+	btfsc	WREG,7		;
+	bra	mnoroom		;
+	addfsr	FSR1,+1		;
+	moviw	-1[FSR0]	;
+	subwf	INDF1,w		;
+	btfss	WREG,7		;
+	bra	mnoroom		;
+	zOS_LOC	FSR1,BSR,sizarry;
+	movf	temp1,w		;
+	movwf	FSR1L		;
+#endif	
 	movf	temp,w		;    if (temp == zOS_AR0) { // exactly enough!
 	movwi	-1[FSR1]	;     w = -1[fsr1] = temp;
 	bra	done		;     goto done;
@@ -374,6 +422,23 @@ mnotall
 	bra	invalid		;
 	movwf	temp		;    -1[fsr1] = zOS_AR0;
 	movf	zOS_AR0,w	;    for (w = -1[fsr0] + (temp -= zOS_AR0);
+#if 0
+	movf	FSR1L,w		; // dynamically use the mailbox as range for mgt
+	movwf	temp1		;
+	zOS_MY2	FSR1		;
+	moviw	-1[FSR0]	;
+	subwf	INDF1,w		;
+	btfsc	WREG,7		;
+	bra	mnoroom		;
+	addfsr	FSR1,+1		;
+	moviw	-1[FSR0]	;
+	subwf	INDF1,w		;
+	btfss	WREG,7		;
+	bra	mnoroom		;
+	zOS_LOC	FSR1,BSR,sizarry;
+	movf	temp1,w		;
+	movwf	FSR1L		;
+#endif	
 	movwi	-1[FSR1]	; // w == addr to insert, temp == size to insert
 	moviw	-1[FSR0]	;         *fsr0;
 	addwf	temp,w		;         fsr0++, fsr1++) {
@@ -408,19 +473,10 @@ mloop
 	bra	done		;    goto done;
 
 free
-	movlw	0x07		; //////////////////////////////////////////////
-	andwf	swinums,w	; //////////       free()                ///////
-	brw			;
-	bra	invalid		;
-	bra	invalid		;
-	bra	invalid		;
-	rlf	temp,f		;
-	rlf	temp,f		;
-	rlf	temp,f		;
-	rlf	temp,f		;
-	rlf	temp,f		;
-	btfss	STATUS,C	;
-	bra	invalid		; } else if (temp & (1<<(swinums & 7)) > 7)
+	movf	zOS_MSK,w	; //////////////////////////////////////////////
+	andlw	fi		; //////////       free()                ///////
+	btfss	STATUS,Z	;
+	bra	invalid		; } else if (zOS_MSK & fi)
 
 	zOS_LOC	FSR0,BSR,adrarry
 floop
@@ -452,43 +508,60 @@ invalid;FIXME: could zOS_RET instead of fail, to run 2x heap managers with same
 done
 	zOS_RFS	WREG		; done: return w;
 	
-task
-	zOS_LOC	FSR0,BSR,adrarry
-	zOS_LOC	FSR1,BSR,sizarry
-
-
-
-
-
-
 	
-	zOS_DIS	fsr?,BSR
+task
+	zOS_DIS	GIE,0
+	zOS_LOC	FSR0,BSR,0x70
+iniarry
+	clrw			;
+	movwi	--FSR0		;
+	movlw	adrarry		;
+	xorwf	FSR0L,w		;
+	btfss	STATUS,Z	;
+	bra	iniarry		;
+	
+	zOS_MY2	FSR1
+
+	movlw	membase		;
+	movwi	0[FSR1]		; (0x70|(bsr<<1))[0] =
+	movwf	0[FSR0]		; adrarry[0] = membase; // first allocatable
+	movlw	membase+memsize	;
+	movwi	1[FSR1]		; (0x70|(bsr<<1))[1] =
+	movwf	2[FSR0]		; adrarry[2] = membase+memsize;//max allocatable
 	zOS_ENA
 
-
-
-
-	
 coalesc
-
-
-
-
-
-
-
+	zOS_SWI	zOS_YLD
+	zOS_LOC	FSR0,BSR,adrarry+1
+	zOS_LOC	FSR1,BSR,sizarry
+coaloop
+	moviw	++FSR0		;
+	btfsc	STATUS,Z	;
+	bra	coalesc		;
 	
-	;;
-	;;
-	;;
-	<<set w to size of memory freed>>
-	btfss	INTCON,GIE
-	bra	
-	zOS_RFS
+	moviw	FSR1++		;
+	btfss	STATUS,Z	;
+	bra	coaloop		;
+	moviw	FSR1++		;
+	btfss	STATUS,Z	;
+	bra	coaloop		;
+
+//both are zero
+
+
+
+
+
+
+
 	
 	
 decl
-;;; make all variable space zero? doesn't this happen automatically in zOS?
+
+
+
+
+	
 	zOS_ADR	task,zOS_UNP
 	endm
 	
@@ -942,17 +1015,6 @@ done
 	zOS_RFI			; }
 	;; intialize the UART peripheral, job handle and first three arguments
 decl
-#if 0
-	;; wait out inevitable garbage TX (not sure why this delay is necessary)
-	clrf	0x20
-	clrf	0x21
-delay0
-	clrwdt
-	incfsz	0x21,f
-	bra	delay0
-	incfsz	0x20,f
-	bra	delay0
-#endif
 #if 0
 	banksel	uatbase
 	bcf	RCSTA,SPEN	;decl: // all init that is BSR independent here

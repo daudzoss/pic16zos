@@ -33,11 +33,14 @@ zOS_NUM	set	5
 
 ;;; you may redefine the location of the scratch space for restoring the stack
 ;;; after each context switch (by default it is 0x20 in bank zOS_NUM+1, but can
-;;; be pulled in on small devices into unused local storage, or pushed out for
-;;; a heap-management job space)
+;;; be pulled in on small devices into unused local storage, or pushed out if necc
 #ifdef zOS_STK
 #else
 zOS_STK	set	(((zOS_NUM+1)<<7)|0x20)
+#endif
+#ifdef zOS_FRE
+#else
+zOS_FRE	set	(0x2000+((zOS_NUM+1)*0x50)+(0x001e))
 #endif
 
 ;;; software interrupt infrastructure zOS is based on (even with interrupts off)
@@ -54,7 +57,7 @@ zOS_SI4	equ	(1<<zOS_SB4)
 zOS_SB3	equ	3
 zOS_SI3	equ	(1<<zOS_SB3)
 
-;;; 7 system softare interrupts for job management:
+;;; 7 system software interrupts for job management:
 zOS_FND	equ	0x07		; find a running job <=AR2 by its handle AR1:AR0
 zOS_EXE	equ	0x06		; replace this job with a new job (unpriv'ed)
 zOS_FRK	equ	0x05		; copy a running job into a new job
