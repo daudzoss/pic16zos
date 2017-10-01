@@ -338,8 +338,8 @@ isr
 	btfsc	STATUS,Z	; /////             malloc()                  //
 	bra	free		; if (temp & swinums) { // bits 7:3 => malloc()
 
-	zOS_LOC	fsr0,BSR,adrarry;  for (fsr0 = (bsr<<7)+adrarry,
-	zOS_LOC	fsr1,BSR,sizarry;       fsr1 = (bsr<<7)+sizarry;
+	zOS_LOC	FSR0,BSR,adrarry;  for (fsr0 = (bsr<<7)+adrarry,
+	zOS_LOC	FSR1,BSR,sizarry;       fsr1 = (bsr<<7)+sizarry;
 mloop
 	moviw	FSR0++		;       (temp = *fsr0++);// next allocated/-able
 	btfss	STATUS,Z	;       fsr1++) {
@@ -422,7 +422,7 @@ free
 	btfss	STATUS,C	;
 	bra	invalid		; } else if (temp & (1<<(swinums & 7)) > 7)
 
-	zOS_LOC	fsr0,BSR,adrarry
+	zOS_LOC	FSR0,BSR,adrarry
 floop
 	moviw	FSR0++		;  for (fsr0 = (bsr<<7) + adrarry;
 	xorwf	zOS_AR0,w	;       fsr0 < adrarry + tblrows;//FIXME:sorted!
@@ -445,16 +445,39 @@ ffound
 	moviw	--FSR0		;    w = *--fsr0;
 	clrf	INDF0		;    *fsr0 = 0;
 	bra	done		;   }
-invalid
+invalid;FIXME: could zOS_RET instead of fail, to run 2x heap managers with same
+	;SWI pair and thus double the number of active handles at cost of 1 job
+	;(but at the obvious potential cost of having to saw the heap in half)
 	clrw			; else invalid: w = 0; // can't malloc nor free
 done
 	zOS_RFS	WREG		; done: return w;
 	
 task
+	zOS_LOC	FSR0,BSR,adrarry
+	zOS_LOC	FSR1,BSR,sizarry
+
+
+
+
+
+
 	
-;;; make all variable space zero? doesn't this happen automatically in zOS?
+	zOS_DIS	fsr?,BSR
+	zOS_ENA
+
+
+
+
+	
 coalesc
 
+
+
+
+
+
+
+	
 	;;
 	;;
 	;;
@@ -465,6 +488,7 @@ coalesc
 	
 	
 decl
+;;; make all variable space zero? doesn't this happen automatically in zOS?
 	zOS_ADR	task,zOS_UNP
 	endm
 	
