@@ -354,7 +354,7 @@ membase	set	mem3nyb>>4
 memsize	set	size>>4
 	
 isr
-	local	mloop,mnoroom,mcandid,mnotall,groloop
+	local	mloop,mnoroom,mcandid,mexact,mnotall,groloop
 	local	free,floop,ffound,invalid,done
 	
 	movf	zOS_JOB,w	; isr:
@@ -389,32 +389,22 @@ mnoroom
 	bra	mloop		;
 mcandid
 	moviw	0[FSR0]		;    w = *fsr0;// upper limit to allocating here
-	btfss	STATUS,Z	;    if (w == 0)
+	btfsc	STATUS,Z	;    if (w == 0)
 	bra	invalid		;     goto invalid; // past the highest address
-	subwf	temp,w		;
+
+	bsf	STATUS,C	;
+	comf	temp,f		;
+	addwfc	temp,w		;
 	movwf	temp		;
+
 	subwf	zOS_AR0,w	;
-	btfsc	WREG,7		;    else if ((temp = w - temp) < zOS_AR0)
-	bra	mnoroom		;     continue; // not enough allocatable here
 	btfss	STATUS,Z	;
-	bra	mnotall		;
-#if 0
-	movf	FSR1L,w		;// dynamically use the mailbox as range for mgt
-	movwf	temp1		;
-	zOS_MY2	FSR1		;
-	moviw	-1[FSR0]	;
-	subwf	INDF1,w		;
-	btfsc	WREG,7		;
-	bra	mnoroom		;
-	addfsr	FSR1,+1		;
-	moviw	-1[FSR0]	;
-	subwf	INDF1,w		;
-	btfss	WREG,7		;
-	bra	mnoroom		;
-	zOS_LOC	FSR1,BSR,sizarry;
-	movf	temp1,w		;
-	movwf	FSR1L		;
-#endif	
+	bra	mexact		;
+	btfss	WREG,7		;    else if ((temp = w - temp) < zOS_AR0)
+	bra	mnoroom		;     continue; // not enough allocatable here
+	bra	mnotall		;    // temp now holds memory available
+
+mexact
 	movf	temp,w		;    if (temp == zOS_AR0) { // exactly enough!
 	movwi	-1[FSR1]	;     w = -1[fsr1] = temp;
 	bra	done		;     goto done;
@@ -424,23 +414,7 @@ mnotall
 	bra	invalid		;
 	movwf	temp		;    -1[fsr1] = zOS_AR0;
 	movf	zOS_AR0,w	;    for (w = -1[fsr0] + (temp -= zOS_AR0);
-#if 0
-	movf	FSR1L,w		; // dynamically use the mailbox as range for mgt
-	movwf	temp1		;
-	zOS_MY2	FSR1		;
-	moviw	-1[FSR0]	;
-	subwf	INDF1,w		;
-	btfsc	WREG,7		;
-	bra	mnoroom		;
-	addfsr	FSR1,+1		;
-	moviw	-1[FSR0]	;
-	subwf	INDF1,w		;
-	btfss	WREG,7		;
-	bra	mnoroom		;
-	zOS_LOC	FSR1,BSR,sizarry;
-	movf	temp1,w		;
-	movwf	FSR1L		;
-#endif	
+
 	movwi	-1[FSR1]	; // w == addr to insert, temp == size to insert
 	moviw	-1[FSR0]	;         *fsr0;
 	addwf	temp,w		;         fsr0++, fsr1++) {
@@ -529,7 +503,7 @@ iniarry
 	movwi	0[FSR0]		; adrarry[0] = membase; // first allocatable
 	movlw	membase+memsize	; // and second addres entry is the end of heap
 	movwi	1[FSR1]		; (0x70|(bsr<<1))[1] =
-	movwi	2[FSR0]		; adrarry[2] = membase+memsize;//max allocatable
+	movwi	1[FSR0]		; adrarry[1] = membase+memsize;//max allocatable
 	zOS_ENA
 
 coalesc
