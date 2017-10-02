@@ -32,8 +32,7 @@ zOS_NUM	equ	4
 OUTCHAR	equ	zOS_SI3
 	
 ;;; uncomment to pre-load stack positions with indices (for debugging ZOS_ROL):
-;	
- zOS_DBG
+;zOS_DBG
 
 	pagesel	main
 	goto	main

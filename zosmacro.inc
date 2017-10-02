@@ -118,17 +118,17 @@ fsrn	 set 1
 fsrn	 set 0
 	endif
 ;after:	zOS_LAU	FSR#v(fsrn)L
-	rlf	FSR#v(fsrn)L,f	;
-	movlw	0x70		;
-	iorwf	FSR#v(fsrn)L,f	;
-	bcf	FSR#v(fsrn)L,0	;
+	rlf	FSR#v(fsrn)L,f	;inline void zOS_INI(uint8_t* fsrnum, uint8_t
+	movlw	0x70		;                    val0, uint8_t val1) {
+	iorwf	FSR#v(fsrn)L,f	; //fsrnum starts and ends as a launched job#
+	bcf	FSR#v(fsrn)L,0	; fsrnum = 0x70 | (fsrnum << 1);
 	clrf	FSR#v(fsrn)H	;
 	movlw	val0		;
-	movwi	FSR#v(fsrn)++	;
+	movwi	FSR#v(fsrn)++	; fsrnum[0] = val0;
 	movlw	val1		;
-	movwi	FSR#v(fsrn)--	;
-	rrf	FSR#v(fsrn),w	;
-	andlw	0x07		;
+	movwi	FSR#v(fsrn)--	; fsrnum[1] = val1;
+	rrf	FSR#v(fsrn),w	; fsrnum = (fsrnum >> 1) & 0x07; // unchanged
+	andlw	0x07		;}
 	endm
 
 
@@ -325,8 +325,8 @@ fsrn set 0
 ;;; must be defined with 2 SWI flags: one for malloc(), a different for free()
 ;;; (typically instantiated with base=0x2210, size = memory size - base)
 ;;; SWI behavior for malloc(w) is to return pointer in w of 2 middle nybbles
-;;;  in linear address space, e.g. 0x21 for first cell, or 0 in w if no free
-;;;  memory of size zOS_AR0*16 bytes was available
+;;;  in linear address space, e.g. 0x21 for first cell on a 5-job system, or 0
+;;;  in w if no free memory of size zOS_AR0*16 bytes was available
 ;;; SWI behavior for free(w) is to return in w the number of bytes now free/16
 ;;;  intersecting with the address whose middle nybble is zOS_AR0, or 0 in w if
 ;;;  zOS_AR0 didn't point to a valid (i.e. previously allocated) block of bytes
@@ -334,12 +334,12 @@ fsrn set 0
 ;;; FIXME: demo idea would be two heap allocators running for two differently
 ;;; targeted (quantum) allocation heaps, leaving final SWI remaining for zOS_CON
 zOS_HEA	macro	base,size,mi,fi	;void zOS_HEA(void* base, void* size, uint8_t
-	local	isr,decl	;             mi/*malloc*/,uint8_t fi/*free*/) {
+	local	isr,decl,task	;             mi/*malloc*/,uint8_t fi/*free*/) {
 
 	bra	decl		; goto decl;
 
-	local	adrarry,tblsize,tblrows,sizarry
-	local	maxnon0,temp1,always0,temp
+	local	maxnon0,temp1,always0,temp,adrarry,sizarry
+	local	tblsize,tblrows,memroun,membase,memsize
 maxnon0	set	0x6c
 temp1	set	0x6d
 always0	set	0x6e
@@ -349,11 +349,13 @@ tblsize set	0x50
 tblrows	set	tblsize/2	
 sizarry	set	adrarry+tblrows
 memroun	set	base+0xf
-membase	set	memroun>>4
+mem3nyb	set	memroun&0xfff
+membase	set	mem3nyb>>4
 memsize	set	size>>4
 	
 isr
-	local	malloc,invalid,free
+	local	mloop,mnoroom,mcandid,mnotall,groloop
+	local	free,floop,ffound,invalid,done
 	
 	movf	zOS_JOB,w	; isr:
 	movwf	BSR		; bsr = zOS_JOB;
@@ -442,7 +444,7 @@ mnotall
 	movwi	-1[FSR1]	; // w == addr to insert, temp == size to insert
 	moviw	-1[FSR0]	;         *fsr0;
 	addwf	temp,w		;         fsr0++, fsr1++) {
-mloop		
+groloop		
 	xorwf	INDF0,f		;   // w  == contents for inserted cell for fsr0
 	xorwf	INDF0,w		;   // *fsr0 == contents to overwrite in fsr0
 	xorwf	INDF0,f		;     swap(&w, fsr0);
@@ -464,11 +466,11 @@ mloop
 
 	movf	INDF0,f		;
 	btfss	STATUS,Z	;
-	bra	mloop		;    }
+	bra	groloop		;    }
 	
 	movwi	0[FSR0]		;    // append the final overwritten contents
 	movf	temp,w		;    *fsr0 = w; // this will be maxnon0 for last
-	movwf	0[FSR1]		;    *fsr1 = temp;
+	movwi	0[FSR1]		;    *fsr1 = temp;
 	movf	zOS_AR0,w	;    w = zOS_AR0;
 	bra	done		;    goto done;
 
@@ -492,24 +494,24 @@ floop
 
 	bra	invalid		;   if (*fsr0 == zOS_AR0) {
 ffound
-	if (tblrows > 31)
-	 addfsr	FSR0,+31	;
-	 addfsr	FSR0,tblrows-31	;
+	if (tblrows & 0x20)
+	 addfsr	FSR0,0x1f	;
+	 addfsr	FSR0,tblrows-0x1f;
 	else
 	 addfsr	FSR0,tblrows	;    fsr0 = sizarry + (fsr0 - adrarry);
 	endif
 	moviw	--FSR0		;    w = *--fsr0;
 	clrf	INDF0		;    *fsr0 = 0;
 	bra	done		;   }
-invalid;FIXME: could zOS_RET instead of fail, to run 2x heap managers with same
-	;SWI pair and thus double the number of active handles at cost of 1 job
-	;(but at the obvious potential cost of having to saw the heap in half)
+invalid
 	clrw			; else invalid: w = 0; // can't malloc nor free
 done
 	zOS_RFS	WREG		; done: return w;
 	
 	
 task
+	local	iniarry,coalesc,coaloop,coscoot
+	
 	zOS_DIS	GIE,0
 	zOS_LOC	FSR0,BSR,0x70
 iniarry
@@ -524,10 +526,10 @@ iniarry
 
 	movlw	membase		; // except first address entry is start of heap
 	movwi	0[FSR1]		; (0x70|(bsr<<1))[0] =
-	movwf	0[FSR0]		; adrarry[0] = membase; // first allocatable
+	movwi	0[FSR0]		; adrarry[0] = membase; // first allocatable
 	movlw	membase+memsize	; // and second addres entry is the end of heap
 	movwi	1[FSR1]		; (0x70|(bsr<<1))[1] =
-	movwf	2[FSR0]		; adrarry[2] = membase+memsize;//max allocatable
+	movwi	2[FSR0]		; adrarry[2] = membase+memsize;//max allocatable
 	zOS_ENA
 
 coalesc
@@ -551,7 +553,7 @@ coscoot
 	movwi	-2[FSR0]	;    break;
 	btfss	STATUS,Z	;   }
 	bra	coscoot		; } while (1);
-	bra	coalesc		;} // zOS_HEA()
+	bra	coalesc		;decl:
 
 decl
 	zOS_ADR	task,zOS_UNP	; fsr0 = task & 0x7fff;// MSB 0 => unprivileged
@@ -561,10 +563,13 @@ decl
 	zOS_ARG	1
 	movlw	0		; w = zOS_ARG(2, 0); // no hardware interrupts
 	zOS_ARG	2
+	movlb	0		; // still in job "0": don't forget this!!!!
+#if 0
 	movlw	mi|fi		; w = zOS_ARG(3, mi/*malloc()*/ | fi/*free()*/);
 	zOS_ARG	3
-	zOS_INI	0,0
-	endm
+	zOS_LAU	FSR0
+#endif	
+	endm			;} // zOS_HEA()
 	
 ;;; simple output-only console job with circular buffer
 zOS_HEX	macro
@@ -1068,7 +1073,7 @@ brgvall	set	low brgvalm
 	zOS_ARG	1		; w = zOS_ARG(2, (0<<TXIF)|(1<<T0IF));
 	movlw (0<<TXIF)|(1<<T0IF)
 	zOS_ARG	2
-	movlb	0		; // still in job "0"
+	movlb	0		; // still in job "0": don't forget this!!!!
 	endm			;} // zOS_CON()
 
 	;; macro checks for safety (SFR, not global or another job's local RAM)
@@ -1232,6 +1237,7 @@ rxdecl
 	movf	zOS_AR2,w	; w = zOS_ARG(2, (1<<RCIF)|(0<<TXIF)|(1<<T0IF));
 	iorlw	1<<rxflag	;} // zOS_INP()
 	zOS_ARG	2
+	movlb	0		; // still in job "0": don't forget this!!!!
 	endm			;
 
 
