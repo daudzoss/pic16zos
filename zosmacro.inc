@@ -375,7 +375,7 @@ isr
 	zOS_LOC	FSR1,BSR,sizarry;       fsr1 = (bsr<<7)+sizarry;
 mloop
 	moviw	FSR0++		;       (temp = *fsr0++);// next allocated/-able
-	btfss	STATUS,Z	;       fsr1++) {
+	btfsc	STATUS,Z	;       fsr1++) {
 	bra	invalid		;
 	movwf	temp		;
 	moviw	FSR1++		;   w = *fsr1++; // number of bytes used,0=freed
