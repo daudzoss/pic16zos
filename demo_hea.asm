@@ -29,8 +29,13 @@ zOS_NUM	equ	4
 	include zosmacro.inc
 
 OUTCHAR	equ	zOS_SI3
+#if 0
+LMALLOC	equ	zOS_SI6
+L_FREE	equ	zOS_SI7
+#else
 LMALLOC	equ	zOS_SI4
-L_FREE	equ	zOS_SI5
+L_FREE	equ	zOS_SI5	
+#endif
 SMALLOC	equ	zOS_SI6
 S_FREE	equ	zOS_SI7
 
@@ -109,9 +114,10 @@ main
 	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
 
 ;	zOS_MAN	0,20000000/9600,PIR1,PORTB,RB5
-	zOS_CON	0,20000000/9600,PIR1,PORTB,RB5
-	movlw	OUTCHAR		;void main(void) {
-	zOS_ARG	3		; zOS_CON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
+;	zOS_CON	0,20000000/9600,PIR1,PORTB,RB5
+;	movlw	OUTCHAR		;void main(void) {
+;	zOS_ARG	3		; zOS_CON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
+	zOS_NUL	1<<T0IF
 	zOS_LAU	WREG		; zOS_ARG(3,OUTCHAR/*only 1 SWI*/); zOS_LAU(&w);
 
 	zOS_HEA	HEAP1,HEAPSIZ,LMALLOC,L_FREE
@@ -119,10 +125,12 @@ main
 	zOS_ARG	3
 	zOS_LAU	WREG
 
+#if 0
 	zOS_HEA	HEAP2,HEAPSIZ,SMALLOC,S_FREE
 	movlw	SMALLOC|S_FREE
 	zOS_ARG	3
 	zOS_LAU	WREG
+#endif
 
 	zOS_INT	0,0
 	zOS_ADR	myprog,zOS_UNP

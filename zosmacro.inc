@@ -123,7 +123,7 @@ fsrn	 set 0
 	iorwf	FSR#v(fsrn)L,f	; //fsrnum starts and ends as a launched job#
 	bcf	FSR#v(fsrn)L,0	; fsrnum = 0x70 | (fsrnum << 1);
 	clrf	FSR#v(fsrn)H	;
-	movlw	val0		;
+	movlw	val0		; // change global mailbox to non-0 if desired
 	movwi	FSR#v(fsrn)++	; fsrnum[0] = val0;
 	movlw	val1		;
 	movwi	FSR#v(fsrn)--	; fsrnum[1] = val1;
@@ -363,7 +363,7 @@ isr
 	zOS_MY2	FSR1		; fsr1 = 0x70|(bsr<<1);
 	moviw	FSR1++		;
 	iorwf	INDF1,w		;
-	btfss	STATUS,Z	; if (0[fsr1] | 1[fsr1])
+	btfsc	STATUS,Z	; if (0[fsr1] | 1[fsr1])
 	bra	invalid		;  goto invalid;// not init'ed according to mbox
 
 	movf	zOS_MSK,w	;
@@ -399,7 +399,7 @@ mcandid
 	btfss	STATUS,Z	;
 	bra	mnotall		;
 #if 0
-	movf	FSR1L,w		; // dynamically use the mailbox as range for mgt
+	movf	FSR1L,w		;// dynamically use the mailbox as range for mgt
 	movwf	temp1		;
 	zOS_MY2	FSR1		;
 	moviw	-1[FSR0]	;
@@ -858,6 +858,32 @@ err
 	clrw			; err: return 0 /* characters added */;
 done
 	endm			;} // zOS_BUF()
+
+zOS_NUL	macro	hwflag
+	bra	decl
+	local	task,isr,decl
+task
+	zOS_SWI	zOS_YLD
+	bra	task
+	
+isr
+	banksel	zOS_T0F
+	bcf	zOS_T0F,T0IF	;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
+	zOS_RFI
+	
+decl
+	zOS_ADR	task,zOS_UNP	; fsr0 = task & 0x7fff;// MSB 0 => unprivileged
+	movlw	low isr		; w = zOS_ARG(0, isr & 0x00ff);
+	zOS_ARG	0
+	movlw	high isr	; w = zOS_ARG(1, isr>>8);
+	zOS_ARG	1		; w = zOS_ARG(2, 1<<T0IF);
+	movlw	hwflag		;
+	zOS_ARG	2
+	clrw		  	;
+	zOS_ARG	3
+	movlb	0		; // still in job "0": don't forget this!!!!
+
+	endm
 
 zOS_CON	macro	p,rat,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t rat,int8_t
 	local	task,isr,loop,decl
