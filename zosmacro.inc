@@ -398,7 +398,7 @@ mcandid
 	movwf	temp		;
 
 	subwf	zOS_AR0,w	;
-	btfss	STATUS,Z	;
+	btfsc	STATUS,Z	;
 	bra	mexact		;
 	btfss	WREG,7		;    else if ((temp = w - temp) < zOS_AR0)
 	bra	mnoroom		;     continue; // not enough allocatable here
@@ -412,6 +412,9 @@ mnotall
 	movf	maxnon0,f	;    } else if (adrarry[tblrows-2] == 0) // full
 	btfss	STATUS,Z	;     goto invalid;
 	bra	invalid		;
+	bsf	STATUS,C	;
+	comf	WREG		;
+	incf	WREG		;
 	movwf	temp		;    -1[fsr1] = zOS_AR0;
 	movf	zOS_AR0,w	;    for (w = -1[fsr0] + (temp -= zOS_AR0);
 
