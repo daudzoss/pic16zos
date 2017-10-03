@@ -354,7 +354,7 @@ membase	set	mem3nyb>>4
 memsize	set	size>>4
 	
 isr
-	local	mloop,mnoroom,mcandid,mexact,mnotall,groloop
+	local	mloop,mcandid,mexact,mnotall,groloop
 	local	free,floop,ffound,invalid,done
 	
 	movf	zOS_JOB,w	; isr:
@@ -382,11 +382,6 @@ mloop
 	moviw	FSR1++		;   w = *fsr1++; // number of bytes used,0=freed
 	btfsc	STATUS,Z	;
 	bra	mcandid		;   if (w == 0) { // allocatable
-mnoroom
-	movlw	adrarry+tblrows	;
-	xorwf	FSR0L,w		;
-	andlw	0x7f		;
-	btfsc	STATUS,Z	;
 	bra	mloop		;
 mcandid
 	moviw	0[FSR0]		;    w = *fsr0;// upper limit to allocating here
@@ -401,7 +396,7 @@ mcandid
 	btfsc	STATUS,Z	;
 	bra	mexact		;    // -w now holds extra space beyond requested
 	btfss	WREG,7		;    // temp now holds total available at alloced
-	bra	mnoroom		;
+	bra	mloop		;
 	bra	mnotall		;     continue; // not enough allocatable here
 
 mexact
