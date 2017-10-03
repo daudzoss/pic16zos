@@ -393,35 +393,33 @@ mcandid
 	btfsc	STATUS,Z	;    if (w == 0)
 	bra	invalid		;     goto invalid; // past the highest address
 
-	bsf	STATUS,C	;
-	comf	temp,f		;
+	bsf	STATUS,C	;    // temp is now the address of this candidate
+	comf	temp,f		;    // w is now the next address past candidate
 	addwfc	temp,w		;
 	movwf	temp		;
-
-	subwf	zOS_AR0,w	;
+	subwf	zOS_AR0,w	;    else if ((w = zOS_AR0 - (temp = w-temp))>0)
 	btfsc	STATUS,Z	;
-	bra	mexact		;
-	btfss	WREG,7		;    else if ((temp = w - temp) < zOS_AR0)
-	bra	mnoroom		;     continue; // not enough allocatable here
-	bra	mnotall		;    // temp now holds memory available
+	bra	mexact		;    // -w now holds extra space beyond requested
+	btfss	WREG,7		;    // temp now holds total available at alloced
+	bra	mnoroom		;
+	bra	mnotall		;     continue; // not enough allocatable here
 
 mexact
-	movf	temp,w		;    if (temp == zOS_AR0) { // exactly enough!
-	movwi	-1[FSR1]	;     w = -1[fsr1] = temp;
+	movf	alloced,w	;    if (w == 0) { // exactly enough!
+	movwi	-1[FSR1]	;     w = -1[fsr1] = alloced;
 	bra	done		;     goto done;
 mnotall	
-	movf	maxnon0,f	;    } else if (adrarry[tblrows-2] == 0) // full
+	movf	maxnon0,f	;    } else if (adrarry[tblrows-2] != 0) // full
 	btfss	STATUS,Z	;     goto invalid;
 	bra	invalid		;
-	bsf	STATUS,C	;
-	comf	WREG		;
-	incf	WREG		;
-	movwf	temp		;    -1[fsr1] = zOS_AR0;
-	movf	zOS_AR0,w	;    for (w = -1[fsr0] + (temp -= zOS_AR0);
 
-	movwi	-1[FSR1]	; // w == addr to insert, temp == size to insert
-	moviw	-1[FSR0]	;         *fsr0;
-	addwf	temp,w		;         fsr0++, fsr1++) {
+	comf	WREG		;
+	incf	WREG		;    // temp now holds extra space beyond request
+	movwf	temp		;    temp = -w;
+	
+	movf	zOS_AR0,w	; // w == addr to insert, temp == size to insert
+	movwi	-1[FSR1]	;    -1[fsr1] = zOS_AR0;
+	addwf	alloced,w	;    for (w = -1[fsr0] + temp; *fsr0; fsr0++,fsr1++) {
 groloop		
 	xorwf	INDF0,f		;   // w  == contents for inserted cell for fsr0
 	xorwf	INDF0,w		;   // *fsr0 == contents to overwrite in fsr0
