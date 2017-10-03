@@ -338,10 +338,10 @@ zOS_HEA	macro	base,size,mi,fi	;void zOS_HEA(void* base, void* size, uint8_t
 
 	bra	decl		; goto decl;
 
-	local	maxnon0,temp1,always0,temp,adrarry,sizarry
+	local	maxnon0,alloced,always0,temp,adrarry,sizarry
 	local	tblsize,tblrows,memroun,membase,memsize
 maxnon0	set	0x6c
-temp1	set	0x6d
+alloced	set	0x6d
 always0	set	0x6e
 temp	set	0x6f	
 adrarry	set	0x20
@@ -415,8 +415,9 @@ mnotall
 	bsf	STATUS,C	;
 	comf	WREG		;
 	incf	WREG		;
-	movwf	temp		;    -1[fsr1] = zOS_AR0;
+	movwf	temp		;    -1[fsr1] = alloced = zOS_AR0;
 	movf	zOS_AR0,w	;    for (w = -1[fsr0] + (temp -= zOS_AR0);
+	movwf	alloced		;
 
 	movwi	-1[FSR1]	; // w == addr to insert, temp == size to insert
 	moviw	-1[FSR0]	;         *fsr0;
@@ -447,9 +448,9 @@ groloop
 	
 	movwi	0[FSR0]		;    // append the final overwritten contents
 	movf	temp,w		;    *fsr0 = w; // this will be maxnon0 for last
-	movwi	0[FSR1]		;    *fsr1 = temp;
-	movf	zOS_AR0,w	;    w = zOS_AR0;
-	bra	done		;    goto done;
+	movwi	0[FSR1]		;    *fsr1 = w = temp;
+	movf	alloced,w	;    w = alloced;
+	bra	done		;    goto done; // return the fsr0 address added
 
 free
 	movf	zOS_MSK,w	; //////////////////////////////////////////////
