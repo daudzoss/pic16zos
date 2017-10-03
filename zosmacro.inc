@@ -374,10 +374,11 @@ isr
 	zOS_LOC	FSR0,BSR,adrarry;  for (fsr0 = (bsr<<7)+adrarry,
 	zOS_LOC	FSR1,BSR,sizarry;       fsr1 = (bsr<<7)+sizarry;
 mloop
-	moviw	FSR0++		;       (temp = *fsr0++);// next allocated/-able
+	moviw	FSR0++		;       (alloced = temp = *fsr0++);// next poss.
 	btfsc	STATUS,Z	;       fsr1++) {
 	bra	invalid		;
 	movwf	temp		;
+	movwf	alloced		;
 	moviw	FSR1++		;   w = *fsr1++; // number of bytes used,0=freed
 	btfsc	STATUS,Z	;
 	bra	mcandid		;   if (w == 0) { // allocatable
@@ -415,9 +416,8 @@ mnotall
 	bsf	STATUS,C	;
 	comf	WREG		;
 	incf	WREG		;
-	movwf	temp		;    -1[fsr1] = alloced = zOS_AR0;
+	movwf	temp		;    -1[fsr1] = zOS_AR0;
 	movf	zOS_AR0,w	;    for (w = -1[fsr0] + (temp -= zOS_AR0);
-	movwf	alloced		;
 
 	movwi	-1[FSR1]	; // w == addr to insert, temp == size to insert
 	moviw	-1[FSR0]	;         *fsr0;
@@ -493,7 +493,7 @@ task
 	zOS_DIS	GIE,0
 	zOS_LOC	FSR0,BSR,0x70
 iniarry
-	clrw			; INTCON &= ~(1<<GIE);
+	clrw			; task: INTCON &= ~(1<<GIE);
 	movwi	--FSR0		; for (fsr0 = (bsr<<7)|(adrarry+tblsize);
 	movlw	adrarry		;      fsr > adrarry; fsr--)
 	xorwf	FSR0L,w		;  *fsr = 0; // zero each address and size entry

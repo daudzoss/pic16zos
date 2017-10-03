@@ -53,26 +53,22 @@ smalls	equ	0x21
 larges	equ	0x24
 	
 myprog
-	movlw	larges		;void myprog(void) {
-	movwf	FSR1L		; uint8_t larges[3];
-	clrf	FSR1H		; uint8_t* fsr1 = larges; 
-	movlw	smalls		;
-	movwf	FSR0L		; uint8_t smalls[3];
-	clrf	FSR0H		; uint8_t* fsr0 = smalls; 
-	movlw	0x03		; while (1) {
-	movwf	i		;  // grab three 128-byte cells
+	zOS_LOC	FSR1,BSR,larges	;void myprog(void) {
+	zOS_LOC	FSR0,BSR,smalls	; uint8_t larges[3], smalls[3];
+	movlw	0x03		; while (1) {  // grab three 128-byte cells
+	movwf	i		;  uint8_t* fsr1 = larges; 
 getbig
-	movlw	0x08		;  for (i = 3; i; i--) {
+	movlw	0x08		;  uint8_t* fsr0 = smalls;
 	zOS_ARG	0
 	zOS_SWI LMALLOC
-	movf	WREG		;   zOS_ARG(0,3 /*units*/);
-	btfsc	STATUS,Z	;   do {
-	bra	getbig		;    w = zOS_SWI(LMALLOC);
-	movwi	FSR1++		;   } while (!w); // eventually will fail
-	decfsz	i,f		;   *fsr1++ = w;
-	bra	getbig		;  }
+	movf	WREG		;  for (i = 3; i; i--) {
+	btfsc	STATUS,Z	;   zOS_ARG(0,3 /*units*/);
+	bra	getbig		;   do {
+	movwi	FSR1++		;    w = zOS_SWI(LMALLOC);
+	decfsz	i,f		;   } while (!w); // eventually will fail
+	bra	getbig		;   *fsr1++ = w;
 
-	movlw	0x03		;
+	movlw	0x03		;  }
 	movwf	i		;  // grab three 32-byte cells
 gettiny
 	movlw	0x02		;  for (i = 3; i; i--) {
