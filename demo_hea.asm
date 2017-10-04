@@ -1,6 +1,6 @@
-;;; demo_zos.asm
+;;; demo_hea.asm
 ;;;
-;;; demonstration app for zOS running two heap allocators
+;;; demonstration app for zOS running two heap allocators launched by zOS_HEA
 ;;; to build: gpasm -D GPASM demo_zos.asm
 ;;;
 ;;; after starting job #1 as a job management shell (zOS_MAN() in zosmacro.inc)
@@ -29,21 +29,17 @@ zOS_NUM	equ	4
 	include zosmacro.inc
 
 OUTCHAR	equ	zOS_SI3
-#if 0
-LMALLOC	equ	zOS_SI6
-L_FREE	equ	zOS_SI7
-#else
 LMALLOC	equ	zOS_SI4
 L_FREE	equ	zOS_SI5	
-#endif
 SMALLOC	equ	zOS_SI6
 S_FREE	equ	zOS_SI7
 
 MAXSRAM	equ	0x2400
 HEAPRAM	equ	MAXSRAM-zOS_FRE
-HEAPSIZ	equ	HEAPRAM/2
+HEAPSML	equ	HEAPRAM/4
+HEAPLRG	equ	HEAPSML*3
 HEAP1	equ	zOS_FRE
-HEAP2	equ	zOS_FRE+HEAPSIZ
+HEAP2	equ	zOS_FRE+HEAPSML
 
 	pagesel main
 	goto	main
@@ -111,22 +107,20 @@ main
 
 ;	zOS_MAN	0,20000000/9600,PIR1,PORTB,RB5
 ;	zOS_CON	0,20000000/9600,PIR1,PORTB,RB5
-;	movlw	OUTCHAR		;void main(void) {
+;	movlw	OUTCHAR		;
 ;	zOS_ARG	3		; zOS_CON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
 	zOS_NUL	1<<T0IF
 	zOS_LAU	WREG		; zOS_ARG(3,OUTCHAR/*only 1 SWI*/); zOS_LAU(&w);
-
-	zOS_HEA	HEAP1,HEAPSIZ,LMALLOC,L_FREE
-	movlw	LMALLOC|L_FREE
-	zOS_ARG	3
-	zOS_LAU	WREG
-
 #if 0
-	zOS_HEA	HEAP2,HEAPSIZ,SMALLOC,S_FREE
+	zOS_HEA	HEAP1,HEAPSML,SMALLOC,S_FREE
 	movlw	SMALLOC|S_FREE
 	zOS_ARG	3
 	zOS_LAU	WREG
 #endif
+	zOS_HEA	HEAP2,HEAPLRG,LMALLOC,L_FREE
+	movlw	LMALLOC|L_FREE
+	zOS_ARG	3
+	zOS_LAU	WREG
 
 	zOS_INT	0,0
 	zOS_ADR	myprog,zOS_UNP

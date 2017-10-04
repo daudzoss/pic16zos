@@ -827,17 +827,17 @@ err
 done
 	endm			;} // zOS_BUF()
 
-zOS_NUL	macro	hwflag
-	bra	decl
-	local	task,isr,decl
+zOS_NUL	macro	hwflag		;void zOS_NUL(void) { // replacement for zOS_CON
+	bra	decl		; goto decl;
+	local	task,isr,decl	; task: do {
 task
-	zOS_SWI	zOS_YLD
-	bra	task
+	zOS_SWI	zOS_YLD		;  zOS_SWI(zOS_YLD);
+	bra	task		; } while (1);
 	
 isr
-	banksel	zOS_T0F
+	banksel	zOS_T0F		; isr:
 	bcf	zOS_T0F,T0IF	;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
-	zOS_RFI
+	zOS_RFI			;  zOS_RFI(); // and go back to scheduler
 	
 decl
 	zOS_ADR	task,zOS_UNP	; fsr0 = task & 0x7fff;// MSB 0 => unprivileged
@@ -845,9 +845,9 @@ decl
 	zOS_ARG	0
 	movlw	high isr	; w = zOS_ARG(1, isr>>8);
 	zOS_ARG	1		; w = zOS_ARG(2, 1<<T0IF);
-	movlw	hwflag		;
+	movlw	hwflag		; w = zOS_ARG(3, 0 /* no SWI */);
 	zOS_ARG	2
-	clrw		  	;
+	clrw		  	;}
 	zOS_ARG	3
 	movlb	0		; // still in job "0": don't forget this!!!!
 
