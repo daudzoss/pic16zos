@@ -63,7 +63,7 @@ getbig
 	movwi	FSR1++		;    w = zOS_SWI(LMALLOC);
 	decfsz	i,f		;   } while (!w); // eventually will fail
 	bra	getbig		;   *fsr1++ = w;
-
+#if 0
 	movlw	0x03		;  }
 	movwf	i		;  // grab three 32-byte cells
 gettiny
@@ -92,6 +92,7 @@ gettiny
 	moviw	-2[FSR1]	;  zOS_ARG(0,-2[fsr1]);
 	zOS_ARG	0		;  zOS_SWI(S_FREE);
 	zOS_SWI	L_FREE		; }
+#endif
 	bra	myprog		;}
 	
 main

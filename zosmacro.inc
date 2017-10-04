@@ -338,8 +338,8 @@ zOS_HEA	macro	base,size,mi,fi	;void zOS_HEA(void* base, void* size, uint8_t
 
 	bra	decl		; goto decl;
 
-	local	maxnon0,alloced,always0,temp,adrarry,sizarry
-	local	tblsize,tblrows,memroun,membase,memsize
+	local	maxnon0,alloced,always0,temp,adrarry,tblsize
+	local	tblrows,sizarry,memroun,mem3nyb,membase,memsize
 maxnon0	set	0x6c
 alloced	set	0x6d
 always0	set	0x6e
