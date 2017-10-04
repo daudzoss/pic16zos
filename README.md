@@ -5,13 +5,13 @@ zOS supports up to 5 re-entrant jobs with a 2-byte IPC mailbox each and up to 80
 
 A library of macros for instantiating potentially useful jobs eventually will include:
 
-* zOS_ADR/zOS_INT/zOS_LAU, for launching new jobs with a certain start address "handle" and interrupt lines in just a few lines of PIC assembly
+* zOS_ADR/zOS_INT/zOS_LAU, for launching new jobs with a certain start address "handle" and interrupt lines in just a few lines of assembly source
 
 * zOS_MUL, a multitasking-aware re-entrant 16x16bit signed multiply (for the PIC16F1616 family equipped with the MathACC core-independent peripheral) that will yield the core to other jobs during the calcuation and spin waits for exclusive access
 
-* zOS_HEA, a set of heap management routines to allow malloc() and free() since jobs are other limited to their local memory of 80 bytes in their bank
+* zOS_HEA, a set of heap management routines to allow malloc() and free() via SWI since jobs are otherwise limited to their local memory of 80 bytes in their bank
 
-* zOS_CON, an interrupt-driven console outputting to any ESUART
+* zOS_CON, an interrupt-driven console outputting to any EUSART
 
 * zOS_MON, like zOS_CON but with a command-line interface for monitoring of the PIC memory space
 
