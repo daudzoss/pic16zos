@@ -14,7 +14,8 @@
 ;;; to observet the action of the help allocators
 ;;; 
 ;;; since only 4 of 5 possible task slots are used in this demo reducing the max
-;;; allowed value by 1 will make scheduler run faster:
+;;; allowed value by 1 will make scheduler run faster as well as freeing an extra
+;;; 80 bytes for the heap itself:
 zOS_NUM	equ	4
 
 	processor 16f1847
@@ -25,24 +26,25 @@ zOS_NUM	equ	4
 ;;; uncomment to reduce zOS footprint by 100 words (at cost of zOS_FRK/EXE/FND):
 ;zOS_MIN	equ	1
 	
-	include zos.inc
-	include zosmacro.inc
-
-	pagesel main
-	goto	main
-
 MAXSRAM	equ	0x2400
 SMALLOC	equ	zOS_SI4
 SFREE	equ	zOS_SI5
+	
+	include zos.inc
+	include zosmacro.inc
 	include	zosalloc.asm
+
+	pagesel main
+	goto	main
 
 myprog
 i	equ	0x20
 smalls	equ	0x21
 larges	equ	0x24
 	
-	zOS_LOC	FSR1,BSR,larges	;void myprog(void) {
-	zOS_LOC	FSR0,BSR,smalls	; uint8_t i, smalls[3], larges[3];
+	zOS_SWI	zOS_YLD		;void myprog(void) {
+	zOS_LOC	FSR1,BSR,larges	; uint8_t i, smalls[3], larges[3];
+	zOS_LOC	FSR0,BSR,smalls	; zOS_SWI(zOS_YLD); // let malloc(),free() init
 	movlw	0x03		; while (1) {
 	movwf	i		;  uint8_t* fsr1 = larges; 
 getbig
@@ -75,9 +77,8 @@ gettiny
 	moviw	-3[FSR1]	;  // free first two 128-byte cells
 	call	free		;  free(-3[fsr1]);
 
-	moviw	-2[FSR1]	;
-	call	free		;  free(-2[fsr1]);
-	zOS_SWI	L_FREE		; }
+	moviw	-2[FSR1]	;  free(-2[fsr1]);
+	call	free		; }
 	bra	myprog		;}
 	
 main
@@ -93,14 +94,15 @@ main
 
 #if 0
 OUTCHAR	equ	zOS_SI3
-	zOS_MAN	0,20000000/9600,PIR1,PORTB,RB5
+;	zOS_MAN	0,20000000/9600,PIR1,PORTB,RB5
 	zOS_CON	0,20000000/9600,PIR1,PORTB,RB5
 	movlw	OUTCHAR		;
 	zOS_ARG	3		; zOS_CON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
 #else	
 	zOS_NUL	1<<T0IF
-	zOS_LAU	WREG		; zOS_ARG(3,OUTCHAR/*only 1 SWI*/); zOS_LAU(&w);
 #endif
+	zOS_LAU	WREG		; zOS_ARG(3,OUTCHAR/*only 1 SWI*/); zOS_LAU(&w);
+
 	zOS_INT	0,0
 	zOS_ADR	myprog,zOS_UNP
 	zOS_LAU	WREG

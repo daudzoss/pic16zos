@@ -1,11 +1,9 @@
-#ifdef zOS_FRE
-#else
-#error "must define zOS_FRE with lowest linear memory address available for heap before including this file"	
+#ifndef zOS_FRE
+ error "must define zOS_FRE with lowest linear memory address available for heap before including this file"	
 #endif
 	
-#ifdef MAXSRAM
-#else
-#error "must define MAXSRAM with highest linear memory address available for heap before including this file"	
+#ifndef MAXSRAM
+ error "must define MAXSRAM with 1 + highest linear memory address available for heap before including this file"	
 #endif
 
 HEAPRAM	equ	MAXSRAM-zOS_FRE
@@ -31,12 +29,12 @@ HEAP2	equ	zOS_FRE+HEAPSML
 #ifdef SMALLOC
 
 	zOS_HEA	HEAP1,HEAPRAM,SMALLOC,SFREE
-	movlw	SMALLOC|S_FREE
+	movlw	SMALLOC|SFREE
 	zOS_ARG	3
 	zOS_LAU	WREG
 	
 #else
-#error "must define SMALLOC and SFREE software interrupt masks (and optionally LMALLOC and LFREE) before including this file"
+ error "must define SMALLOC and SFREE software interrupt masks (and optionally LMALLOC and LFREE) before including this file"
 #endif
 #endif	
 	

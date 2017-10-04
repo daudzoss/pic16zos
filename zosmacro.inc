@@ -849,8 +849,7 @@ decl
 	zOS_ARG	2
 	clrw		  	;}
 	zOS_ARG	3
-	movlb	0		; // still in job "0": don't forget this!!!!
-
+	movlb   0               ; // still in job "0": don't forget this!!!!
 	endm
 
 zOS_CON	macro	p,rat,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t rat,int8_t
