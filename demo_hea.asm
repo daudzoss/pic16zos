@@ -28,71 +28,56 @@ zOS_NUM	equ	4
 	include zos.inc
 	include zosmacro.inc
 
-OUTCHAR	equ	zOS_SI3
-LMALLOC	equ	zOS_SI4
-L_FREE	equ	zOS_SI5	
-SMALLOC	equ	zOS_SI6
-S_FREE	equ	zOS_SI7
-
-MAXSRAM	equ	0x2400
-HEAPRAM	equ	MAXSRAM-zOS_FRE
-HEAPSML	equ	HEAPRAM/4
-HEAPLRG	equ	HEAPSML*3
-HEAP1	equ	zOS_FRE
-HEAP2	equ	zOS_FRE+HEAPSML
-
 	pagesel main
 	goto	main
 
+MAXSRAM	equ	0x2400
+SMALLOC	equ	zOS_SI4
+SFREE	equ	zOS_SI5
+	include	zosalloc.asm
+
+myprog
 i	equ	0x20
 smalls	equ	0x21
 larges	equ	0x24
 	
-myprog
 	zOS_LOC	FSR1,BSR,larges	;void myprog(void) {
-	zOS_LOC	FSR0,BSR,smalls	; uint8_t larges[3], smalls[3];
-	movlw	0x03		; while (1) {  // grab three 128-byte cells
+	zOS_LOC	FSR0,BSR,smalls	; uint8_t i, smalls[3], larges[3];
+	movlw	0x03		; while (1) {
 	movwf	i		;  uint8_t* fsr1 = larges; 
 getbig
 	movlw	0x08		;  uint8_t* fsr0 = smalls;
-	zOS_ARG	0
-	zOS_SWI LMALLOC
-	movf	WREG		;  for (i = 3; i; i--) {
-	btfsc	STATUS,Z	;   zOS_ARG(0,3 /*units*/);
+	call	malloc		;
+	movf	WREG		;  // grab three 128-byte cells
+	btfsc	STATUS,Z	;  for (i = 3; i; i--) {
 	bra	getbig		;   do {
-	movwi	FSR1++		;    w = zOS_SWI(LMALLOC);
+	movwi	FSR1++		;    w = malloc(128 >> 4);
 	decfsz	i,f		;   } while (!w); // eventually will fail
 	bra	getbig		;   *fsr1++ = w;
-#if 0
 	movlw	0x03		;  }
-	movwf	i		;  // grab three 32-byte cells
+	movwf	i		;
 gettiny
-	movlw	0x02		;  for (i = 3; i; i--) {
-	zOS_ARG	0
-	zOS_SWI	SMALLOC		;
-	movf	WREG		;   zOS_ARG(0,3 /*units*/);
+	movlw	0x02		;
+	call	malloc		;  // grab three 32-byte cells
+	movf	WREG		;  for (i = 3; i; i--) {
 	btfsc	STATUS,Z	;   do {
-	bra	gettiny		;    w = zOS_SWI(SMALLOC);
+	bra	gettiny		;    w = zOS_SWI(32 >> 4);
 	movwi	FSR0++		;   } while (!w);
 	decfsz	i,f		;   *fsr0++ = w;
 	bra	gettiny		;  }
 
 	moviw	-3[FSR0]	;  // free first two 32-byte cells
-	zOS_ARG	0		;  zOS_ARG(0,-3[fsr0]);
-	zOS_SWI	S_FREE		;  zOS_SWI(S_FREE);
+	call	free		;  free(-3[fsr0]);
 
 	moviw	-2[FSR0]	;
-	zOS_ARG	0		;  zOS_ARG(0,-2[fsr0]);
-	zOS_SWI	S_FREE		;  zOS_SWI(S_FREE);
+	call	free		;  free(-2[fsr0]);
 	
 	moviw	-3[FSR1]	;  // free first two 128-byte cells
-	zOS_ARG	0		;  zOS_ARG(0,-3[fsr1]);
-	zOS_SWI	L_FREE		;  zOS_SWI(S_FREE);
+	call	free		;  free(-3[fsr1]);
 
-	moviw	-2[FSR1]	;  zOS_ARG(0,-2[fsr1]);
-	zOS_ARG	0		;  zOS_SWI(S_FREE);
+	moviw	-2[FSR1]	;
+	call	free		;  free(-2[fsr1]);
 	zOS_SWI	L_FREE		; }
-#endif
 	bra	myprog		;}
 	
 main
@@ -106,23 +91,16 @@ main
 	bcf	OPTION_REG,PSA	; OPTION_REG &= ~(1<<PSA);// max timer0 prescale
 	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
 
-;	zOS_MAN	0,20000000/9600,PIR1,PORTB,RB5
-;	zOS_CON	0,20000000/9600,PIR1,PORTB,RB5
-;	movlw	OUTCHAR		;
-;	zOS_ARG	3		; zOS_CON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
+#if 0
+OUTCHAR	equ	zOS_SI3
+	zOS_MAN	0,20000000/9600,PIR1,PORTB,RB5
+	zOS_CON	0,20000000/9600,PIR1,PORTB,RB5
+	movlw	OUTCHAR		;
+	zOS_ARG	3		; zOS_CON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
+#else	
 	zOS_NUL	1<<T0IF
 	zOS_LAU	WREG		; zOS_ARG(3,OUTCHAR/*only 1 SWI*/); zOS_LAU(&w);
-#if 0
-	zOS_HEA	HEAP1,HEAPSML,SMALLOC,S_FREE
-	movlw	SMALLOC|S_FREE
-	zOS_ARG	3
-	zOS_LAU	WREG
 #endif
-	zOS_HEA	HEAP2,HEAPLRG,LMALLOC,L_FREE
-	movlw	LMALLOC|L_FREE
-	zOS_ARG	3
-	zOS_LAU	WREG
-
 	zOS_INT	0,0
 	zOS_ADR	myprog,zOS_UNP
 	zOS_LAU	WREG
