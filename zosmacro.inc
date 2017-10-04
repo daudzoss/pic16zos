@@ -408,12 +408,9 @@ mnotall
 	btfss	STATUS,Z	;     goto invalid;
 	bra	invalid		;
 
-	comf	WREG		;
-	incf	WREG		;    // temp now holds extra space beyond request
-	movwf	temp		;    temp = -w;
-	
 	movf	zOS_AR0,w	; // w == addr to insert, temp == size to insert
-	movwi	-1[FSR1]	;    -1[fsr1] = zOS_AR0;
+	movwi	-1[FSR1]	;    -1[fsr1] = zOS_AR0; // record it as granted
+	clrf	temp		;    temp = 0;
 	addwf	alloced,w	;    for (w = -1[fsr0] + temp; *fsr0; fsr0++,fsr1++) {
 groloop		
 	xorwf	INDF0,f		;   // w  == contents for inserted cell for fsr0
