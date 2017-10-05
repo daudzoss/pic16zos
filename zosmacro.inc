@@ -487,6 +487,7 @@ iniarry
 	movwi	--FSR0		; for (fsr0 = (bsr<<7)|(adrarry+tblsize);
 	movlw	adrarry		;      fsr > adrarry; fsr--)
 	xorwf	FSR0L,w		;  *fsr = 0; // zero each address and size entry
+	andlw	0x7f		;
 	btfss	STATUS,Z	;
 	bra	iniarry		;
 	
