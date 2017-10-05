@@ -400,8 +400,8 @@ mcandid
 	bra	mnotall		;     continue; // not enough allocatable here
 
 mexact
-	movf	alloced,w	;    if (w == 0) { // exactly enough!
-	movwi	-1[FSR1]	;     w = -1[fsr1] = alloced;
+	movf	zOS_AR0,w	;    if (w == 0) { // exactly enough!
+	movwi	-1[FSR1]	;     w = -1[fsr1] = zOS_AR0;
 	bra	done		;     goto done;
 mnotall	
 	movf	maxnon0,f	;    } else if (adrarry[tblrows-2] != 0) // full
