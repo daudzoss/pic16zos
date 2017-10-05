@@ -26,12 +26,12 @@ zOS_NUM	equ	4
 ;;; uncomment to reduce zOS footprint by 100 words (at cost of zOS_FRK/EXE/FND):
 ;zOS_MIN	equ	1
 	
+	include zos.inc
+	include zosmacro.inc
+	
 MAXSRAM	equ	0x2400
 SMALLOC	equ	zOS_SI4
 SFREE	equ	zOS_SI5
-	
-	include zos.inc
-	include zosmacro.inc
 	include	zosalloc.asm
 
 	pagesel main
