@@ -457,7 +457,7 @@ floop
 	movlw	adrarry+tblrows ;
 	xorwf	FSR0L,w		;
 	andlw	0x7f		;
-	btfsc	STATUS,Z	;
+	btfss	STATUS,Z	;
 	bra	floop		;
 
 	bra	invalid		;   if (*fsr0 == zOS_AR0) {
