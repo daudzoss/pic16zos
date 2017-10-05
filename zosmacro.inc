@@ -445,7 +445,7 @@ groloop
 free
 	movf	zOS_MSK,w	; //////////////////////////////////////////////
 	andlw	fi		; //////////       free()                ///////
-	btfss	STATUS,Z	;
+	btfsc	STATUS,Z	;
 	bra	invalid		; } else if (zOS_MSK & fi)
 
 	zOS_LOC	FSR0,BSR,adrarry
