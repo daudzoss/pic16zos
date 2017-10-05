@@ -354,9 +354,15 @@ use_swi
 	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
 	bcf	OPTION_REG,PSA	; OPTION_REG &= ~(1<<PSA);// using max prescaler
 	
+#if 0
+OUTCHAR	equ	zOS_SI3
+;	zOS_MAN	0,20000000/9600,PIR1,PORTB,RB5
 	zOS_CON	0,20000000/9600,PIR1,PORTB,RB5
 	movlw	OUTCHAR		; zOS_MON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
 	zOS_ARG	3		; zOS_ARG(3, OUTCHAR/*only 1 SWI*/);
+#else	
+	zOS_NUL	1<<T0IF
+#endif
 	zOS_LAU	WREG		; zOS_LAU(&w);
 	zOS_RUN	INTCON,INTCON	; zOS_RUN(/*T0IE in*/INTCON, /*T0IF in*/INTCON);
 	end			;}
