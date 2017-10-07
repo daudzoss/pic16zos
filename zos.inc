@@ -20,8 +20,10 @@
 ;;;      256                 1				0 (+130)
 ;;;      384                 3                          0 (+258)
 ;;;      512                 4                          0 (+386)
-;;;      768                 5                          80 (+2)
-;;;  >=1,024                 5                          80 (+258...)
+;;;      768                 5                          80 (+242)
+;;;    1,024                 5                          80 (+498)
+;;;    2,048                 5                          80 (+1522)
+;;;    4,096                 5                          80 (+3570)
 
 ;;; you may redefine a constant zOS_NUM with the maximum job number (<6,
 ;;; as determined by where the general purpose register memory stops, as
