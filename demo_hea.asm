@@ -32,16 +32,79 @@ zOS_NUM	equ	4
 MAXSRAM	equ	0x2400
 SMALLOC	equ	zOS_SI4
 SFREE	equ	zOS_SI5
+LMALLOC	equ	zOS_SI6
+LFREE	equ	zOS_SI7
 	include	zosalloc.asm
 
 	pagesel main
 	goto	main
 
-myprog
+NEXT	equ	0x10
+NEXTHI	equ	0x11
+	
 i	equ	0x20
 smalls	equ	0x21
 larges	equ	0x24
+temp	equ	0x25
 	
+newnode
+	movwf	temp		;uint8_t* newnode(void* *fsr0, // previous head
+nnretry
+	movlw	2		;                 void* *fsr1, uint8_t w) {
+	zOS_ARG	0
+	zOS_SWI	SMALLOC
+	movf	WREG		; uint8_t temp = w; // job number to copy struct
+	btfss	STATUS,Z	; do {
+	bra	nncopy
+	zOS_SWI	zOS_YLD		;  zOS_ARG(0, 2); // 16 bytes from bank 0, 2 ptr
+	bra	nnretry		;  if ((w = zOS_SWI(SMALLOC)) == 0)
+nncopy
+	movwf	temp2		;   zOS_SWI(zOS_YLD); // hope coalescing happens
+	zOS_PTR	FSR1
+	movf	FSR0L,w		; } while (w == 0);
+	movwi	NEXT[FSR1]	; uint8_t temp2 = w; // return value...why not?
+	movf	FSR0H,w		; *fsr1 = zOS_PTR(w);
+	movwi	NEXTHI[FSR1]	; (*fsr1)->next = *fsr0;
+	
+	movf	temp,w		; w = temp;
+	zOS_MEM	FSR0,WREG,0x10
+	addfsr	FSR1,0x10	; zOS_MEM(fsr0,w,0x10); // 0x30, 0x40, ..., 0x70
+nnloop
+	moviw	--FSR0		; (*fsr1) += 0x10;
+	movwi	--FSR1		; for (int j = 0; j < 16; j++)
+	movf	FSR0L,w		;
+	andlw	0x0f		;
+	btfss	STATUS,Z	;
+	bra	nnloop		;  *--(*fsr1) = *--(*fsr0);
+	
+	movf	FSR0L,w		;
+	xorwf	FSR1L,f		;
+	xorwf	FSR1L,w		;
+	xorwf	FSR1L,f		;
+	movwf	FSR0L		;
+	
+	movf	FSR0H,w		;
+	xorwf	FSR1H,f		;
+	xorwf	FSR1H,w		;
+	xorwf	FSR1H,f		;
+	movwf	FSR0H		; // now fsr0 is new head, fsr1 is old head
+	
+;;; determine whether we must swap
+
+	moviw	NEXT[FSR1]	;
+	movwf	FSR0L		;
+	moviw	NEXTHI[FSR1]	;
+	movwf	FSR1L		; return temp2;
+	movf	temp2,w
+	return			;}
+
+	moviw	zOS_HDL[FSR0]	;
+	movwf	temp		;
+	moviw	zOS_HDL[FSR1]	;
+	subwf	
+
+
+myprog
 	zOS_SWI	zOS_YLD		;void myprog(void) {
 	zOS_LOC	FSR1,BSR,larges	; uint8_t i, smalls[3], larges[3];
 	zOS_LOC	FSR0,BSR,smalls	; zOS_SWI(zOS_YLD); // let malloc(),free() init
