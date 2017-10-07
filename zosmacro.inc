@@ -20,18 +20,18 @@ fsrn set 1
 	else
 fsrn set 0
 	endif
-	movlw	0x1f		;// documentation suggests 5 but BSR now 6 bits!
-	andwf	FSR#v(fsrn)H,f	;inline int8_t zOS_GLO(int8_t* *fsrnum,
 	if (job)
-	 rlf	job,w		;                      int8_t* job) {
+	 rlf	job,w		;inline void zOS_GLO(int8_t**fsrnum,int8_t*job){
 	else
-	 rlf	zOS_ME		; int8_t w = 0x70 | ((job ? *job : bsr) << 1);
+	 rlf	zOS_ME		;                      
 	endif
-	andlw	0x0e		; *fsrnum = (*fsrnum & 0x1f00) | w;
-	iorlw	0x70		; return w;
-	movwf	FSR#v(fsrn)L	;} // zOS_GLO()
+	andlw	0x0e		; int8_t w = 0x70 | ((job ? *job : bsr) << 1);
+	iorlw	0x70		;
+	movwf	FSR#v(fsrn)L	;// documentation suggests 5 but BSR now 6 bits!
+	movlw	0x1f		; *fsrnum = (*fsrnum & 0x1f00) | w;
+	andwf	FSR#v(fsrn)H,f	;} // zOS_GLO()
 	endm
-	
+
 zOS_MY2	macro	fsrnum		;inline int8_t zOS_MY2(int8_t**fsrnum){
 	zOS_GLO	fsrnum,0	; return zOS_GLO(fsrnum, 0);
 	endm			;} // zOS_MY2()
@@ -297,11 +297,11 @@ fsrn set 0
 
 	swapf	FSR#v(fsrn)L,w	;uint8_t zOS_PAG(void* fsrnum) {
 	andlw	0x0f		;
-	bcf	FSR#v(fsrn)L,4	;
-	swapf	FSR#v(fsrn)L,f	; 
-	iorwf	FSR#v(fsrn)L,w	;
-	swapf	FSR#v(fsrn)L,f	; return w = (fsrnum >> 4);
-	bsf	FSR#v(fsrn)L,4	;} // zOS_PAG()
+	bcf	FSR#v(fsrn)H,5	;
+	swapf	FSR#v(fsrn)H,f	; 
+	iorwf	FSR#v(fsrn)H,w	;
+	swapf	FSR#v(fsrn)H,f	; return w = (fsrnum >> 4);
+	bsf	FSR#v(fsrn)H,5	;} // zOS_PAG()
 	endm
 	
 zOS_PTR	macro	fsrnum
