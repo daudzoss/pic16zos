@@ -93,13 +93,13 @@ nnloop
 	movwf	temp		;
 	moviw	zOS_HDH[FSR0]	;
 	andlw	0x7f		;
-	subwf	temp,w		;  w = 0x7f&(HDH[*fsr1]) - 0x7f&(HDH[*fsr0]); // FIXME: sign
+	subwf	temp,w		;  w = 0x7f&(HDH[*fsr1]) - 0x7f&(HDH[*fsr0]);
 	btfss	STATUS,Z	;  if ((**fsr1 & 0x7f00) != (**fsr0 & 0x7f00))
 	return			;   return w;//>0 if in correct order, <0 if out
 	
 	moviw	zOS_HDL[FSR1]	;
 	movwf	temp		;
-	moviw	zOS_HDL[FSR0]	;  w = 0x7f&(HDL[*fsr1]) - 0x7f&(HDL[*fsr0]); // FIXME: sign
+	moviw	zOS_HDL[FSR0]	;  w = 0x7f&(HDL[*fsr1]) - 0x7f&(HDL[*fsr0]);
 	subwf	temp,w		;  return w;//>=0 if in correct order, <0 if out
 	return			; } else {
 discard
