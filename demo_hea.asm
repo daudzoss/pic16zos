@@ -46,64 +46,128 @@ i	equ	0x20
 smalls	equ	0x21
 larges	equ	0x24
 temp	equ	0x25
+insert	equ	0x26
+inserth	equ	0x27
 	
 newnode
 	movwf	temp		;uint8_t* newnode(void* *fsr0, // previous head
-nnretry
 	movlw	2		;                 void* *fsr1, uint8_t w) {
 	zOS_ARG	0
 	zOS_SWI	SMALLOC
 	movf	WREG		; uint8_t temp = w; // job number to copy struct
-	btfss	STATUS,Z	; do {
-	bra	nncopy
-	zOS_SWI	zOS_YLD		;  zOS_ARG(0, 2); // 16 bytes from bank 0, 2 ptr
-	bra	nnretry		;  if ((w = zOS_SWI(SMALLOC)) == 0)
+	btfss	STATUS,Z	;
+	bra	nncopy		; do {
+	zOS_SWI	zOS_YLD
+	movf	temp,w		;  zOS_ARG(0, 2); // 16 bytes from bank 0, 2 ptr
+	bra	newnode		;  if ((w = zOS_SWI(SMALLOC)) == 0)
 nncopy
-	movwf	temp2		;   zOS_SWI(zOS_YLD); // hope coalescing happens
 	zOS_PTR	FSR1
-	movf	FSR0L,w		; } while (w == 0);
-	movwi	NEXT[FSR1]	; uint8_t temp2 = w; // return value...why not?
-	movf	FSR0H,w		; *fsr1 = zOS_PTR(w);
-	movwi	NEXTHI[FSR1]	; (*fsr1)->next = *fsr0;
-	
-	movf	temp,w		; w = temp;
+	movf	FSR0H,w		;   zOS_SWI(zOS_YLD); // hope coalescing happens
+	movwi	NEXTHI[FSR1]	; } while (w == 0);
+	movf	FSR0L,w		; *fsr1 = zOS_PTR(w);
+	movwi	NEXT[FSR1]	; w = temp;
+
+	movf	temp,w		; (*fsr1)->next = *fsr0;
 	zOS_MEM	FSR0,WREG,0x10
 	addfsr	FSR1,0x10	; zOS_MEM(fsr0,w,0x10); // 0x30, 0x40, ..., 0x70
 nnloop
-	moviw	--FSR0		; (*fsr1) += 0x10;
+	moviw	--FSR0		; (*fsr1) += 0x10; 
 	movwi	--FSR1		; for (int j = 0; j < 16; j++)
 	movf	FSR0L,w		;
 	andlw	0x0f		;
 	btfss	STATUS,Z	;
 	bra	nnloop		;  *--(*fsr1) = *--(*fsr0);
 	
-	movf	FSR0L,w		;
-	xorwf	FSR1L,f		;
-	xorwf	FSR1L,w		;
-	xorwf	FSR1L,f		;
-	movwf	FSR0L		;
-	
-	movf	FSR0H,w		;
-	xorwf	FSR1H,f		;
-	xorwf	FSR1H,w		;
-	xorwf	FSR1H,f		;
-	movwf	FSR0H		; // now fsr0 is new head, fsr1 is old head
-	
-;;; determine whether we must swap
-
 	moviw	NEXT[FSR1]	;
 	movwf	FSR0L		;
-	moviw	NEXTHI[FSR1]	;
-	movwf	FSR1L		; return temp2;
-	movf	temp2,w
-	return			;}
-
-	moviw	zOS_HDL[FSR0]	;
+	moviw	NEXTHI[FSR1]	; *fsr0 = (*fsr1)->next;
+	movwf	FSR0H		; // now fsr1 is new head, fsr0 is tail=old head
+	
+	moviw	zOS_HDH[FSR1]	;
+	btfsc	STATUS,Z	;
+	bra	discard		; if (zOS_HDH[*fsr1]) {// head valid running job
+	movf	FSR0H,f		;  // compare the handles for the head and tail
+	btfsc	STATUS,Z	;  if (0xff00 & *fsr0 == 0)
+	retlw	0		;   return 0; // null tail, so in order by def'n
+	andlw	0x7f		;
 	movwf	temp		;
+	moviw	zOS_HDH[FSR0]	;
+	andlw	0x7f		;
+	subwf	temp,w		;  w = 0x7f&(HDH[*fsr1]) - 0x7f&(HDH[*fsr0]); // FIXME: sign
+	btfss	STATUS,Z	;  if ((**fsr1 & 0x7f00) != (**fsr0 & 0x7f00))
+	return			;   return w;//>0 if in correct order, <0 if out
+	
 	moviw	zOS_HDL[FSR1]	;
-	subwf	
+	movwf	temp		;
+	moviw	zOS_HDL[FSR0]	;  w = 0x7f&(HDL[*fsr1]) - 0x7f&(HDL[*fsr0]); // FIXME: sign
+	subwf	temp,w		;  return w;//>=0 if in correct order, <0 if out
+	return			; } else {
+discard
+	zOS_PAG	FSR1		;  zOS_ARG(0, zOS_PAG(*fsr1));
+	zOS_ARG	0		;  zOS_SWI(SFREE); // free the node back to heap
+	zOS_SWI	SFREE		;  return (*fsr1 &= 0x00ff) >> 8;
+	clrf	FSR1H		; }
+	retlw	0		;} // newnode()
 
+maklist
+	clrf	FSR1H		;void maklist(void) {
+	movlw	zOS_NUM		; fsr1 = (void*) 0;
+	movwf	i		; for (uint8_t i = zOS_NUM; i; i--) {
+makloop
+	movf	FSR1L,w		;
+	movwf	FSR0L		;
+	movf	FSR1H,w		;
+	movwf	FSR0H		;  fsr0 = fsr1; // fsr0 is head of list
+	movf	i,w		;
+	btfss	STATUS,Z	;
+	return			;
+	pagesel	newnode		;
+	call	newnode		;  // fsr1 will become new head, may need moving
+	decfsz	i,f		;
+	btfss	WREG,7		;
+	bra	makloop		;  if (newnode(i) < 0) { // head is out of order
+srtloop
+	movf	FSR0L,w		;
+	movwf	insert		;
+	movf	FSR0H,w		;
+	movwf	inserth		;   insert = fsr0;
+	
+	moviw	NEXT[FSR0]	;
+	movwf	temp		;
+	moviw	NEXTHI[FSR0]	;
+	btfsc	STATUS,Z	;
+	bra	linsert		;   while (fsr0->next) {
+	movwf	FSR0H		;
+	movf	temp,w		;
+	movwf	FSR0L		;    fsr0 = fsr0->next;
+	
+	moviw	zOS_HDH[FSR0]	;
+	andlw	0x7f		;
+	movwf	temp		;
+	moviw	zOS_HDH[FSR1]	;
+	andlw	0x7f		;
+	subwf	temp,w		;    w = 0x7f&(HDH[*fsr0]) - 0x7f&(HDH[*fsr1]);
+	btfss	WREG,7		;    if (w < 0)
+	bra	rewind
 
+	
+
+rewind
+	movf	insert,w	;
+	movwf	FSR0L		;
+	movf	inserth,w	;
+	movwf	FSR0H		;
+	
+;;; we get here when fsr0's successor (as the first payload >= fsr1's payload)
+;;; needs to become fsr1's successor, and the node at fsr0 will point to fsr1
+;;; (being careful not to lose a pointer fsr1->next as the new list head node)
+	
+linsert
+
+	
+;;; we get here if the node at fsr1 is the largest in the list, so goes at end
+
+	
 myprog
 	zOS_SWI	zOS_YLD		;void myprog(void) {
 	zOS_LOC	FSR1,BSR,larges	; uint8_t i, smalls[3], larges[3];
