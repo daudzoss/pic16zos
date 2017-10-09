@@ -136,7 +136,7 @@ srtloop
 	movwf	temp		;
 	moviw	NEXTHI[FSR0]	;
 	btfsc	STATUS,Z	;
-	bra	linsert		;   while (fsr0->next) {
+	bra	linsert		;   while (fsr0->next) { // march fsr0 down list
 	movwf	FSR0H		;
 	movf	temp,w		;
 	movwf	FSR0L		;    fsr0 = fsr0->next;
@@ -147,16 +147,26 @@ srtloop
 	moviw	zOS_HDH[FSR1]	;
 	andlw	0x7f		;
 	subwf	temp,w		;    w = 0x7f&(HDH[*fsr0]) - 0x7f&(HDH[*fsr1]);
-	btfss	WREG,7		;    if (w < 0)
-	bra	rewind
-
 	
+	btfss	WREG,7		;    if (w < 0) // even latest node too small so
+	btfsc	STATUS,Z	;     continue;
+	bra	srtloop		;    else if (w > 0)
+	bra	rewind		;     break;
+	
+	moviw	zOS_HDL[FSR0]	;
+	andlw	0x7f		;
+	movwf	temp		;
+	moviw	zOS_HDL[FSR1]	;
+	andlw	0x7f		;
+	subwf	temp,w		;    w = 0x7f&(HDL[*fsr0]) - 0x7f&(HDL[*fsr1]);
 
+	btfsc	WREG,7		;    if (w < 0) // even latest node too small so
+	bra	srtloop		;     continue; // haven't found; next iteration
 rewind
-	movf	insert,w	;
-	movwf	FSR0L		;
-	movf	inserth,w	;
-	movwf	FSR0H		;
+	movf	insert,w	;   
+	movwf	FSR0L		;    fsr0 = insert; // found one, roll back fsr0
+	movf	inserth,w	;    break;
+	movwf	FSR0H		;   }
 	
 ;;; we get here when fsr0's successor (as the first payload >= fsr1's payload)
 ;;; needs to become fsr1's successor, and the node at fsr0 will point to fsr1
