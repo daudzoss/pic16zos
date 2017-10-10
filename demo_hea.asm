@@ -173,10 +173,26 @@ rewind
 ;;; (being careful not to lose a pointer fsr1->next as the new list head node)
 	
 linsert
+	moviw	NEXT[FSR1]	;
+	movwf	insert		;
+	movf	NEXTHI[FSR1]	;   // save head of list so we don't lose it
+	movwf	inserth		;   insert = fsr1->next;
 
+	moviw	NEXT[FSR0]	;
+	movwi	NEXT[FSR1]	;
+	moviw	NEXTHI{FSR0]	;
+	movwi	NEXTHI[FSR1]	;   fsr1->next = fsr0->next;
+
+	movf	FSR1L,w		;
+	movwi	NEXT[FSR0]	;
+	movf	FSR1H,w		;
+	movwi	NEXTHI[FSR0]	;   fsr0->next = fsr1;
 	
-;;; we get here if the node at fsr1 is the largest in the list, so goes at end
-
+	movf	insert,w	;  } 
+	movwf	FSR0L		; }
+	movf	inserth,w	; return fsr0 = insert; // return new head
+	movwf	FSR0H		;}
+	
 	
 myprog
 	zOS_SWI	zOS_YLD		;void myprog(void) {
