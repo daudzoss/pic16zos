@@ -119,15 +119,15 @@ makloop
 	movf	FSR1H,w		;
 	movwf	FSR0H		;  fsr0 = fsr1; // fsr0 is head of list
 	movf	i,w		;
-	btfss	STATUS,Z	;
+	btfsc	STATUS,Z	;
 	return			;
 	pagesel	newnode		;
 	call	newnode		;  // fsr1 will become new head, may need moving
 	decfsz	i,f		;
 	btfss	WREG,7		;
-	bra	makloop		;  if (newnode(i) < 0) { // head is out of order
+	bra	makloop		;  if (newnode(&fsr0/*tail*/, &fsr1/*head*/, i)
 srtloop
-	movf	FSR0L,w		;
+	movf	FSR0L,w		;                 < 0) { // head is out of order
 	movwf	insert		;
 	movf	FSR0H,w		;
 	movwf	inserth		;   insert = fsr0;
@@ -175,12 +175,12 @@ rewind
 linsert
 	moviw	NEXT[FSR1]	;
 	movwf	insert		;
-	movf	NEXTHI[FSR1]	;   // save head of list so we don't lose it
+	moviw	NEXTHI[FSR1]	;   // save head of list so we don't lose it
 	movwf	inserth		;   insert = fsr1->next;
 
 	moviw	NEXT[FSR0]	;
 	movwi	NEXT[FSR1]	;
-	moviw	NEXTHI{FSR0]	;
+	moviw	NEXTHI[FSR0]	;
 	movwi	NEXTHI[FSR1]	;   fsr1->next = fsr0->next;
 
 	movf	FSR1L,w		;
@@ -196,6 +196,8 @@ linsert
 	
 myprog
 	zOS_SWI	zOS_YLD		;void myprog(void) {
+	pagesel	maklist
+	call	maklist
 	zOS_LOC	FSR1,BSR,larges	; uint8_t i, smalls[3], larges[3];
 	zOS_LOC	FSR0,BSR,smalls	; zOS_SWI(zOS_YLD); // let malloc(),free() init
 	movlw	0x03		; while (1) {

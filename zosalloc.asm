@@ -45,15 +45,15 @@ malloc
 #ifdef LMALLOC
 	addlw	0-HEAPTHR	; zOS_ARG(0, w); // turns interrupts off
 	btfss	WREG,7		; if (w <= HEAPTHR)
-	bra	bigalloc	;  w = zOS_SWI(SMALLOC); // allocated address/16
+	bra	bigallo		;  w = zOS_SWI(SMALLOC); // allocated address/16
 #endif
 	zOS_SWI	SMALLOC
 	movf	WREG		; if ((w == 0) || (w > HEAPTHR)) // too big/full
 	btfss	STATUS,Z	;  w = zOS_SWI(LMALLOC); // allocated address/16
 	return			; return w;
 #ifdef LMALLOC
-bigalloc
-	zos_SWI	LMALLOC
+bigallo
+	zOS_SWI	LMALLOC
 #endif
 	return			;}
 	
