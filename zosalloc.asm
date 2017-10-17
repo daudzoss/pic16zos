@@ -27,7 +27,6 @@ HEAP2	equ	zOS_FRE+HEAPSML
 
 #else
 #ifdef SMALLOC
-
 	zOS_HEA	HEAP1,HEAPRAM,SMALLOC,SFREE
 	movlw	SMALLOC|SFREE
 	zOS_ARG	3
@@ -43,6 +42,12 @@ HEAP2	equ	zOS_FRE+HEAPSML
 malloc
 	zOS_ARG	0		;void* malloc(uint8_t w) { // w is numbytes/16
 #ifdef LMALLOC
+#if (LMALLOC-SMALLOC)
+#else
+	zOS_ARG	1
+	movlw	1
+	movwf	zOS_AR0
+#endif
 	addlw	0-HEAPTHR	; zOS_ARG(0, w); // turns interrupts off
 	btfss	WREG,7		; if (w <= HEAPTHR)
 	bra	bigallo		;  w = zOS_SWI(SMALLOC); // allocated address/16
@@ -62,6 +67,11 @@ bigallo
 free
 	zOS_ARG	0		;uint8_t free(void* w) { // w is address/16
 #ifdef LMALLOC
+#if (LMALLOC-SMALLOC)
+#else
+	zOS_ARG	1
+	clrf	zOS_AR0
+#endif
 	zOS_SWI	LFREE
 	btfss	STATUS,Z	; zOS_ARG(0, w); // turns interrupts off
 	return			; return (w=zOS_SWI(LFREE)) ? w: zOS_SWI(SFREE);

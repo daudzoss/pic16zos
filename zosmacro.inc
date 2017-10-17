@@ -366,11 +366,20 @@ isr
 	btfsc	STATUS,Z	; if (0[fsr1] | 1[fsr1])
 	bra	invalid		;  goto invalid;// not init'ed according to mbox
 
+#if (mi - fi)
 	movf	zOS_MSK,w	;
 	andlw	mi		; //////////////////////////////////////////////
 	btfsc	STATUS,Z	; /////             malloc()                  //
-	bra	free		; if (zOS_MSK & mi) {
-
+	bra	free		; if (((mi != fi) && (zOS_MSK & mi)) ||
+#else
+	movf	zOS_AR1,w	;    ((mi == fi) && (zOS_AR0=/*sic*/zOS_AR1))) {
+	movf	zOS_AR0,f	;
+	btfsc	STATUS,Z	;
+	movwf	zOS_AR0		;
+	btfsc	STATUS,Z	;
+	bra	free		;
+	movwf	zOS_AR0		;
+#endif
 	zOS_LOC	FSR0,BSR,adrarry;  for (fsr0 = (bsr<<7)+adrarry,
 	zOS_LOC	FSR1,BSR,sizarry;       fsr1 = (bsr<<7)+sizarry;
 mloop
