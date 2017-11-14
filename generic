@@ -1,2 +1,2 @@
 #/bin/sh
-for x in .inc macro.inc alloc.asm; do sed -e "s/zOS_/RTOS/g" -e "s/zos_/rtos/g" zos$x > rtos$x; done
+for x in .inc macro.inc alloc.asm; do sed -e "s/zOS_/RTOS/g" -e "s/zos_/rtos/g" zos$x > ../rtos$x; done
