@@ -373,12 +373,10 @@ isr
 	bra	free		; if (((mi != fi) && (zOS_MSK & mi)) ||
 #else
 	movf	zOS_AR1,w	;    ((mi == fi) && (zOS_AR0=/*sic*/zOS_AR1))) {
-	movf	zOS_AR0,f	;
-	btfsc	STATUS,Z	;
-	movwf	zOS_AR0		;
-	btfsc	STATUS,Z	;
-	bra	free		;
-	movwf	zOS_AR0		;
+	movf	zOS_AR0,f	;  // can either assign separate SWIs for malloc
+	movwf	zOS_AR0		;  // and free or if nearing the SWI limit of 5,
+	btfsc	STATUS,Z	;  // put the parameter in ARG1 instead of ARG0
+	bra	free		;  // and ARG0!=0 for malloc() or ==0 for free()
 #endif
 	zOS_LOC	FSR0,BSR,adrarry;  for (fsr0 = (bsr<<7)+adrarry,
 	zOS_LOC	FSR1,BSR,sizarry;       fsr1 = (bsr<<7)+sizarry;
