@@ -1680,7 +1680,7 @@ clcisr
 	movwf	char_io		;
 	xorlw	'+'		;
 	btfss	STATUS,Z	;
-	bra	clcchr2		; case '+':
+	bra	clcchr2		; case '+': // 16-bit signed/unsigned add
 
 	movf	accumul,w	;
 	addwf	destreg,f	;
@@ -1692,7 +1692,7 @@ clcchr2
 	movf	char_io,w	;
 	xorlw	'-'		;
 	btfss	STATUS,Z	;
-	bra	clcchr3		; case '-':
+	bra	clcchr3		; case '-': // 16-bit signed/unsigned subtract
 
 	movf	accumul,w	;
 	subwf	destreg,f	;
@@ -1700,30 +1700,103 @@ clcchr2
 	subwfc	1+destreg,f	;  destreg -= (accumuh << 8) | accumul;
 	bra	clcprmp		; break;
 	
-clcchr3	;FIXME: multiplication not yet implemented
+clcchr3
 	movf	char_io,w	;
 	xorlw	'*'		;
 	btfss	STATUS,Z	;
-	bra	clcchr4		; case '*':
+	bra	clcchr4		; case '*': // 8-bit by 8-bit unsigned multiply
+	clrf	zOS_AR0		;  // invoker of macro must implement zos_mac():
+	clrf	zOS_AR1		;  //  input arg zOS_AR1:zOS_AR0 (accumulator)
+	movf	accumul,w	;  //                    zOS_AR2 (factor 1)
+	movwf	zOS_AR2		;  //                    zOS_AR3 (factor 2)
+	movf	destreg,w	;  //  output arg zOS_AR1:zOS_AR0 (product)
+	movwf	zOS_AR3		;  zOS_AR0 = (uint16_t) 0;
+	movlw	char_io		;  zOS_AR2 = accumul & 0x00ff;
+	pagesel	zos_mac
+	call	zos_mac		;  zOS_AR3 = destreg & 0x00ff;
+	movf	zOS_AR0,w	;  w = &char_io;// temp register address in bank
+	movwf	destreg		;  zos_mac(&zOS_AR0 /* += */,
+	movf	zOS_AR1,w	;          &zOS_AR2 /* * */, &zOS_AR3, w);
+	movwf	1+destreg	;  destreg = (uint16_t) zOS_AR0;
+	bra	clcprmp		; break;
 
-clcchr4	;FIXME: division not yet implemented
+clcchr4
 	movf	char_io,w	;
 	xorlw	'/'		;
 	btfss	STATUS,Z	;
-	bra	clcchr5		; case '/':
+	bra	clcchr5		; case '/': // 15-bit by 8-bit unsigned divide
+	movf	destreg,w	;  // invoker of macro must implement zos_div():
+	movwf	zOS_AR0		;  //  input arg zOS_AR1:zOS_AR0 (dividend)
+	movf	1+destreg,w	;  //                    zOS_AR2 (divisor)
+	andlw	0x7f		;  //  output arg zOS_AR1:zOS_AR0 (quotient/exc)
+	movwf	zOS_AR1		;  zOS_AR0 = (uint16_t) destreg & 0x7fff;
+	movf	accumul,w	;  zOS_AR2 = accumul & 0xff;
+	movwf	zOS_AR2		;  
+	movlw	char_io		;  w = &char_io; // temp register address
+	pagesel	zos_div
+	call	zos_div		;  zos_div(&zOS_AR0 /* /= */
+	movf	zOS_AR0,w	;          &zOS_AR2, &zOS_AR3 /* scratch */, w);
+	movwf	destreg		;
+	movf	zOS_AR1,w	;
+	movwf	1+destreg	;  destreg = (uint16_t) zOS_AR0;
+	bra	clcprmp		; break;
 
-clcchr5	;FIXME: exponentiation not implemented
+clcchr5
 	movf	char_io,w	;
 	xorlw	'^'		;
 	btfss	STATUS,Z	;
-	bra	clcchr6		; case '^':
+	bra	clcchr6		; case '^': // 8-bit by 8-bit exponentiation
+	movlw	0x01		;  // invoker of macro must implement zos_mac():
+	clrf	zOS_AR1		;  //  input arg zOS_AR1:zOS_AR0 (accumulator)
+	movf	accumul,f	;  //                    zOS_AR2 (factor 1)
+	btfsc	STATUS,Z	;  //                    zOS_AR3 (factor 2)
+	bra	clcexp1		;  //  output arg zOS_AR1:zOS_AR0 (product)
+clcexp0
+	clrf	zOS_AR0		;  zOS_AR1 = 0;
+	clrf	zOS_AR1		;  for (uint8_t w = 1; accumul > 0; accumul--) {
+	movwf	zOS_AR2		;   zOS_AR0 = (uint16_t) 0;
+	movf	destreg,w	;   zOS_AR2 = w;
+	movwf	zOS_AR3		;   zOS_AR3 = destreg & 0x00ff;
+	movlw	char_io		;   w = &char_io;//temp register address in bank
+	pagesel	zos_mac
+	call	zos_mac		;   zos_mac(&zOS_AR0 /* += */,
+	movf	zOS_AR0,w	;           &zOS_AR2 /* * */, &zOS_AR3, w);
+	decfsz	accumul,f	;   w = zOS_AR0;
+	bra	clcexp0		;  }
+clcexp1
+	movwf	destreg		;  destreg = ((uint16_t) zOS_AR1) << 8) | w;
+	clrf	1+destreg	;
+	bra	clcprmp		; break;
 
-clcchr6	;FIXME: factorial not yet implemented
+clcchr6
 	movf	char_io,w	;
 	xorlw	'!'		;
 	btfss	STATUS,Z	;
-	bra	clcchr7		; case '!':
-
+	bra	clcchr7		; case '!': // 3-bit factorial
+	movlw	0x01		;  // invoker of macro must implement zos_mac():
+	clrf	zOS_AR1		;  //  input arg zOS_AR1:zOS_AR0 (accumulator)
+	movf	accumul,f	;  //                    zOS_AR2 (factor 1)
+	btfsc	STATUS,Z	;  //                    zOS_AR3 (factor 2)
+	bra	clcexp1		;  //  output arg zOS_AR1:zOS_AR0 (product)
+	decfsz	accumul,f	;
+	bra	clcexp1		;
+clcfac0
+	clrf	zOS_AR0		;  zOS_AR1 = 0;
+	clrf	zOS_AR1		;  for (uint8_t w = 1; accumul-- > 1; accumul--) {
+	movwf	zOS_AR2		;   zOS_AR0 = (uint16_t) 0;
+	movf	destreg,w	;   zOS_AR2 = w;
+	decf	destreg,f	;
+	movwf	zOS_AR3		;   zOS_AR3 = destreg-- & 0x00ff;
+	movlw	char_io		;   w = &char_io;//temp register address in bank
+	pagesel	zos_mac
+	call	zos_mac		;   zos_mac(&zOS_AR0 /* += */,
+	movf	zOS_AR0,w	;           &zOS_AR2 /* * */, &zOS_AR3, w);
+	decfsz	accumul,f	;   w = zOS_AR0;
+	bra	clcexp0		;  }
+clcfac1
+	movwf	destreg		;  destreg = ((uint16_t) zOS_AR1) << 8) | w;
+	clrf	1+destreg	;  // 1 <= destreg <= 720
+	bra	clcprmp		; break;
 clcchr7
 	movf	accumul,w	; default: zOS_AR1 = accumul; if (isr) goto isr;
 	movwf	zOS_AR1		; }// caller may use zOS_AR1 or accumuh:accumul
