@@ -1711,12 +1711,13 @@ clcchr3
 	movwf	zOS_AR2		;  //                    zOS_AR3 (factor 2)
 	movf	destreg,w	;  //  output arg zOS_AR1:zOS_AR0 (product)
 	movwf	zOS_AR3		;  zOS_AR0 = (uint16_t) 0;
-	movlw	char_io		;  zOS_AR2 = accumul & 0x00ff;
+				;  zOS_AR2 = accumul & 0x00ff;
+	zOS_LOC	FSR0,zOS_JOB,char_io
 	pagesel	zos_mac
 	call	zos_mac		;  zOS_AR3 = destreg & 0x00ff;
-	movf	zOS_AR0,w	;  w = &char_io;// temp register address in bank
+	movf	zOS_AR0,w	;  fsr0 = &char_io; // temp register (as INDF0)
 	movwf	destreg		;  zos_mac(&zOS_AR0 /* += */,
-	movf	zOS_AR1,w	;          &zOS_AR2 /* * */, &zOS_AR3, w);
+	movf	zOS_AR1,w	;          &zOS_AR2 /* * */, &zOS_AR3, fsr0);
 	movwf	1+destreg	;  destreg = (uint16_t) zOS_AR0;
 	bra	clcprmp		; break;
 
@@ -1731,11 +1732,11 @@ clcchr4
 	andlw	0x7f		;  //  output arg zOS_AR1:zOS_AR0 (quotient/exc)
 	movwf	zOS_AR1		;  zOS_AR0 = (uint16_t) destreg & 0x7fff;
 	movf	accumul,w	;  zOS_AR2 = accumul & 0xff;
-	movwf	zOS_AR2		;  
-	movlw	char_io		;  w = &char_io; // temp register address
+	movwf	zOS_AR2		;  fsr0 = &char_io; // temp register (as INDF0)  
+	zOS_LOC	FSR0,zOS_JOB,char_io
 	pagesel	zos_div
 	call	zos_div		;  zos_div(&zOS_AR0 /* /= */
-	movf	zOS_AR0,w	;          &zOS_AR2, &zOS_AR3 /* scratch */, w);
+	movf	zOS_AR0,w	;          &zOS_AR2, &zOS_AR3/*scratch*/, fsr0);
 	movwf	destreg		;
 	movf	zOS_AR1,w	;
 	movwf	1+destreg	;  destreg = (uint16_t) zOS_AR0;
@@ -1757,15 +1758,15 @@ clcexp0
 	movwf	zOS_AR2		;   zOS_AR0 = (uint16_t) 0;
 	movf	destreg,w	;   zOS_AR2 = w;
 	movwf	zOS_AR3		;   zOS_AR3 = destreg & 0x00ff;
-	movlw	char_io		;   w = &char_io;//temp register address in bank
+	zOS_LOC	FSR0,zOS_JOB,char_io
 	pagesel	zos_mac
-	call	zos_mac		;   zos_mac(&zOS_AR0 /* += */,
-	movf	zOS_AR0,w	;           &zOS_AR2 /* * */, &zOS_AR3, w);
-	decfsz	accumul,f	;   w = zOS_AR0;
-	bra	clcexp0		;  }
+	call	zos_mac		;   fsr0 = &char_io; // temp register (as INDF0)
+	movf	zOS_AR0,w	;   zos_mac(&zOS_AR0 /* += */,           
+	decfsz	accumul,f	;           &zOS_AR2 /* * */, &zOS_AR3, fsr0);
+	bra	clcexp0		;   w = zOS_AR0;
 clcexp1
-	movwf	destreg		;  destreg = ((uint16_t) zOS_AR1) << 8) | w;
-	clrf	1+destreg	;
+	movwf	destreg		;  }
+	clrf	1+destreg	;  destreg = ((uint16_t) zOS_AR1) << 8) | w;
 	bra	clcprmp		; break;
 
 clcchr6
@@ -1785,12 +1786,12 @@ clcfac0
 	clrf	zOS_AR1		;  for (uint8_t w = 1; accumul-- > 1; accumul--) {
 	movwf	zOS_AR2		;   zOS_AR0 = (uint16_t) 0;
 	movf	destreg,w	;   zOS_AR2 = w;
-	decf	destreg,f	;
-	movwf	zOS_AR3		;   zOS_AR3 = destreg-- & 0x00ff;
-	movlw	char_io		;   w = &char_io;//temp register address in bank
+	decf	destreg,f	;   zOS_AR3 = destreg-- & 0x00ff;
+	movwf	zOS_AR3		;   fsr0 = &char_io; // temp register (as INDF0)
+	zOS_LOC	FSR0,zOS_JOB,char_io
 	pagesel	zos_mac
 	call	zos_mac		;   zos_mac(&zOS_AR0 /* += */,
-	movf	zOS_AR0,w	;           &zOS_AR2 /* * */, &zOS_AR3, w);
+	movf	zOS_AR0,w	;           &zOS_AR2 /* * */, &zOS_AR3, fsr0);
 	decfsz	accumul,f	;   w = zOS_AR0;
 	bra	clcexp0		;  }
 clcfac1
