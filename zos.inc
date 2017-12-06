@@ -750,8 +750,8 @@ zos_zer
 	andwf	FSR0L,w		;
 	btfss	STATUS,Z	;
 	bra	zos_zer		;
-zos_end
-	;; your program starts here, with a launcher job (#6) that ends after:
+
+	;; your program starts here, with a series of launcher instructions for
 	;; 1) setting up oscillators, timers, other peripherals, etc.
 	;;    (with the appropriate and ineviatable bank switching)
 	;; 2) starting jobs with calls to zOS_NEW or its zOS_LAU wrapper
