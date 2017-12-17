@@ -113,22 +113,44 @@ loop
 #endif
 	bra	reprint		;}
 	
-;;; while SWI handlers normally know what line the interupts will come in on,
+;;; while SWI handlers normally know what line the interrupts will come in on,
 ;;; for flexibility of incorporation into any application this choice is not
 ;;; hardwired into zosmacro.inc library and any available line may be chosen:
 	
 main
-	banksel	ANSELB
-	bcf	ANSELB,RB5	; ANSELB &= ~(1<<RB5); // allow digital function
+	banksel	ANSELA
+	bcf	ANSELA,RA4	; ANSELA &= ~(1<<RA4); // allow digital function
+	movlw	0x3c
+	movwf	ANSELC		;
 
-	banksel	TRISB
-	bcf	TRISB,RB5	; TRISB &= ~(1<<RB5); // allow output heartbeat
+	banksel	TRISA
+	bcf	TRISA,RA4	; TRISA &= ~(1<<RA4); // allow output
 	
 	banksel	OPTION_REG
 	bcf	OPTION_REG,PSA	; OPTION_REG &= ~(1<<PSA);// max timer0 prescale
 	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
 
-	zOS_MAN	0,20000000/9600,PIR1,PORTB,RB5
+	banksel	TRISC
+	movlw	0xbf
+	movwf	TRISC
+	banksel	PPSLOCK
+	movlw	0x55
+	movwf	PPSLOCK
+	movlw	0xaa
+	movwf	PPSLOCK
+	bcf	PPSLOCK,PPSLOCKED
+	movlw	0x17
+	movwf	RXPPS
+	banksel	RC6PPS
+	movlw	0x14
+	movwf	RC6PPS
+	movlw	0x55
+	movwf	PPSLOCK
+	movlw	0xaa
+	movwf	PPSLOCK
+	bsf	PPSLOCK,PPSLOCKED
+	zOS_CON	0,32000000/9600,PIR1,LATA,RA4
+;	zOS_MAN	0,32000000/9600,PIR1,LATA,RA4
 	movlw	OUTCHAR		;void main(void) {
 	zOS_ARG	3		; zOS_CON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
 	zOS_LAU	WREG		; zOS_ARG(3,OUTCHAR/*only 1 SWI*/); zOS_LAU(&w);
