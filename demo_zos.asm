@@ -18,10 +18,11 @@
 ;;; allowed value by 1 will make scheduler run faster:
 zOS_NUM	equ	4
 
-	processor 16f1847
-	include p16f1847.inc
+	processor 16f1719
+	include p16f1719.inc
 	
-	__CONFIG _CONFIG1,_FOSC_HS & _WDTE_OFF & _PWRTE_OFF & _MCLRE_ON & _CP_OFF & _CPD_OFF & _BOREN_ON & _CLKOUTEN_OFF & _IESO_ON & _FCMEN_ON
+	__CONFIG _CONFIG1,_FOSC_INTOSC & _WDTE_OFF & _PWRTE_OFF & _CP_OFF & _BOREN_ON & _CLKOUTEN_ON & _IESO_ON & _FCMEN_ON
+	__CONFIG _CONFIG2,_WRT_OFF & _PPS1WAY_OFF & _ZCDDIS_ON & _PLLEN_OFF & _STVREN_ON & _BORV_LO & _LPBOR_OFF & _LVP_ON
 
 ;;; uncomment to reduce zOS footprint by 100 words (at cost of zOS_FRK/EXE/FND):
 ;zOS_MIN	equ	1
@@ -32,7 +33,7 @@ zOS_NUM	equ	4
 OUTCHAR	equ	zOS_SI3
 	
 ;;; uncomment to pre-load stack positions with indices (for debugging ZOS_ROL):
-;zOS_DBG
+;	zOS_DBG
 
 	pagesel	main
 	goto	main

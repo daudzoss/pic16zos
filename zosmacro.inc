@@ -709,6 +709,7 @@ zOS_ADL	equ	EEADRL
 zOS_ADH	equ	EEADRH
 zOS_RDL	equ	EEDATL
 zOS_RDH	equ	EEDATH
+	banksel	EECON1
 	bcf	EECON1,CFGS	;inline void zOS_RDF(void) { // for EEADR micros
 	bsf	EECON1,EEPGD	; EECON1 &= ~(1<<CFGS);
 	bsf	EECON1,RD	; EECON1 |= 1<<EEPGD;
@@ -720,6 +721,7 @@ zOS_ADL	equ	PMADRL
 zOS_ADH	equ	PMADRH
 zOS_RDL	equ	PMDATL
 zOS_RDH	equ	PMDATH
+	banksel	PMCON1
 	bcf	PMCON1,CFGS	;inline void zOS_RDF(void) { // for PMADR micros
 	bsf	PMCON1,RD	; PMCON1 &= ~(1<<CFGS);
 	nop			; PMCON1 |= 1<<RD;
@@ -730,6 +732,7 @@ zOS_ADL	equ	NVMADRL
 zOS_ADH	equ	NVMADRH
 zOS_RDL	equ	NVMDATL
 zOS_RDH	equ	NVMDATH
+	banksel	NVMCON1
 	bcf	NVMCON1,NVMREGS	;inline void zOS_RDF(void) { // for NVM micros
 	bsf	NVMCON1,RD	; NVMCON1 &= ~(1<<CFGS); NVMCON1 |= 1<<RD;
 #endif
@@ -738,7 +741,7 @@ zOS_RDH	equ	NVMDATH
 	endm			;} // zOS_RDF()
 	
 zOS_STR	macro	swinum
-	local loop,readl,readh,done
+	local loop,done
 	bcf	INTCON,GIE	;inline void zOS_STR(const char* fsr0,
 	zOS_PSH	BSR
 	banksel	zOS_ADL
@@ -757,7 +760,7 @@ loop
 	zOS_SWI swinum	   	;
 	bcf	INTCON,GIE	;   zOS_POP(&bsr); // back to the expected bank
 	zOS_PSH	BSR
-	banksel	zOS_ADL
+	banksel	zOS_RDL
 	movf	zOS_RDL,w	;   zOS_SWI(swinum);; // print the ASCII char
 	andlw	0x7f		;   INTCON &= ~(1<<GIE); // undo SWI GIE toggle
 	btfsc	STATUS,Z	;   zOS_PSH(&bsr);
