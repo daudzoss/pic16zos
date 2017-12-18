@@ -1025,7 +1025,7 @@ done
 	zOS_RFI			; }
 	;; intialize the UART peripheral, job handle and first three arguments
 decl
-#if 0
+#if 1
 	banksel	uatbase
 	bcf	RCSTA,SPEN	;decl: // all init that is BSR independent here
 	bcf	RCSTA,CREN	; RCSTA &= ~((1<<SPEN)|(1<<CREN));
@@ -1058,7 +1058,7 @@ brgvall	set	low brgvalm
 	movlw	brgvall		;
 	movwf	SPBRG		; SPBRG = (rat/16) - 1;
 #endif
-#if 0
+#if 1
 	banksel	uatbase
 	bsf	RCSTA,SPEN	; // (3) "Enable..by setting..SPEN"
 	bcf	RCSTA,RX9	; RCSTA &= ~(1<<RX9);  // (5) "9-bit..set..RX9"
@@ -1066,7 +1066,7 @@ brgvall	set	low brgvalm
 #endif
 	banksel	uatbase
 	bsf	TXSTA,TXEN	; TXSTA |= 1<<TXEN; // (5) "Enable..by..TXEN"
-#if 0
+#if 1
 	banksel	PIE1
 	bsf	PIE1,RCIE	; PIE1 |= 1<<RCIE; //(4) "Set..RCIE..and..PEIE"
 #endif
