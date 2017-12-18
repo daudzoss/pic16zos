@@ -948,8 +948,7 @@ loop
 	movwf	FSR1L		;
 	btfss	INDF1,rtsflag	;  if (*(fsr1 = rts) & (1<<rtsflag) == 0) //full
 	bra	loop		;   continue; // yield (still sending or no char)
-	rrf	zOS_ME 		;
-	andlw	0x7f		;
+	asrf	zOS_ME 		;
 	movwf	FSR1H		;
 	movf	p0,w		;  // READY TO SEND, AND...       
 	movwf	FSR1L		;
