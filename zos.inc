@@ -132,7 +132,7 @@ fsrn set 0
 	if (offset)
 	 addlw	offset		;                    int8_t offset) {
 	endif
-	movwf	FSR#v(fsrn)L	; *fsrnum = ((job & 0x07) << 4) + offset;
+	movwf	FSR#v(fsrn)L	; *fsrnum = (((job + 1) & 0x07) << 4) + offset;
 	clrf	FSR#v(fsrn)H	;}
 	endm
 
@@ -156,11 +156,10 @@ fsrn set 0
 	btfsc	STATUS,Z	; if (*new == *old) // nothing to do
 	bra	done		;  return;
 	decf	WREG,w		; w = new - old - 1;
-	btfsc	WREG,7		;
-	addlw	5		; // set STKPTR to the current location of the
-	movwf	STKPTR		; // stack cell that needs to be rotated into
-	rlf	STKPTR,f	; // STK_TOP, then record this value in temp for
-	bcf	STKPTR,0	; // comparison to know when to exit the loop
+	btfsc	WREG,7		; // set STKPTR to the current location of the
+	addlw	5		; // stack cell that needs to be rotated into
+	movwf	STKPTR		; // STK_TOP, then record this value in temp for
+	lslf	STKPTR,f	; // comparison to know when to exit the loop
 	addwf	STKPTR,w	; // that copies the entire stack (except 0x0f)
 	addlw	2		; // into 30-byte scratch in the unrolled order
 	movwf	STKPTR		;
@@ -600,8 +599,7 @@ zos_sw3
 	movlw	zOS_BOS		;   zOS_SSP[fsr1] = zOS_BOS;
 	movwi	zOS_SSP[FSR1]	;
 	
-	rlf	zOS_JOB,w	;
-	andlw	0x0e		;
+	lslf	zOS_JOB,w	;
 	iorlw	0x70		;
 	movwf	FSR1L		;   fsr1 = 0x70 | (zOS_JOB << 1);
 	clrw			;   0[fsr1] = 1[fsr1] = 0; // mailbox guar'ed 0
@@ -638,14 +636,12 @@ zos_cp1
 	btfss	STATUS,Z	;    if (zOS_PCH[fsr0] == 0)
 	bra	zos_cp1		;     continue; // can't touch a running job
 	
-	rrf	BSR,w		;
-	andlw	0x3		;
+	lsrf	BSR,w		;
 	movwf	FSR0H		;
 	clrf	FSR0L		;
 	rrf	FSR0L,f		;
 	movlw	0x6f		;
 	iorwf	FSR0L,f		;    fsr0 = (BSR << 7) | 0x6f;
-
 	iorwf	FSR1L,f		;    for (fsr1 |= 0x6f; fsr1 & 0x7f >= 0x20;         
 zos_cp2
 	moviw	FSR0--		;
@@ -658,6 +654,7 @@ zos_cp2
 zos_cpd
 	;; now copy job BSR's bank0 struct to the zOS_AR registers and zOS_NEW()
 ;;;FIXME: should copy the rest of state, i.e. memory variables to be a true fork
+;;;FIXME: disallow fork if any HWI is defined for the process (assume conflicts)
 	movf	BSR,w		;
 	movwf	zOS_JOB		;   zOS_JOB = BSR;
 	zOS_MEM	FSR1,zOS_JOB,0
