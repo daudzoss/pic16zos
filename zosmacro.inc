@@ -21,9 +21,9 @@ fsrn set 1
 fsrn set 0
 	endif
 	if (job)
-	 rlf	job,w		;inline void zOS_GLO(int8_t**fsrnum,int8_t*job){
+	 lslf	job,w		;inline void zOS_GLO(int8_t**fsrnum,int8_t*job){
 	else
-	 rlf	zOS_ME		;                      
+	 lslf	zOS_ME		;                      
 	endif
 	andlw	0x0e		; int8_t w = 0x70 | ((job ? *job : bsr) << 1);
 	iorlw	0x70		;
@@ -49,7 +49,7 @@ fsrn set 0
 	else
 	 clrf	FSR#v(fsrn)L	;
 	endif
-	rrf	job,w		;
+	lsrf	job,w		;
 	movwf	FSR#v(fsrn)H	; return (*fsrnum = (job<<7) | offset) >> 8;
 	rrf	FSR#v(fsrn)L,f	;} // zOS_LOC()
 	endm
@@ -118,24 +118,28 @@ fsrn	 set 1
 fsrn	 set 0
 	endif
 ;after:	zOS_LAU	FSR#v(fsrn)L
-	rlf	FSR#v(fsrn)L,f	;inline void zOS_INI(uint8_t* fsrnum, uint8_t
+	lslf	FSR#v(fsrn)L,f	;inline void zOS_INI(uint8_t* fsrnum, uint8_t
 	movlw	0x70		;                    val0, uint8_t val1) {
 	iorwf	FSR#v(fsrn)L,f	; //fsrnum starts and ends as a launched job#
-	bcf	FSR#v(fsrn)L,0	; fsrnum = 0x70 | (fsrnum << 1);
-	clrf	FSR#v(fsrn)H	;
+	clrf	FSR#v(fsrn)H	; fsrnum = 0x70 | (fsrnum << 1);
 	movlw	val0		; // change global mailbox to non-0 if desired
 	movwi	FSR#v(fsrn)++	; fsrnum[0] = val0;
 	movlw	val1		;
 	movwi	FSR#v(fsrn)--	; fsrnum[1] = val1;
-	rrf	FSR#v(fsrn),w	; fsrnum = (fsrnum >> 1) & 0x07; // unchanged
+	lsrf	FSR#v(fsrn),w	; fsrnum = (fsrnum >> 1) & 0x07; // unchanged
 	andlw	0x07		;}
 	endm
 
 
-zOS_DIS	macro	fsr,job		;inline void zOS_DIS(int8_t* *fsr, int8_t job) {
+zOS_DIS	macro	fsrnum,job	;inline void zOS_DIS(int8_t* *fsr, int8_t job) {
+	if (fsrnum & 3)
+fsrn	 set 1
+	else
+fsrn	 set 0
+	endif
 	if (job)
-	zOS_MEM	fsr,job,zOS_HDH	; *fsr = 0x10 * (1 + job) + zOS_HDH;//priv check
-	 btfsc	INDF0,zOS_PRB	; if (**fsr & (1<<zOS_PRB))
+	zOS_MEM	FSR#v(fsrn),job,zOS_HDH	; *fsr = 0x10 * (1+job) + zOS_HDH;//priv
+	 btfsc	INDF#v(fsrn),zOS_PRB	; if (**fsr & (1<<zOS_PRB))
 	endif
 	bcf	INTCON,GIE	;  INTCON &= ~(1<<GIE);
 	endm			;} // zOS_DIS()
@@ -271,7 +275,7 @@ spinmul
 	bra	spinmul		; } while (**fsr & 1<<PID1BUSY);
 	bcf	INTCON,GIE	; INTCON &= ~(1<<GIE);
 	bcf	INDF#v(fn),enb	; // begin critical section (copying result)
-	movlw	low inout	; **fsr &= ~(1<<bsy); // disable MathACC to free
+	movlw	low inout	; **fsr &= ~(1<<enb); // disable MathACC to free
 	movwf	FSR#v(fn)L	;
 	movlw	high inout	;
 	movwf	FSR#v(fn)H	; *fsr = &PID1SETL & 0x1f80; // just bank bits
@@ -282,8 +286,8 @@ spinmul
 	moviw	out1[FSR#v(fn)]	; zOS_AR1 = (0x1f & PID1OUTLH)[*fsr];
 	movwf	zOS_AR1		;
 	moviw	out0[FSR#v(fn)]	; zOS_AR0 = (0x1f & PID1OUTLL)[*fsr];
-	movwf	zOS_AR0		; INTCON |= 1<<GIE; // end critical section
-	bsf	INTCON,GIE	;} // zOS_MUL()
+	movwf	zOS_AR0		; // end critical section (when ARx copy's done)
+;;	bsf	INTCON,GIE	;} // zOS_MUL()
 	endm
 #endif
 
@@ -575,7 +579,7 @@ dst set 0
 	movwi	FSR#v(dst)++	; file[0] = zOS_HEX(ofs[fsrnum] >> 4);
 	moviw	ofs[FSR#v(src)]	; file[1] = zOS_HEX(ofs[fsrnum]);
 	zOS_HEX
-	movwi	FSR#v(dst)++	;}
+	movwi	FSR#v(dst)++	;} // zOS_IHF()
 	endm
 
 
@@ -948,7 +952,7 @@ loop
 	movwf	FSR1L		;
 	btfss	INDF1,rtsflag	;  if (*(fsr1 = rts) & (1<<rtsflag) == 0) //full
 	bra	loop		;   continue; // yield (still sending or no char)
-	asrf	zOS_ME 		;
+	lsrf	zOS_ME 		;
 	movwf	FSR1H		;
 	movf	p0,w		;  // READY TO SEND, AND...       
 	movwf	FSR1L		;
@@ -1256,9 +1260,8 @@ zOS_ACC	macro	valregs,basereg
 zOS_PCT	macro	reg
 	movlw	0x7e 		; // 0 <= reg <= 100
 	andwf	reg,w		; w = reg & 0x7e; // 0 <= w <= reg (even, trunc)
-	bcf	STATUS,C	;
-	rlf	reg,f 		;
-	rlf	reg,f		; uint16_t c = reg *= 4; // 0 <= reg <= 400
+	lslf	reg,f 		;
+	lslf	reg,f		; uint16_t c = reg *= 4; // 0 <= reg <= 400
 	btfsc	STATUS,C	; if (c > 0xff)
 	iorlw	0x01		;  w |= 1;
 	addwf	reg,f		; c = reg += w;
@@ -1584,15 +1587,15 @@ monchr8
 	andlw	0xf0		;     uint16_t sum;
 	btfss	STATUS,Z	;     accumuh <<= 1;
 	bra	monchr9		;     accumuh |= (accumul & 0x80) ? 1 : 0;
-	bcf	STATUS,C	;     accumul <<= 1;
-	rlf	accumul,f	;     w = accumul;//w keeps original accumul<<1
+				;     accumul <<= 1;
+	lslf	accumul,f	;     w = accumul;//w keeps original accumul<<1
 	rlf	accumuh,f	;     accumuh <<= 1;
 	movf	accumul,w	;     accumuh |= (accumul & 0x80) ? 1 : 0;
-	bcf	STATUS,C	;     accumul <<= 1;
-	rlf	accumul,f	;     accumuh |= (accumul & 0x80) ? 1 : 0;
+				;     accumul <<= 1;
+	lslf	accumul,f	;     accumuh |= (accumul & 0x80) ? 1 : 0;
 	rlf	accumuh,f	;     accumul <<= 1; // accumuh:accumul <<= 3;
-	bcf	STATUS,C	;     if (numbase & 2) { // base 10 presumed
-	rlf	accumul,f	;      sum = (accumuh<<8)+accumul + w;
+				;     if (numbase & 2) { // base 10 presumed
+	lslf	accumul,f	;      sum = (accumuh<<8)+accumul + w;
 	rlf	accumuh,f	;      accumul = sum & 0x00ff;
 	btfss	numbase,1	;      accumuh = sum >> 8;
 	bra	$+4		;     }
@@ -2130,9 +2133,8 @@ manchr9
 	bra	mannone		; case 'Z': // go to low-power Zz mode for time
 	clrf	char_io		;  char_io = 0;
 	
-	bsf	WDTCON,SWDTEN	;
-	bcf	STATUS,C	;  if (w = accumul<<1) { // WDT prescaler
-	rlf	accumul,w	;   w |= 1<<SWDTEN; // enable the wakeup
+	bsf	WDTCON,SWDTEN	;  if (w = accumul<<1) { // WDT prescalre
+	lslf	accumul,w	;   w |= 1<<SWDTEN; // enable the wakeup
 	btfsc	STATUS,Z	;   
 	bra	mannone		; 
 	iorlw	1<<SWDTEN	;
