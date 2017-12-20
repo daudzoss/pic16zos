@@ -601,83 +601,34 @@ zOS_UNW	macro	job		;inline void zOS_UNW(int8_t job) { }
 	bcf	INDF0,zOS_WAI	; *fsr0 &= ~(1 << zOS_WAI); // now runnable
 	endm			;} // zOS_UNW()
 
-#if 0
-;;; FIXME: major reworking needed still
-zOS_ASC	macro	file,str,nulterm;inline uint8_t zOS_ASC(char*file, const char*
-	local	start,out
-	variable i,sum,prev,curr
-prev = 0xff
-i = 0
-	while i < (out-start)	; for (int i=0; str[i]||(nulterm&&!str[i]); i++)
-sum = start
-curr = high sum
-	if curr-prev	
-	 pagesel sum
-	endif
-	call	sum		;  file[i] = str[i];
-	movwf	file+i		; return i;
-prev = curr
-sum += 1
-	endw
-	movlw	i+nulterm	;}
-	bra	out		;                       str, int nulterm) {
-start
+zOS_OUT	macro	swinum,str,temp
+	local	agent,pre,setup,len,sloop,loop
+	bra	setup		;inline void zOS_OUT(uint8_t swinum, char* str,
+agent
+	brw			;                    uint8_t* temp) { // no '\0'
+pre	
 	dt	str
-	if nulterm
-	 dt	0
+setup
+len	set	setup-pre
+	if (len > 254)
+	 error "string too long"
 	endif
-out
-	endm
-
-#if 1
-zOS_OUT	macro	swinum,string	; // 8 words per byte (+1) to avoid using stack
-	local start,out
-	if (out-start) > 255
-	 pagesel out
-	 goto	out		;inline void zOS_OUT(int8_t swinum,
-	else
-	 bra	out		; const char* string){//unpacked (dt) with retlw
-	endif
-start
-	dt	string
-out		
-	variable i,sum,prev,curr
-prev = 0xff
-i = 0
-	while i < (out-start)	; for (int i = 0; i < strlen(string); i++) {
-sum = i+start
-curr = high sum
-	if curr-prev
-	 pagesel sum
-	endif
-	call	sum		;  zOS_ARG(0, *(string[i])());
-	zOS_ARG	0		;  zOS_SWI(swinum);
-	zOS_SWI	swinum		; }
-prev = curr	
-i += 1
-	endw			;
-	endm			;} // zOS_OUT()
-#else
-zOS_OUT	macro	swinum,revstr,temp; // 1 word per byte (+13) to use stack+file
-	local	pre,post,callnxt,offset,loop
-offset	set	callnxt
-	movlw	post-pre	;inline void zOS_OUT(int8_t swinum, const char*
-	movwf	temp		;                    revstr, int8_t* temp) {
+	movlw	len		; zOS_SWI(ZOS_YLD); // get buffer empty as poss.
+	movwf	temp		; for (*temp = strlen(str); *temp; --*temp) {
+sloop
+	zOS_SWI	ZOS_YLD
 loop
-	decfsz	temp,f		; static const s[] = revstr;
-	bra	post		;
-	movf	temp,w		; for (*temp = strlen(revstr); *temp; (*temp)--){
-	addlw	offset		;  zOS_ARG(0, s[*temp]);
-callnxt
-	callw	;<---probably wrong since PCLATH unset!	;  zOS_SWI(swinum);
+	movf	temp,w		;  zOS_ARG(0, w = str[strlen(str) - *temp]);
+	sublw	len		;  while (zOS_SWI(swinum) != 1) { // buffer full
+	pagesel	agent		;;
+	call	agent		;   zOS_SWI(zOS_YLD); // flush buffer, retry
 	zOS_ARG	0
 	zOS_SWI	swinum
-	bra	loop		; } // zOS_ARG 0 is 2, zOS_SWI 3 words, bra 1
-pre
-	dt	revstr		;} // zOS_OUT()
-post
-#endif
-#endif
+	decfsz	WREG		;   zOS_ARG(0, w = str[strlen(str) - *temp]);
+	bra	sloop		;  }
+	decfsz	temp,f		; }
+	bra	loop		;} // zOS_OUT()
+	endm
 
 zOS_PSH	macro	reg
 	movf	zOS_ME		;inline void zOS_PSH(uint8_t* reg) {
@@ -876,8 +827,8 @@ zOS_CON	macro	p,rat,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t rat,int8_t
 t0div	set 0
 t0rst	set 1
 	
-	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,accumul
-	local	accumuh,numbase,destreg,destreh,char_io,buf,max
+	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,optadrl
+	local	optadrh,accumul,accumuh,numbase,destreg,destreh,char_io,buf,max
 
 	;; 0x20~24 reserved for zOS_CON
 p0	set	0x20
@@ -901,9 +852,7 @@ destreg	set	0x2d
 destreh	set	0x2e
 char_io	set	0x2f
 buf	set	0x30
-max	set	0x70		;FIXME: "max" has no purpose (just advisory that
-				; local variable space is capped at the bottom
-				; of the globals), so it can be nixed
+max	set	0x70
 
 ;copy the preceding lines rather than including this file, as definitions for
 ;zOS_MON()-derived macros referring to these local variables wouldn't open it
@@ -912,15 +861,15 @@ max	set	0x70		;FIXME: "max" has no purpose (just advisory that
 	local	uatbase,uatxmit
 	if (p == 0)
 uatbase	 set	TXREG & 0xff80
-uatxmit	 set	TXREG & 0x007f
+uatxmit	 set	TXREG & 0x001f ; mask off just the SFR space
 rtsflag	 set	TXIF	
 	else
 uatbase	 set	TX#v(p)REG & 0xff80
-uatxmit	 set	TX#v(p)REG & 0x007f
+uatxmit	 set	TX#v(p)REG & 0x001f ; mask off just the sfr SFR
 rtsflag	 set	TX#v(p)IF	
 	endif
 task
-	zOS_DIS	FSR0,zOS_JOB	; goto decl;
+	zOS_DIS	GIE,0		; goto decl;
 	movlw	high uatbase	;// all init that requires knowledge of BSR here
 	movwf	FSR0H		;task:
 	zOS_MY2	FSR0		; zOS_DIS(&fsr0, zOS_JOB); // interrupts off!
@@ -932,7 +881,7 @@ task
 	movwf	FSR0L		; const int8_t* uatbase = uatxmit & 0xff80;
 	rrf	zOS_ME		; fsr0 = uatbase;
 	clrw			; const char* max = 0x70;
-	rrf	WREG,w		; static char *p0, *p1, buf[]; //p0:task, p1:ISR
+	rrf	WREG		; static char *p0, *p1, buf[]; //p0:task, p1:ISR
 	iorlw	buf		;
 	movwf	wrap		; const char* wrap = ((bsr&1)<<7) | buf;
 	movwf	p0		;
@@ -982,11 +931,7 @@ isr
 	local	done,do_swi,nottmr
 	
 	;; get fsr0 pointing to tmr0 postscaler/reset value
-	movf	zOS_JOB,w	;isr:
-	movwf	BSR		; bsr = zOS_JOB; // isr starts with unknown bank
-	movlw	high uatxmit	;
-	movwf	FSR0H		;
-	zOS_MY2	FSR0L		; fsr0 = 0x70 | (bsr << 1);
+	zOS_MY2	FSR0L		;isr:
 
 	;; if it's a simple and frequent timer overflow interrupt finish quickly
 	banksel	zOS_T0F
@@ -1006,7 +951,7 @@ isr
 	banksel	hb
 	movf	INDF0,w		;
 	btfsc	STATUS,Z	;
-	incf	INDF0,w		;   if (*fsr0 == 0)
+	movlw	1		;   if (*fsr0 == 0) // disallow zero postscaler
 	movwf	INDF0		;    *fsr0 = 1;
 	movwf	INDF1		;   *fsr1 /*countdown*/ = *fsr0 /*postscaler*/;
 	movlw	(1<<pin)	;
@@ -1016,24 +961,25 @@ isr
 	;; check for validated SWI first since it will be in zOS_MSK, else a HWI
 nottmr
 	movf	zOS_MSK,f	;  if (zOS_MSK) { // a SWI to buffer a character
-	btfss	STATUS,Z	;   w = zOS_BUF(zos_job, p0); /*prints zOS_AR0*/
-	bra	do_swi		;   zOS_RFS(w);
+	btfss	STATUS,Z	;   fsr0 = 0x70 | (bsr << 1);
+	bra	do_swi		;   w = zOS_BUF(zos_job, p0); /*prints zOS_AR0*/
 	zOS_RET
 	
-	;; point fsr0 to uatbase again, point fsr1 to p0
+	;; point fsr0 to uatbase (again?), point fsr1 to p0
 do_swi
-	zOS_BUF	zOS_JOB,buf,p0	;  } else done:
-	zOS_RFS	WREG		;   zOS_RFI(); // HWI finished
+	movlw	high uatxmit	;   zOS_RFS(w);
+	movwf	FSR0H		;  } else zOS_RET(); // not our interrupt (!)
+	zOS_BUF	zOS_JOB,buf,p0	; }
+	zOS_RFS	WREG		; zOS_RFI(); // HWI finished
 done
-	zOS_RFI			; }
+	zOS_RFI			;}
 	;; intialize the UART peripheral, job handle and first three arguments
 decl
-#if 1
 	banksel	uatbase
 	bcf	RCSTA,SPEN	;decl: // all init that is BSR independent here
+#if 1
 	bcf	RCSTA,CREN	; RCSTA &= ~((1<<SPEN)|(1<<CREN));
 #endif
-	banksel	uatbase
 	bcf	TXSTA,TXEN	; TXSTA &= ~(1<<TXEN);
 	local brgval,brgvalm,brgvalh,brgvall
 #ifdef BRG16
@@ -1125,8 +1071,9 @@ zOS_INP	macro	p,ra,rt,h,pi,isr;inline void zOS_INP(int8_t p, int8_t ra, int8_t
 	bra	rxdecl		;      rt, int8_t* h, int8_t pi, void(*isr)()) {
 	
 	;; reserve constants and variables
-	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,accumul
-	local	accumuh,numbase,destreg,destreh,char_io,buf,max
+	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,optadrl
+	local	optadrh,accumul,accumuh,numbase,destreg,destreh,char_io,buf,max
+
 	;; 0x20~24 reserved for zOS_CON
 p0	set	0x20
 p1	set	0x21
@@ -1149,9 +1096,7 @@ destreg	set	0x2d
 destreh	set	0x2e
 char_io	set	0x2f
 buf	set	0x30
-max	set	0x70		;FIXME: "max" has no purpose (just advisory that
-				; local variable space is capped at the bottom
-				; of the globals), so it can be nixed
+max	set	0x70
 
 ;copy the preceding lines rather than including this file, as definitions for
 ;zOS_MON()-derived macros referring to these local variables wouldn't open it
@@ -1279,8 +1224,9 @@ zOS_MON	macro	p,ra,rt,h,pi,isr;inline void zOS_MON(int8_t p, int8_t ra, int8_t
 	pagesel	endmon		;      rt, int8_t* h, int8_t pi, void(*isr)()) {
 	goto	endmon		; zOS_INP(p,ra,rt,h,pi,monisr); }// isr may be 0
 
-	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,accumul
-	local	accumuh,numbase,destreg,destreh,char_io,buf,max
+	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,optadrl
+	local	optadrh,accumul,accumuh,numbase,destreg,destreh,char_io,buf,max
+
 	;; 0x20~24 reserved for zOS_CON
 p0	set	0x20
 p1	set	0x21
@@ -1303,9 +1249,7 @@ destreg	set	0x2d
 destreh	set	0x2e
 char_io	set	0x2f
 buf	set	0x30
-max	set	0x70		;FIXME: "max" has no purpose (just advisory that
-				; local variable space is capped at the bottom
-				; of the globals), so it can be nixed
+max	set	0x70
 
 ;copy the preceding lines rather than including this file, as definitions for
 ;zOS_MON()-derived macros referring to these local variables wouldn't open it
@@ -1648,8 +1592,9 @@ zOS_CLC	macro	p,ra,rt,h,pi,isr;inline void zOS_CLC(int8_t p, int8_t ra, int8_t
 	pagesel	endclc
 	goto	endclc		;      rt, int8_t* h, int8_t pi, void(*isr)()) {
 	
-	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,accumul
-	local	accumuh,numbase,destreg,destreh,char_io,buf,max
+	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,optadrl
+	local	optadrh,accumul,accumuh,numbase,destreg,destreh,char_io,buf,max
+
 	;; 0x20~24 reserved for zOS_CON
 p0	set	0x20
 p1	set	0x21
@@ -1672,9 +1617,7 @@ destreg	set	0x2d
 destreh	set	0x2e
 char_io	set	0x2f
 buf	set	0x30
-max	set	0x70		;FIXME: "max" has no purpose (just advisory that
-				; local variable space is capped at the bottom
-				; of the globals), so it can be nixed
+max	set	0x70
 
 ;copy the preceding lines rather than including this file, as definitions for
 ;zOS_MON()-derived macros referring to these local variables wouldn't open it
@@ -1847,8 +1790,9 @@ zOS_MAN	macro	p,rat,rts,hb,pin;inline void zOS_MAN(int8_t p, int8_t rat,
 	pagesel	endman
 	goto	endman		;}
 	
-	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,accumul
-	local	accumuh,numbase,destreg,destreh,char_io,buf,max
+	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,optadrl
+	local	optadrh,accumul,accumuh,numbase,destreg,destreh,char_io,buf,max
+
 	;; 0x20~24 reserved for zOS_CON
 p0	set	0x20
 p1	set	0x21
@@ -1871,9 +1815,7 @@ destreg	set	0x2d
 destreh	set	0x2e
 char_io	set	0x2f
 buf	set	0x30
-max	set	0x70		;FIXME: "max" has no purpose (just advisory that
-				; local variable space is capped at the bottom
-				; of the globals), so it can be nixed
+max	set	0x70
 
 ;copy the preceding lines rather than including this file, as definitions for
 ;zOS_MON()-derived macros referring to these local variables wouldn't open it

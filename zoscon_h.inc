@@ -1,5 +1,5 @@
-	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,accumul
-	local	accumuh,numbase,destreg,destreh,char_io,buf,max
+	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,optadrl
+	local	optadrh,accumul,accumuh,numbase,destreg,destreh,char_io,buf,max
 	;; 0x20~24 reserved for zOS_CON
 p0	set	0x20
 p1	set	0x21
