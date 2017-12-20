@@ -583,19 +583,6 @@ dst set 0
 	endm
 
 
-zOS_PUT	macro	max
-	movwi	FSR0++		;inline void zOS_PUT(char* max, char w) {
-	movf	FSR0L,w		; // fsr0 must be pointing into buffer at p0
-	andlw	0x7f		; // fsr1 must be pointing @variables p0,p1,wrap
-	xorlw	max		; *fsr0++ = w;
-	btfss	STATUS,Z	;
-	bra	$+3		; if (fsr0 & 0x7f == max)
-	moviw	2[FSR1]		;  fsr0 = 2[fsr1] /*wrap*/;
-	movwf	FSR0L		;
-	movf	FSR0L,w		; 1[fsr1] /*p1*/ = fsr0 & 0x00ff;
-	movwi	1[FSR1]		;} // zOS_PUT()
-	endm
-
 zOS_UNW	macro	job		;inline void zOS_UNW(int8_t job) { }
 	zOS_MEM	FSR0,job,zOS_PCH; fsr0 = 0x10 * (1 + job) + zOS_PCH;
 	bcf	INDF0,zOS_WAI	; *fsr0 &= ~(1 << zOS_WAI); // now runnable
@@ -735,7 +722,85 @@ done
 	bsf	INTCON,GIE	; } zOS_POP(&bsr); INTCON |= 1<<GIE;
 	endm			;} // zOS_STR()
 
+#if 1
+;;;FIXME: these macros are long, should be encapsulated for frequent use
+zOS_PUT	macro	fsrnum,max,wrap,p
+	local	fsrn
+	if (fsrnum & 3)
+fsrn set 1
+	else
+fsrn set 0
+	endif
+	movwi	FSR#v(fsrn)++	;inline int8_t zOS_PUT(char**fsrnum,uint7_t max,
+	movf	FSR#v(fsrn)L,w	;                 char* wrap, char* p, char w) {
+	andlw	0x7f		; *(*fsrnum)++ = w;
+	xorlw	max		; // w gets put in buffer regardless, but caller
+	swapf	wrap,w		; // only updates the local pointer if not full
+	btfss	STATUS,Z	; // (i.e. Z not set) by xor return value with p
+	swapf	FSR#v(fsrn)L,w	; *fsrnum = (*fsrnum&0x7f==max) ? wrap :*fsrnum;
+	swapf	WREG		; return (*fsrnum & 0x00ff) ^ p; //0 if full, or
+	movwf	FSR#v(fsrn)L	;              // new pointer value xor p if not
+	xorwf	p,w		;} // zOS_PUT()
+	endm
 	
+zOS_BUF	macro	fsrnum,max,ptr
+	local	ascii,err1,done
+	local	fsrn
+	if (fsrnum & 3)
+fsrn set 1
+	else
+fsrn set 0
+	endif
+	lsrf	zOS_ME		;inline int8_t zOS_BUF(char**fsrnum,uint7_t max,
+	movwf	FSR#v(fsrn)H	;          char** ptr, char w) { // p0, p1, wrap
+	movf	1+ptr,w		; // must be in correct bank already
+	movwf	FSR#v(fsrn)L	; fsr0 = (bsr<<7) | ptr[0];
+
+	movf	zOS_AR0,w	; w = zOS_AR0;
+	btfss	STATUS,Z	; if (w == 0) { // print as 2-digit hex byte
+	bra	ascii		;  w=zOS_PUT(fsrnum,max,ptr[0],zOS_HEX(zOS_AR1));
+
+	swapf	zOS_AR1,w	;  if (w == 0)
+	zOS_HEX
+	zOS_PUT	FSR0,max,2+ptr,ptr
+	btfsc	STATUS,Z	;   return 0;
+	bra	done		;  ptr[1] = w^ptr[0]; // correctly updated
+	xorwf	ptr,w		;  w=zOS_PUT(fsrnum,max,ptr[0],zOS_HEX(zOS_AR1>>4));
+	movwf	1+ptr		;
+	
+	movf	zOS_AR1,w	;
+	zOS_HEX
+	zOS_PUT	FSR0,max,2+ptr,ptr
+	btfsc	STATUS,Z	;
+	bra	err1		;
+	xorwf	ptr,w		;
+	movwf	1+ptr		;
+	movlw	2		;
+	bra	done		;
+ascii
+	zOS_PUT	FSR0,max,2+ptr,ptr
+	btfsc	STATUS,Z	; } else { // print an ascii character
+	bra	done		;
+	xorwf	ptr,w		;
+	movwf	1+ptr		;
+err1
+	movlw	1		;} // zOS_BUF()
+done
+	endm
+#else
+zOS_PUT	macro	max
+	movwi	FSR0++		;inline void zOS_PUT(char* max, char w) {
+	movf	FSR0L,w		; // fsr0 must be pointing into buffer at p0
+	andlw	0x7f		; // fsr1 must be pointing @variables p0,p1,wrap
+	xorlw	max		; *fsr0++ = w;
+	btfss	STATUS,Z	;
+	bra	$+3		; if (fsr0 & 0x7f == max)
+	moviw	2[FSR1]		;  fsr0 = 2[fsr1] /*wrap*/;
+	movwf	FSR0L		;
+	movf	FSR0L,w		; 1[fsr1] /*p1*/ = fsr0 & 0x00ff;
+	movwi	1[FSR1]		;} // zOS_PUT()
+	endm
+
 zOS_BUF	macro	job,buf,ptr	;inline int zOS_BUF(uint3_t job, uint8_t ptr) {
 	local	ascii,err,done
 	zOS_LOC	FSR1,job,ptr
@@ -792,6 +857,7 @@ err
 	clrw			; err: return 0 /* characters added */;
 done
 	endm			;} // zOS_BUF()
+#endif
 
 zOS_NUL	macro	hwflag		;void zOS_NUL(void) { // replacement for zOS_CON
 	bra	decl		; goto decl;
@@ -967,12 +1033,13 @@ nottmr
 	
 	;; point fsr0 to uatbase (again?), point fsr1 to p0
 do_swi
-	movlw	high uatxmit	;   zOS_RFS(w);
-	movwf	FSR0H		;  } else zOS_RET(); // not our interrupt (!)
+	movf	zOS_JOB,w	;   zOS_RFS(w);
+	movwf	BSR		;  } else zOS_RET(); // not our interrupt (!)
 	zOS_BUF	zOS_JOB,buf,p0	; }
 	zOS_RFS	WREG		; zOS_RFI(); // HWI finished
 done
 	zOS_RFI			;}
+	
 	;; intialize the UART peripheral, job handle and first three arguments
 decl
 	banksel	uatbase
