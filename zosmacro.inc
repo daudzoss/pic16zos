@@ -1028,14 +1028,14 @@ isr
 nottmr
 	movf	zOS_MSK,f	;  if (zOS_MSK) { // a SWI to buffer a character
 	btfss	STATUS,Z	;   fsr0 = 0x70 | (bsr << 1);
-	bra	do_swi		;   w = zOS_BUF(zos_job, p0); /*prints zOS_AR0*/
+	bra	do_swi		;   w = zOS_BUF(&fsr0, max, p0); // zOS_AR0,_AR1
 	zOS_RET
 	
 	;; point fsr0 to uatbase (again?), point fsr1 to p0
 do_swi
 	movf	zOS_JOB,w	;   zOS_RFS(w);
 	movwf	BSR		;  } else zOS_RET(); // not our interrupt (!)
-	zOS_BUF	zOS_JOB,buf,p0	; }
+	zOS_BUF	FSR0,max,p0	; }
 	zOS_RFS	WREG		; zOS_RFI(); // HWI finished
 done
 	zOS_RFI			;}
@@ -1168,6 +1168,14 @@ max	set	0x70
 ;copy the preceding lines rather than including this file, as definitions for
 ;zOS_MON()-derived macros referring to these local variables wouldn't open it
 ;until expansion and would throw an undefined-var error during the processing
+
+;;; function callable by all zOS_INP-derived functions 
+;;; FIXME: must be in the correct bank, disable interrupts, re-enable afterward
+zOS_ASC
+	
+	zOS_BUF	
+	
+	return
 
 	local	uarbase,uarecv,rxflag
 	if (p == 0)
