@@ -600,10 +600,10 @@ len	set	setup-pre
 	if (len > 254)
 	 error "string too long"
 	endif
-	movlw	len		; zOS_SWI(ZOS_YLD); // get buffer empty as poss.
+	movlw	len		; zOS_SWI(zOS_YLD); // get buffer empty as poss.
 	movwf	temp		; for (*temp = strlen(str); *temp; --*temp) {
 sloop
-	zOS_SWI	ZOS_YLD
+	zOS_SWI	zOS_YLD
 loop
 	movf	temp,w		;  zOS_ARG(0, w = str[strlen(str) - *temp]);
 	sublw	len		;  while (zOS_SWI(swinum) != 1) { // buffer full
