@@ -753,8 +753,8 @@ fsrn set 0
 	endif
 	lsrf	zOS_ME		;inline int8_t zOS_BUF(char**fsrnum,uint7_t max,
 	movwf	FSR#v(fsrn)H	;          char** ptr, char w) { // p0, p1, wrap
-	movf	1+ptr,w		; // must be in job bank already, interrupts off
-	movwf	FSR#v(fsrn)L	; fsr0 = (bsr<<7) | ptr[1]; // insertion pointer
+	movlw	1+ptr		; // must be in job bank already, interrupts off
+	movwf	FSR#v(fsrn)L	; fsr0 = (bsr<<7) | &ptr[1]; // insertion pointer
 
 	movf	zOS_AR0,w	; if ((w = zOS_AR0) == 0) { // 2-digit hex byte
 	btfss	STATUS,Z	;  w = zOS_HEX(zOS_AR1>>4); // convert high nyb
@@ -994,7 +994,9 @@ isr
 	local	done,do_swi,nottmr
 	
 	;; get fsr0 pointing to tmr0 postscaler/reset value
-	zOS_MY2	FSR0L		;isr:
+	movf	zOS_JOB,w	;isr:
+	movwf	BSR		; bsr = zos_job;
+	zOS_MY2	FSR0L		; fsr0 = 0x70 | (bsr < 1);
 
 	;; if it's a simple and frequent timer overflow interrupt finish quickly
 	banksel	zOS_T0F
@@ -1024,14 +1026,12 @@ isr
 	;; check for validated SWI first since it will be in zOS_MSK, else a HWI
 nottmr
 	movf	zOS_MSK,f	;  if (zOS_MSK) { // a SWI to buffer a character
-	btfss	STATUS,Z	;   fsr0 = 0x70 | (bsr << 1);
-	bra	do_swi		;   w = zOS_BUF(&fsr0, max, p0); // zOS_AR0,_AR1
+	btfss	STATUS,Z	;   w = zOS_BUF(&fsr0, max, p0); // zOS_AR0,_AR1
+	bra	do_swi		;   zOS_RFS(w); } else zOS_RET(); // not ours(!)
 	zOS_RET
 	
 	;; point fsr0 to uatbase (again?), point fsr1 to p0
 do_swi
-	movf	zOS_JOB,w	;   zOS_RFS(w);
-	movwf	BSR		;  } else zOS_RET(); // not our interrupt (!)
 	zOS_BUF	FSR0,max,p0	; }
 	zOS_RFS	WREG		; zOS_RFI(); // HWI finished
 done
