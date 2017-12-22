@@ -715,8 +715,13 @@ zos_bad
 	
 	;; else handle the software interrupt with the first registered handler
 zos_swh
-	movlw	1+zOS_NUM	;
-	movwf	zOS_JOB		; zos_job = zOS_NUM;
+	banksel	BSR_SHAD
+	incf	BSR_SHAD,w	; // a swi number of 0xff is special now, will
+	incfsz	zOS_MSK,f	; // cause the calling job to invoke its own
+	movlw	1+zOS_NUM	; // handler without knowledge of its SWI code!
+	decf	zOS_MSK,f	; // (at the cost of 4 extra instruction cycles)
+	movwf	zOS_JOB		; zos_job =1+((zos_msk==0xff)?BSR_SHAD:zOS_NUM);
+
 	zOS_MEM	FSR0,zOS_JOB,0	; while (zOS_LIV(&fsr0, &zOS_JOB, 0)) { //search
 zos_swl
 	zOS_LIV	FSR0,zOS_JOB,0,zos_swm
