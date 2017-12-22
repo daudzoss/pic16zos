@@ -762,7 +762,7 @@ fsrn set 0
 
 	swapf	zOS_AR1,w	;  if (w == 0)
 	zOS_HEX
-	zOS_PUT	FSR0,max,2+ptr,ptr
+	zOS_PUT	fsrnum,max,2+ptr,ptr
 	btfsc	STATUS,Z	;   return 0; // buffer was full
 	bra	done		;  ptr[1] = w^ptr[0]; // correctly updated
 	xorwf	ptr,w		;  w = zOS_HEX(zOS_AR1);// convert low nybble
@@ -770,7 +770,7 @@ fsrn set 0
 	
 	movf	zOS_AR1,w	;  if (w == 0)
 	zOS_HEX
-	zOS_PUT	FSR0,max,2+ptr,ptr
+	zOS_PUT	fsrnum,max,2+ptr,ptr
 	btfsc	STATUS,Z	;   return 1; // buffer filled after first char
 	bra	err1		;  ptr[1] = w^ptr[0]; // correctly updated
 	xorwf	ptr,w		;  w = 2;
@@ -778,7 +778,7 @@ fsrn set 0
 	movlw	2		;  if ((w = zOS_PUT(fsrnum,max,ptr[0],w)) == 0)
 	bra	done		;   return 0; // buffer was full
 ascii
-	zOS_PUT	FSR0,max,2+ptr,ptr
+	zOS_PUT	fsrnum,max,2+ptr,ptr
 	btfsc	STATUS,Z	;  ptr[1] = w^ptr[0]; // correctly updated
 	bra	done		;  w = 1;
 	xorwf	ptr,w		; }
@@ -887,12 +887,12 @@ decl
 zOS_CON	macro	p,rat,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t rat,int8_t
 	local	task,isr,loop,decl
 	bra	decl		;                    rts,int8_t* hb,int8_t pin){
-	
+
 	;; initialize constants and variables
 	local	t0div,t0rst
 t0div	set 0
 t0rst	set 1
-	
+
 	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,optadrl
 	local	optadrh,accumul,accumuh,numbase,destreg,destreh,char_io,buf,max
 
@@ -901,7 +901,7 @@ p0	set	0x20
 p1	set	0x21
 wrap	set	0x22
 t0scale	set	0x23
-	
+
 	;; 0x24~28 reserved for zOS_INP
 isradrl	set	0x24
 isradrh	set	0x25
@@ -953,11 +953,8 @@ task
 	movwf	p0		;
 	movwf	p1		; p0 = p1 = wrap; // reset value if they max out
 	zOS_ENA			; zOS_ENA(); // interrupts on after init done
-#if 0
-	zOS_ASC	buf,"\r\nWelcome to zOS\r\n",1
-	;; FIXME: zOS_ASC won't build under MPASM
-	addwf	p1,f		; p1 += strlen(strcpy(buf,"\r\nzOS>")) + 1;
-#endif
+
+	zOS_OUT	0xff,"\r\nWelcome to zOS\r\n",char_io
 	
 loop
 	zOS_SWI	zOS_YLD		; do {
@@ -2296,17 +2293,3 @@ crlf
 	return			;}
 endman
 	endm
-
-
-
-
-
-
-
-
-
-
-
-
-
-
