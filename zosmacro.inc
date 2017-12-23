@@ -744,21 +744,17 @@ fsrn set 0
 	endm
 	
 zOS_BUF	macro	fsrnum,max,ptr
-	local	ascii,err1,done,ptr1
+	local	ascii,err1,done
 	local	fsrn
 	if (fsrnum & 3)
 fsrn set 1
 	else
 fsrn set 0
 	endif
-ptr1 set 1+ptr
 	lsrf	zOS_ME		;inline int8_t zOS_BUF(char**fsrnum,uint7_t max,
 	movwf	FSR#v(fsrn)H	;          char** ptr, char w) { // p0, p1, wrap
-	movlw	ptr1<<1		; // must be in job bank already, interrupts off
-	rrf	WREG		;
-	movwf	FSR#v(fsrn)L	; fsr0 = (bsr<<7) | &ptr[1]; // insertion pointer
-	movf	INDF#v(fsrn),w	;
-	movwf	FSR#v(fsrn)L	; fsr0 = *fsr0; // now pointing into the buffer !
+	movf	1+ptr,w		; // must be in job bank already, interrupts off
+	movwf	FSR#v(fsrn)L	; fsr0 = (bsr<<7) | ptr[1]; // insertion pointer
 
 	movf	zOS_AR0,w	; if ((w = zOS_AR0) == 0) { // 2-digit hex byte
 	btfss	STATUS,Z	;  w = zOS_HEX(zOS_AR1>>4); // convert high nyb
@@ -770,7 +766,7 @@ ptr1 set 1+ptr
 	btfsc	STATUS,Z	;   return 0; // buffer was full
 	bra	done		;  ptr[1] = w^ptr[0]; // correctly updated
 	xorwf	ptr,w		;  w = zOS_HEX(zOS_AR1);// convert low nybble
-	movwf	ptr1		;  w = zOS_PUT(fsrnum, max, ptr[0], w); // room?
+	movwf	1+ptr		;  w = zOS_PUT(fsrnum, max, ptr[0], w); // room?
 	
 	movf	zOS_AR1,w	;  if (w == 0)
 	zOS_HEX
@@ -778,7 +774,7 @@ ptr1 set 1+ptr
 	btfsc	STATUS,Z	;   return 1; // buffer filled after first char
 	bra	err1		;  ptr[1] = w^ptr[0]; // correctly updated
 	xorwf	ptr,w		;  w = 2;
-	movwf	ptr1		; } else { // print an ascii character
+	movwf	1+ptr		; } else { // print an ascii character
 	movlw	2		;  if ((w = zOS_PUT(fsrnum,max,ptr[0],w)) == 0)
 	bra	done		;   return 0; // buffer was full
 ascii
@@ -786,7 +782,7 @@ ascii
 	btfsc	STATUS,Z	;  ptr[1] = w^ptr[0]; // correctly updated
 	bra	done		;  w = 1;
 	xorwf	ptr,w		; }
-	movwf	ptr1		; return w; // num of characters added to buffer
+	movwf	1+ptr		; return w; // num of characters added to buffer
 err1
 	movlw	1		;} // zOS_BUF()
 done
