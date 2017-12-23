@@ -595,26 +595,44 @@ agent
 	brw			;                    uint8_t* temp) { // no '\0'
 pre	
 	dt	str
-setup
 len	set	setup-pre
 	if (len > 254)
 	 error "string too long"
 	endif
-	movlw	len		; zOS_SWI(zOS_YLD); // get buffer empty as poss.
-	movwf	temp		; for (*temp = strlen(str); *temp; --*temp) {
+	
+	if (len)
+setup
+	 movlw	len		; zOS_SWI(zOS_YLD); // get buffer empty as poss.
+	 movwf	temp		; for (*temp = strlen(str); *temp; --*temp) {
 sloop
 	zOS_SWI	zOS_YLD
 loop
-	movf	temp,w		;  zOS_ARG(0, w = str[strlen(str) - *temp]);
-	sublw	len		;  while (zOS_SWI(swinum) != 1) { // buffer full
-	pagesel	agent		;;
-	call	agent		;   zOS_SWI(zOS_YLD); // flush buffer, retry
-	zOS_ARG	0
+	 movf	temp,w		;  zOS_ARG(0, w = str[strlen(str) - *temp]);
+	 sublw	len		;  while (zOS_SWI(swinum) != 1) { // buffer full
+	pagesel	agent
+	 call	agent		;   zOS_SWI(zOS_YLD); // flush buffer, retry
+	zOS_ARG 0
+	
+	else
+sloop
+	zOS_SWI	zOS_YLD
+setup
+	 if (temp - zOS_AR0)
+	  if (temp - WREG)
+	   movf	temp,w
+	  endif
+	  zOS_ARG 0
+	 endif
+	endif
+	
 	zOS_SWI	swinum
 	decfsz	WREG		;   zOS_ARG(0, w = str[strlen(str) - *temp]);
 	bra	sloop		;  }
-	decfsz	temp,f		; }
-	bra	loop		;} // zOS_OUT()
+	
+	if (len)
+	 decfsz	temp,f		; }
+	 bra	loop		;} // zOS_OUT()
+	endif
 	endm
 
 zOS_PSH	macro	reg
@@ -699,21 +717,21 @@ loop
 	bra	done		;  if ((w = (zOS_RDH<<1)|(zOS_RDL>>7)) != '\0'){
 	movwf	zOS_AR0		;   zOS_ARG(0, w);
 	zOS_POP	BSR
-	zOS_SWI swinum	   	;
+	zOS_OUT	swinum,"",zOS_AR0
 	bcf	INTCON,GIE	;   zOS_POP(&bsr); // back to the expected bank
 	zOS_PSH	BSR
 	banksel	zOS_RDL
-	movf	zOS_RDL,w	;   zOS_SWI(swinum);; // print the ASCII char
+	movf	zOS_RDL,w	;   zOS_OUT(swinum,"",zOS_AR0); // print ASCII
 	andlw	0x7f		;   INTCON &= ~(1<<GIE); // undo SWI GIE toggle
 	btfsc	STATUS,Z	;   zOS_PSH(&bsr);
 	bra	done		;   if ((w = zOS_RDL & 0x7f) != '\0') {
 	movwf	zOS_AR0		;    zOS_ARG(0, w);
 	zOS_POP	BSR
-	zOS_SWI	swinum
+	zOS_OUT	swinum,"",zOS_AR0
 	bcf	INTCON,GIE	;    zOS_POP(&bsr); // back to the expected bank
 	zOS_PSH	BSR
 	banksel	zOS_ADL
-	incfsz	zOS_ADL,f	;    zOS_SWI(swinum); // print the ASCII char
+	incfsz	zOS_ADL,f	;    zOS_SWI(swinum,"",zOS_AR0); // print ASCII
 	bra	loop		;    INTCON &= ~(1<<GIE); // undo SWI GIE toggle
 	incf	zOS_ADH,f	;    zOS_PSH(&bsr);
 	bra	loop		;   } else break;
@@ -722,8 +740,6 @@ done
 	bsf	INTCON,GIE	; } zOS_POP(&bsr); INTCON |= 1<<GIE;
 	endm			;} // zOS_STR()
 
-#if 1
-;;;FIXME: these macros are long, should be encapsulated for frequent use
 zOS_PUT	macro	fsrnum,max,wrap,p
 	local	fsrn
 	if (fsrnum & 3)
@@ -787,77 +803,6 @@ err1
 	movlw	1		;} // zOS_BUF()
 done
 	endm
-#else
-zOS_PUT	macro	max
-	movwi	FSR0++		;inline void zOS_PUT(char* max, char w) {
-	movf	FSR0L,w		; // fsr0 must be pointing into buffer at p0
-	andlw	0x7f		; // fsr1 must be pointing @variables p0,p1,wrap
-	xorlw	max		; *fsr0++ = w;
-	btfss	STATUS,Z	;
-	bra	$+3		; if (fsr0 & 0x7f == max)
-	moviw	2[FSR1]		;  fsr0 = 2[fsr1] /*wrap*/;
-	movwf	FSR0L		;
-	movf	FSR0L,w		; 1[fsr1] /*p1*/ = fsr0 & 0x00ff;
-	movwi	1[FSR1]		;} // zOS_PUT()
-	endm
-
-zOS_BUF	macro	job,buf,ptr	;inline int zOS_BUF(uint3_t job, uint8_t ptr) {
-	local	ascii,err,done
-	zOS_LOC	FSR1,job,ptr
-	movwf	FSR0H		; // ASCII parameter in zOS_AR0, zOS_AR1 for hex
-	movlw	0x80		; fsr0 = zOS_LOC(fsr1,job,ptr)<<8;//(job<<7)|ptr
-	andwf	FSR1L,w		; // fsr1 now points at ptr variables p0,p1,wrap
-	iorwf	INDF1,w		; fsr0 |= (fsr1 & 0x0080) ? 0x0080 : 0;
-	movwf	FSR0L		; fsr0 |= *fsr1; // fsr0 now points into buf @p0
-	
-	;; check to make sure there are at least 2 characters free in the buffer
-	moviw	1[FSR1]		; fsrnum = (zOS_JOB << 7) + p0;
-	andlw	0x7f		; char* p1plus2 = 2 + (1[fsrnum] /*p1*/ & 0x7f);
-	addlw	0x12		;
-	btfss	WREG,7		; if (p1plus2 >= max)
-	addlw	0x90+buf	;  p1plus2 -= (max - buf);
-	addlw	0-0x10		;
-	bcf	INDF1,7		;
-	subwf	INDF1,w		; char* w = p1plus2 - (0[fsrnum] /*p0*/&= 0x7f);
-	
-	incf	FSR1L,f		; // don't clobber w: OK if it's not 0 or 1
-	btfsc	INDF1,7		;
-	bra	$+4		; if (1[fsrnum++] /*p1*/ & 0x80) {
-	decf	FSR1L,f		;  0[--fsrnum] /*p0*/ |= 0x80; // p0 restored
-	bsf	INDF1,7		;  fsrnum++; // cancels the above decrement
-	incf	FSR1L,f		; }
-	decf	FSR1L,f		; fsrnum--; // cancels increment from the "if"
-
-	iorlw	0x00		;
-	btfsc	STATUS,Z	;
-	bra	err		; if (w == 0)
-	decf	WREG,w		;  goto err;// would wrap around, appear empty
-	btfsc	STATUS,Z	; else if (w == 1)
-	bra	err		;  goto err; // would wrap around to be size 1
-
-	moviw	1[FSR1]		; fsr0 = 1[fsrnum]; // stop examining p1 and use
-	movwf	FSR0L		;
-	movf	zOS_AR0,w	; // we're now certain we won't exceed the buf
-	btfss	STATUS,Z	;
-	bra	ascii		; if (zOS_AR0 == 0) { // print zOS_AR1 as hex
-	
-	swapf	zOS_AR1,w	;  zOS_PUT(max, zOS_HEX(zOS_AR1 >> 4));
-	zOS_HEX
-	zOS_PUT	0x70
-	movf	zOS_AR1,w	;  zOS_PUT(max, zOS_HEX(zOS_AR1 >> 0));
-	zOS_HEX
-	zOS_PUT	0x70
-	movlw	2		;  return 2 /* characters added */;
-	bra	done		; } else {
-ascii
-	zOS_PUT	0x70		;  zOS_PUT(max, zOS_AR0);
-	movlw	1		;  return 1 /* character added */;
-	bra	done		; }
-err
-	clrw			; err: return 0 /* characters added */;
-done
-	endm			;} // zOS_BUF()
-#endif
 
 zOS_NUL	macro	hwflag		;void zOS_NUL(void) { // replacement for zOS_CON
 	bra	decl		; goto decl;
@@ -1167,14 +1112,6 @@ max	set	0x70
 ;copy the preceding lines rather than including this file, as definitions for
 ;zOS_MON()-derived macros referring to these local variables wouldn't open it
 ;until expansion and would throw an undefined-var error during the processing
-
-;;; function callable by all zOS_INP-derived functions 
-;;; FIXME: must be in the correct bank, disable interrupts, re-enable afterward
-zOS_ASC
-	
-	zOS_BUF	
-	
-	return
 
 	local	uarbase,uarecv,rxflag
 	if (p == 0)
