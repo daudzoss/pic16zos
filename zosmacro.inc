@@ -757,6 +757,8 @@ ptr1 set 1+ptr
 	movlw	ptr1<<1		; // must be in job bank already, interrupts off
 	rrf	WREG		;
 	movwf	FSR#v(fsrn)L	; fsr0 = (bsr<<7) | &ptr[1]; // insertion pointer
+	movf	INDF#v(fsrn),w	;
+	movwf	FSR#v(fsrn)L	; fsr0 = *fsr0; // now pointing into the buffer !
 
 	movf	zOS_AR0,w	; if ((w = zOS_AR0) == 0) { // 2-digit hex byte
 	btfss	STATUS,Z	;  w = zOS_HEX(zOS_AR1>>4); // convert high nyb
