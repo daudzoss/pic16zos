@@ -143,7 +143,7 @@ main
 	banksel	TRISC
 	bcf	TRISA,RA4	; TRISA &= ~(1<<RA4); // allow heartbeat output
 ;	bcf	TRISA,RA6	; TRISA &= ~(1<<RA6); // allow clock output
-	movlw	0xbf
+	movlw	0x7f
 	movwf	TRISC
 
 	banksel	PPSLOCK
@@ -152,12 +152,12 @@ main
 	movlw	0xaa
 	movwf	PPSLOCK
 	bcf	PPSLOCK,PPSLOCKED
-	movlw	0x17
+	movlw	0x16
 	movwf	RXPPS
 	
-	banksel	RC6PPS
+	banksel	RC7PPS
 	movlw	0x14
-	movwf	RC6PPS
+	movwf	RC7PPS
 	movlw	0x55
 	movwf	PPSLOCK
 	movlw	0xaa
