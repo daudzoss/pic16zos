@@ -744,16 +744,18 @@ fsrn set 0
 	endm
 	
 zOS_BUF	macro	fsrnum,max,ptr
-	local	ascii,err1,done
+	local	ascii,err1,done,ptr1
 	local	fsrn
 	if (fsrnum & 3)
 fsrn set 1
 	else
 fsrn set 0
 	endif
+ptr1 set 1+ptr
 	lsrf	zOS_ME		;inline int8_t zOS_BUF(char**fsrnum,uint7_t max,
 	movwf	FSR#v(fsrn)H	;          char** ptr, char w) { // p0, p1, wrap
-	movlw	1+ptr		; // must be in job bank already, interrupts off
+	movlw	ptr1<<1		; // must be in job bank already, interrupts off
+	rrf	WREG		;
 	movwf	FSR#v(fsrn)L	; fsr0 = (bsr<<7) | &ptr[1]; // insertion pointer
 
 	movf	zOS_AR0,w	; if ((w = zOS_AR0) == 0) { // 2-digit hex byte
@@ -766,7 +768,7 @@ fsrn set 0
 	btfsc	STATUS,Z	;   return 0; // buffer was full
 	bra	done		;  ptr[1] = w^ptr[0]; // correctly updated
 	xorwf	ptr,w		;  w = zOS_HEX(zOS_AR1);// convert low nybble
-	movwf	1+ptr		;  w = zOS_PUT(fsrnum, max, ptr[0], w); // room?
+	movwf	ptr1		;  w = zOS_PUT(fsrnum, max, ptr[0], w); // room?
 	
 	movf	zOS_AR1,w	;  if (w == 0)
 	zOS_HEX
@@ -774,7 +776,7 @@ fsrn set 0
 	btfsc	STATUS,Z	;   return 1; // buffer filled after first char
 	bra	err1		;  ptr[1] = w^ptr[0]; // correctly updated
 	xorwf	ptr,w		;  w = 2;
-	movwf	1+ptr		; } else { // print an ascii character
+	movwf	ptr1		; } else { // print an ascii character
 	movlw	2		;  if ((w = zOS_PUT(fsrnum,max,ptr[0],w)) == 0)
 	bra	done		;   return 0; // buffer was full
 ascii
@@ -782,7 +784,7 @@ ascii
 	btfsc	STATUS,Z	;  ptr[1] = w^ptr[0]; // correctly updated
 	bra	done		;  w = 1;
 	xorwf	ptr,w		; }
-	movwf	1+ptr		; return w; // num of characters added to buffer
+	movwf	ptr1		; return w; // num of characters added to buffer
 err1
 	movlw	1		;} // zOS_BUF()
 done
@@ -993,16 +995,16 @@ loop
 isr
 	local	done,do_swi,nottmr
 	
-	;; get fsr0 pointing to tmr0 postscaler/reset value
-	movf	zOS_JOB,w	;isr:
-	movwf	BSR		; bsr = zos_job;
-	zOS_MY2	FSR0L		; fsr0 = 0x70 | (bsr < 1);
-
 	;; if it's a simple and frequent timer overflow interrupt finish quickly
 	banksel	zOS_T0F
 	btfss	zOS_T0F,T0IF	; if (/*presumed true:(zOS_T0E & (1<<T0IE)) &&*/
 	bra	nottmr		;     (zOS_T0F & (1<<T0IF))) { // timer overflow
 	bcf	zOS_T0F,T0IF	;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
+
+	;; get fsr0 pointing to tmr0 postscaler/reset value
+	movf	zOS_JOB,w	;isr:
+	movwf	BSR		; bsr = zos_job;
+	zOS_MY2	FSR0L		; fsr0 = 0x70 | (bsr < 1);
 
 	;; with fsr0 pointing to global pair, point fsr1 to local mem("t0scale")
 	zOS_LOC	FSR1,zOS_JOB,t0scale
@@ -1032,6 +1034,8 @@ nottmr
 	
 	;; point fsr0 to uatbase (again?), point fsr1 to p0
 do_swi
+	movf	zOS_JOB,w	;
+	movwf	BSR		;
 	zOS_BUF	FSR0,max,p0	; }
 	zOS_RFS	WREG		; zOS_RFI(); // HWI finished
 done
