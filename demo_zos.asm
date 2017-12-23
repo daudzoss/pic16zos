@@ -16,13 +16,14 @@
 ;;; 
 ;;; since only 4 of 5 possible task slots are used in this demo reducing the max
 ;;; allowed value by 1 will make scheduler run faster:
-zOS_NUM	equ	4
+zOS_NUM	equ	1
+;zOS_NUM	equ	4
 
 	processor 16f1719
 	include p16f1719.inc
 	
 	__CONFIG _CONFIG1,_FOSC_INTOSC & _WDTE_OFF & _PWRTE_OFF & _CP_OFF & _BOREN_ON & _CLKOUTEN_ON & _IESO_ON & _FCMEN_ON
-	__CONFIG _CONFIG2,_WRT_OFF & _PPS1WAY_OFF & _ZCDDIS_ON & _PLLEN_OFF & _STVREN_ON & _BORV_LO & _LPBOR_OFF & _LVP_ON
+	__CONFIG _CONFIG2,_WRT_OFF & _PPS1WAY_OFF & _ZCDDIS_ON & _PLLEN_ON & _STVREN_ON & _BORV_LO & _LPBOR_OFF & _LVP_ON
 
 ;;; uncomment to reduce zOS footprint by 100 words (at cost of zOS_FRK/EXE/FND):
 ;zOS_MIN	equ	1
@@ -118,21 +119,33 @@ loop
 ;;; hardwired into zosmacro.inc library and any available line may be chosen:
 	
 main
-	banksel	ANSELA
-	bcf	ANSELA,RA4	; ANSELA &= ~(1<<RA4); // allow digital function
-	movlw	0x3c
-	movwf	ANSELC		;
-
-	banksel	TRISA
-	bcf	TRISA,RA4	; TRISA &= ~(1<<RA4); // allow output
+	banksel OSCCON			;{
+	movlw	0x70		;    // SCS FOSC; SPLLEN disabled; IRCF 8MHz_HF; 
+	movwf	OSCCON		;    OSCCON = 0x70;
+	movlw	0x80		;    // SOSCR enabled; 
+	movwf	OSCSTAT		;    OSCSTAT = 0x80;
+	movlw	0x00		;    // TUN 0; 
+	movwf	OSCTUNE		;    OSCTUNE = 0x00;
+				;    // Wait for PLL to stabilize
+	btfss	OSCSTAT,PLLR	;    while(PLLR == 0)
+	bra	$-1		;     ;
 	
+	banksel	ANSELA
+	movlw	0xaf		;
+	movwf	ANSELA		; ANSELA = 0xaf; // allow heartbeat GPIO, CLKOUT
+	movlw	0x3c		;
+	movwf	ANSELC		; ANSELC = 0x3c; // allow serial port
+
 	banksel	OPTION_REG
 	bcf	OPTION_REG,PSA	; OPTION_REG &= ~(1<<PSA);// max timer0 prescale
 	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
 
 	banksel	TRISC
+	bcf	TRISA,RA4	; TRISA &= ~(1<<RA4); // allow heartbeat output
+;	bcf	TRISA,RA6	; TRISA &= ~(1<<RA6); // allow clock output
 	movlw	0xbf
 	movwf	TRISC
+
 	banksel	PPSLOCK
 	movlw	0x55
 	movwf	PPSLOCK
@@ -141,6 +154,7 @@ main
 	bcf	PPSLOCK,PPSLOCKED
 	movlw	0x17
 	movwf	RXPPS
+	
 	banksel	RC6PPS
 	movlw	0x14
 	movwf	RC6PPS
@@ -149,12 +163,14 @@ main
 	movlw	0xaa
 	movwf	PPSLOCK
 	bsf	PPSLOCK,PPSLOCKED
+;	zOS_CON	0,8000000/9600,PIR1,LATA,RA4
 	zOS_CON	0,32000000/9600,PIR1,LATA,RA4
 ;	zOS_MAN	0,32000000/9600,PIR1,LATA,RA4
 	movlw	OUTCHAR		;void main(void) {
 	zOS_ARG	3		; zOS_CON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
 	zOS_LAU	WREG		; zOS_ARG(3,OUTCHAR/*only 1 SWI*/); zOS_LAU(&w);
-
+ zOS_RUN INTCON,INTCON
+ end
 	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler for splash
 	zOS_ADR	splash,zOS_PRB	; zOS_ADR(fsr0 = splash&~zOS_PRV);// privileged
 	zOS_LAU	WREG		; zOS_LAU(&w);

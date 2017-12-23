@@ -589,13 +589,14 @@ zOS_UNW	macro	job		;inline void zOS_UNW(int8_t job) { }
 	endm			;} // zOS_UNW()
 
 zOS_OUT	macro	swinum,str,temp
-	local	agent,pre,setup,len,sloop,loop
+	local	agent,pre,post,setup,len,sloop,loop
 	bra	setup		;inline void zOS_OUT(uint8_t swinum, char* str,
 agent
 	brw			;                    uint8_t* temp) { // no '\0'
 pre	
 	dt	str
-len	set	setup-pre
+post
+len	set	post-pre
 	if (len > 254)
 	 error "string too long"
 	endif
@@ -619,7 +620,7 @@ sloop
 setup
 	 if (temp - zOS_AR0)
 	  if (temp - WREG)
-	   movf	temp,w
+	   movf	temp,w		;
 	  endif
 	  zOS_ARG 0
 	 endif
