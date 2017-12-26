@@ -49,8 +49,12 @@ fsrn set 0
 	else
 	 clrf	FSR#v(fsrn)L	;
 	endif
-	lsrf	job,w		;
-	movwf	FSR#v(fsrn)H	; return (*fsrnum = (job<<7) | offset) >> 8;
+	if (job - FSR#v(fsrn)H)
+	 lsrf	job,w		;
+	 movwf	FSR#v(fsrn)H	; return (*fsrnum = (job<<7) | offset) >> 8;
+	else
+	 lsrf	job,f
+	endif
 	rrf	FSR#v(fsrn)L,f	;} // zOS_LOC()
 	endm
 
@@ -1041,9 +1045,8 @@ brgvall	set	low brgvalm
 	movlb	0		; // still in job "0": don't forget this!!!!
 	endm			;} // zOS_CON()
 
-#if 0
 	;; remnants of an early experiment to allow bank changing outside ISR
-	;; now deprectated, only known use is in olirelay.asm
+	;; to read SFR's is now deprectated, only known use is in olirelay.asm
 zOS_R	macro	file,bankf,prsrv;inline int8_t zOS_R(const int8_t* file, int8_t bank, int8_t prsrv) {
 	if (prsrv)
 	 movf	INTCON,w
@@ -1066,7 +1069,6 @@ zOS_R	macro	file,bankf,prsrv;inline int8_t zOS_R(const int8_t* file, int8_t bank
 	endif
 	bsf	INTCON,GIE	; return w;
 	endm			;} // zOS_R()
-#endif
 	
 ;;; like zOS_CON, but also accepts console input for command-line interaction
 zOS_INP	macro	p,ra,rt,h,pi,isr;inline void zOS_INP(int8_t p, int8_t ra, int8_t
@@ -1173,27 +1175,40 @@ noovrrn
 	zOS_RFI			; }
 rxdecl
 	zOS_CON	p,rat,rts,hb,pin
+	zOS_LAU	FSR1H
+	zOS_LOC	FSR1L,FSR1H,0
 	movf	zOS_AR0,w	;rxdecl:
-	movwf	isradrl		; zOS_CON(p,rat,rts,hb,pin);// extend zOS_CON()
-	movf	zOS_AR1,w	; isradrl = zOS_AR0;
-	movwf	isradrh		; isradrh = zOS_AR1; // will forward non-rx irq
-	movf	FSR0L,w		;
-	movwf	tskadrl		; tskadrl = fsr0 & 0x00ff;
+	movwi	isradrl[FSR1]	; zOS_CON(p,rat,rts,hb,pin);// extend zOS_CON()
+	movf	zOS_AR1,w	; zOS_LAU(&fsr1);// by rewriting after launch
+	movwi	isradrh[FSR1]	; fsr1 <<= 7;
+	movf	FSR0L,w		; isradr[fsr1] = (zOS_AR1<<8) | zOS_AR0;
+	movwi	tskadrl[FSR1]	;
 	movf	FSR0H,w		;
-	movwf	tskadrh		; tskadrh = fsr0 >> 8; // all non-rx tasks here
-	clrf	optadrl		;
-	clrf	optadrh		; optadrh = optadrl = ((*void)()) 0; // no func
-	clrf	char_io		; char_io = 0; // nonzero means action to take
+	movwi	tskadrh[FSR1]	; tskadrl = fsr0; // all non-rx tasks here
+	movlw	0		;
+	movwi	optadrl[FSR1]	;
+	movwi	optadrh[FSR1]	; optadr[fsr1] = ((*void)()) 0; // no func
+	movwi	char_io[FSR1]	; char_io[fsr1] = 0; // nonzero = action to take
+	rlf	FSR1L,w		; w = fsr1 >> 7; // restore zOS_LAU() job number
+	rlf	FSR1H,w		; fsr1 = 0x10 + w << 4;
+	zOS_MEM	FSR1,WREG,0
 	zOS_ADR	rxtask,zOS_PRB
-	movlw	low rxisr	; w = zOS_ARG(0, rxisr & 0x00ff)
-	zOS_ARG	0
-	movlw	high rxisr	; w = zOS_ARG(1, rxisr >> 8);
-	zOS_ARG	1
-	movf	zOS_AR2,w	; w = zOS_ARG(2, (1<<RCIF)|(0<<TXIF)|(1<<T0IF));
-	iorlw	1<<rxflag	;} // zOS_INP()
-	zOS_ARG	2
-	movlb	0		; // still in job "0": don't forget this!!!!
-	endm			;
+	movf	FSR0L,w		; fsr0 = rxtask | 0x8000;
+	movwi	zOS_HDL[FSR1]	;
+	movwi	zOS_PCL[FSR1]	;
+	movf	FSR0H,w		;
+	movwi	zOS_HDH[FSR1]	; zOS_HD[fsr1] = fsr0; 
+	andlw	0x7f		;
+	movwi	zOS_PCH[FSR1]	; zOS_PC[fsr1] = fsr0 & 0x7fff;
+	addfsr	FSR1,zOS_ISR	; fsr1 += zOS_ISR; // last 4 bytes of job record
+	movlw	low rxisr	; *fsr1++ = rxisr & 0x00ff;
+	movwi	FSR1++
+	movlw	high rxisr	; *fsr1++ = rxisr >> 8;
+	movwi	FSR1++
+	movf	zOS_AR2,w	; *fsr1++ |= (1<<RCIF);// |(0<<TXIF)|(1<<T0IF));
+	iorlw	1<<rxflag	; // still in job "0"; FSR1 set for final SWIval
+	movwi	FSR1++		;} // zOS_INP()
+	endm
 
 
 zOS_ACC	macro	valregs,basereg
