@@ -1041,24 +1041,21 @@ brgvall	set	low brgvalm
 	movlb	0		; // still in job "0": don't forget this!!!!
 	endm			;} // zOS_CON()
 
-	;; macro checks for safety (SFR, not global or another job's local RAM)
-zOS_RW	macro	file
+#if 0
+	;; remnants of an early experiment to allow bank changing outside ISR
+	;; now deprectated, only known use is in olirelay.asm
+zOS_R	macro	file,bankf,prsrv;inline int8_t zOS_R(const int8_t* file, int8_t bank, int8_t prsrv) {
+	if (prsrv)
+	 movf	INTCON,w
+	 bcf	INTCON,GIE
+	 movwf	zOS_AR1
+	else
+	 bcf	INTCON,GIE
+	endif
 	if file & 0x60
 	 error "tried to access disallowed RAM range (global or another job's)"
-	else
-	 movlb	file >> 7
 	endif
-	endm
-
-zOS_R	macro	file,bankf,prsrv;inline int8_t zOS_R(const int8_t* file, int8_t
-	if prsrv
-	 movf	INTCON,w	;                    bank, int8_t prsrv) {
-	endif
-	bcf	INTCON,GIE	; if (prsrv)
-	if prsrv
-	 movwf	zOS_AR1		;  zOS_AR1 = INTCON;
-	endif
-	zOS_RW	file		; INTCON &= ~(1<<GIE); // access zOS_AR* globals
+	banksel	file	   	; INTCON &= ~(1<<GIE); // access zOS_AR* globals
 	movf	file,w		; bsr = file >> 7;
 	movwf	zOS_AR0		; zOS_AR0 = *file; // any 0-0x1f SFR in any bank
 	movf	bankf,w		; bsr = bankf;
@@ -1069,14 +1066,8 @@ zOS_R	macro	file,bankf,prsrv;inline int8_t zOS_R(const int8_t* file, int8_t
 	endif
 	bsf	INTCON,GIE	; return w;
 	endm			;} // zOS_R()
-
-zOS_W	macro	file,bankf	;inline int8_t zOS_W(const int8_t* file, int8_t
-	zOS_RW	file		;                    bankf, uint8_t w) {
-	movwf	file		; bsr = file >> 7;
-	movf	bankf,w		; *file = w;
-	movwf	BSR		; return bsr = bankf;
-	endm			;} // zOS_W()
-
+#endif
+	
 ;;; like zOS_CON, but also accepts console input for command-line interaction
 zOS_INP	macro	p,ra,rt,h,pi,isr;inline void zOS_INP(int8_t p, int8_t ra, int8_t
 	local	rxtask,no_opt,rxisr,rxdecl
