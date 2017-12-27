@@ -1215,8 +1215,8 @@ zOS_ACC	macro	valregs,basereg
 	clrf	valregs		;inline uint8_t zOS_ACC(uint8_t* valregs,uint8_t
 	clrf	1+valregs	;                   *basereg) { // w unclobbered
 	clrf	basereg		; *valregs = 0;
-	bsf	basereg,4	; return *basereg = 10; // decimal by default
-	bsf	basereg,2	;} // zOS_ACC()
+	bsf	basereg,3	; return *basereg = 10; // decimal by default
+	bsf	basereg,1	;} // zOS_ACC()
 	endm
 	
 
