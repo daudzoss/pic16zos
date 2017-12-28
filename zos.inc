@@ -133,7 +133,7 @@ fsrn set 0
 	 addlw	offset		;                    int8_t offset) {
 	endif
 	movwf	FSR#v(fsrn)L	; *fsrnum = (((job + 1) & 0x07) << 4) + offset;
-	clrf	FSR#v(fsrn)H	;}
+	clrf	FSR#v(fsrn)H	;} // zOS_MEM()
 	endm
 
 ;;; macro to wind the circular stack around from the running job# to the new job
@@ -187,7 +187,7 @@ loop2
 	movwf	STKPTR		;
 	sublw	zOS_TOS		;
 	btfss	WREG,7		;
-	bra	loop2		;}
+	bra	loop2		;} // zOS_ROL()
 done
 	endm
 	
@@ -269,7 +269,7 @@ loop
 	bra	unf		;   return w = zOS_PCH[fsrnum]; // Z was cleared
 	moviw	zOS_PCH[FSR#v(fsrn)]
 	btfsc	STATUS,Z	; } while (1); // job is runnable (or unf was 0)
-	bra	loop		;}
+	bra	loop		;} // zOS_LIV()
 	endm
 	
 #ifdef FSR0
@@ -466,7 +466,7 @@ zos_wra
 zos_1st
 	zOS_MEM	FSR0,zOS_JOB,0	;   }// wrap around only once, else wait for IRQ
 	decfsz	zOS_MSK,f	; } while (1); // (since no job is schedulable)
-	bra	zos_itr		;}
+	bra	zos_itr		;} // zOS_004()
 	bra	zos_004		;int8_t zos_swj(int8_t w){ // call vector at 002
 
 	;; software interrupt processing reached by jumping to 0x0002 with W set

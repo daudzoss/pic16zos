@@ -1174,21 +1174,31 @@ noovrrn
 	goto	isr		;  zOS_RFI(); //return from interrupt
 	zOS_RFI			; }
 rxdecl
+	local	vars,arg0,arg1,adrl,adrh,optl,opth,chio
+vars	set	0x20
+arg0	set	isradrl-vars	
+arg1	set	isradrh-vars
+adrl	set	tskadrl-vars
+adrh	set	tskadrh-vars	
+optl	set	optadrl-vars
+opth	set	optadrh-vars	
+chio	set	char_io-vars
+
 	zOS_CON	p,rat,rts,hb,pin
 	zOS_LAU	FSR1H
-	zOS_LOC	FSR1L,FSR1H,0
+	zOS_LOC	FSR1L,FSR1H,vars
 	movf	zOS_AR0,w	;rxdecl:
-	movwi	isradrl[FSR1]	; zOS_CON(p,rat,rts,hb,pin);// extend zOS_CON()
+	movwi	arg0[FSR1]	; zOS_CON(p,rat,rts,hb,pin);// extend zOS_CON()
 	movf	zOS_AR1,w	; zOS_LAU(&fsr1);// by rewriting after launch
-	movwi	isradrh[FSR1]	; fsr1 <<= 7;
+	movwi	arg1[FSR1]	; fsr1 <<= 7;
 	movf	FSR0L,w		; isradr[fsr1] = (zOS_AR1<<8) | zOS_AR0;
-	movwi	tskadrl[FSR1]	;
+	movwi	adrl[FSR1]	;
 	movf	FSR0H,w		;
-	movwi	tskadrh[FSR1]	; tskadrl = fsr0; // all non-rx tasks here
+	movwi	adrh[FSR1]	; tskadrl = fsr0; // all non-rx tasks here
 	movlw	0		;
-	movwi	optadrl[FSR1]	;
-	movwi	optadrh[FSR1]	; optadr[fsr1] = ((*void)()) 0; // no func
-	movwi	char_io[FSR1]	; char_io[fsr1] = 0; // nonzero = action to take
+	movwi	optl[FSR1]	;
+	movwi	opth[FSR1]	; optadr[fsr1] = ((*void)()) 0; // no func
+	movwi	chio[FSR1]	; char_io[fsr1] = 0; // nonzero = action to take
 	rlf	FSR1L,w		; w = fsr1 >> 7; // restore zOS_LAU() job number
 	rlf	FSR1H,w		; fsr1 = 0x10 + w << 4;
 	zOS_MEM	FSR1,WREG,0
