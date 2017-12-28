@@ -1800,6 +1800,9 @@ zOS_MAN	macro	p,rat,rts,hb,pin;inline void zOS_MAN(int8_t p, int8_t rat,
 	local	manchr4,manchr5,manchr6,manchr7,manchr8,manchr9,mannone,jobinfo
 	local	crlf,stkinfo,stkloop,endman
 
+	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,optadrl
+	local	optadrh,accumul,accumuh,numbase,destreg,destreh,char_io,buf,max
+
 	zOS_MON	p,rat,rts,hb,pin,0
 	movlw	low mantask	;                      int8_t* hb, int8_t pin) {
 	movwf	optadrl		; zOS_MON(p,ra,rt,h,pi,manisr);
@@ -1808,9 +1811,6 @@ zOS_MAN	macro	p,rat,rts,hb,pin;inline void zOS_MAN(int8_t p, int8_t rat,
 	pagesel	endman
 	goto	endman		;}
 	
-	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,optadrl
-	local	optadrh,accumul,accumuh,numbase,destreg,destreh,char_io,buf,max
-
 	;; 0x20~24 reserved for zOS_CON
 p0	set	0x20
 p1	set	0x21
