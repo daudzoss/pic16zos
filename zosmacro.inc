@@ -1195,9 +1195,9 @@ chio	set	char_io-vars
 	movwi	adrl[FSR1]	;
 	movf	FSR0H,w		;
 	movwi	adrh[FSR1]	; tskadrl = fsr0; // all non-rx tasks here
+	movlw	0		;
 	movwi	chio[FSR1]	; char_io[fsr1] = 0; // nonzero = action to take
 	addfsr	FSR1,optl	; fsr1 += optadrl; // caller sets optional task
-	movlw	0		;
 	movwi	0[FSR1]		;
 	movwi	1[FSR1]		; optadr[fsr1] = ((*void)()) 0; // no func
 	rlf	FSR1L,w		; w = fsr1 >> 7; // restore zOS_LAU() job number
