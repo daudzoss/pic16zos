@@ -165,10 +165,11 @@ main
 	bsf	PPSLOCK,PPSLOCKED
 
 	zOS_CON	0,.32000000/.9600,PIR1,LATA,RA4
-;	zOS_MAN	0,32000000/9600,PIR1,LATA,RA4
+;	zOS_MAN	0,.32000000/.9600,PIR1,LATA,RA4
 	movlw	OUTCHAR		;void main(void) {
 	zOS_ARG	3		; zOS_CON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
 	zOS_LAU	WREG		; zOS_ARG(3,OUTCHAR/*only 1 SWI*/); zOS_LAU(&w);
+;	movwi	0[FSR1]
  zOS_RUN INTCON,INTCON
  end
 	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler for splash
