@@ -1207,9 +1207,9 @@ chio	set	char_io-vars
 	movwi	zOS_HDL[FSR0]	;
 	movwi	zOS_PCL[FSR0]	;
 	movlw	high rxtask	;
-	movwi	zOS_HDH[FSR0]	; zOS_HD[fsr0] = rxtask | 0x8000; 
-	andlw	0x7f		;
 	movwi	zOS_PCH[FSR0]	; zOS_PC[fsr0] = rxtask;
+	iorlw	0x80		;
+	movwi	zOS_HDH[FSR0]	; zOS_HD[fsr0] = rxtask | 0x8000; 
 	addfsr	FSR0,zOS_ISR	; fsr0 += zOS_ISR; // last 4 bytes of job record
 	movlw	low rxisr	; *fsr0++ = rxisr & 0x00ff;
 	movwi	FSR0++
