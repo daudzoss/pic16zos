@@ -16,8 +16,7 @@
 ;;; 
 ;;; since only 4 of 5 possible task slots are used in this demo reducing the max
 ;;; allowed value by 1 will make scheduler run faster:
-zOS_NUM	equ	1
-;zOS_NUM	equ	4
+zOS_NUM	equ	4
 
 	processor 16f1719
 	include p16f1719.inc
@@ -164,22 +163,21 @@ main
 	movwf	PPSLOCK
 	bsf	PPSLOCK,PPSLOCKED
 
-	zOS_CON	0,.32000000/.9600,PIR1,LATA,RA4
-;	zOS_MAN	0,.32000000/.9600,PIR1,LATA,RA4
+	zOS_MAN	0,.32000000/.9600,PIR1,LATA,RA4
 	movlw	OUTCHAR		;void main(void) {
-	zOS_ARG	3		; zOS_CON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
-	zOS_LAU	WREG		; zOS_ARG(3,OUTCHAR/*only 1 SWI*/); zOS_LAU(&w);
-;	movwi	0[FSR1]
- zOS_RUN INTCON,INTCON
- end
-	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler for splash
-	zOS_ADR	splash,zOS_PRB	; zOS_ADR(fsr0 = splash&~zOS_PRV);// privileged
-	zOS_LAU	WREG		; zOS_LAU(&w);
+	movwi	0[FSR0]		;
+;	zOS_CON	0,.32000000/.9600,PIR1,LATA,RA4
+;	zOS_ARG	3		; zOS_CON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
+;	zOS_LAU	WREG		; zOS_ARG(3,OUTCHAR/*only 1 SWI*/); zOS_LAU(&w);
+
+;	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler for splash
+;	zOS_ADR	splash,zOS_PRB	; zOS_ADR(fsr0 = splash&~zOS_PRV);// privileged
+;	zOS_LAU	WREG		; zOS_LAU(&w);
 	
-	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler either
-	zOS_ADR	spitjob,zOS_UNP	; zOS_ADR(fsr0 = spitjob&~zOS_PRV);//unprivilege
-	zOS_LAU	WREG		; zOS_LAU(&w);
-	zOS_LAU	WREG		; zOS_LAU(&w); // launch two copies
+;	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler either
+;	zOS_ADR	spitjob,zOS_UNP	; zOS_ADR(fsr0 = spitjob&~zOS_PRV);//unprivilege
+;	zOS_LAU	WREG		; zOS_LAU(&w);
+;	zOS_LAU	WREG		; zOS_LAU(&w); // launch two copies
 	
 	zOS_RUN	INTCON,INTCON	; zOS_RUN(/*T0IE in*/INTCON, /*T0IF in*/INTCON);
 	end			;}

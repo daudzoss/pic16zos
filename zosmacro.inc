@@ -1195,29 +1195,29 @@ chio	set	char_io-vars
 	movwi	adrl[FSR1]	;
 	movf	FSR0H,w		;
 	movwi	adrh[FSR1]	; tskadrl = fsr0; // all non-rx tasks here
-	movlw	0		;
-	movwi	optl[FSR1]	;
-	movwi	opth[FSR1]	; optadr[fsr1] = ((*void)()) 0; // no func
 	movwi	chio[FSR1]	; char_io[fsr1] = 0; // nonzero = action to take
+	addfsr	FSR1,optl	; fsr1 += optadrl; // caller sets optional task
+	movlw	0		;
+	movwi	0[FSR1]		;
+	movwi	1[FSR1]		; optadr[fsr1] = ((*void)()) 0; // no func
 	rlf	FSR1L,w		; w = fsr1 >> 7; // restore zOS_LAU() job number
-	rlf	FSR1H,w		; fsr1 = 0x10 + w << 4;
-	zOS_MEM	FSR1,WREG,0
-	zOS_ADR	rxtask,zOS_PRB
-	movf	FSR0L,w		; fsr0 = rxtask | 0x8000;
-	movwi	zOS_HDL[FSR1]	;
-	movwi	zOS_PCL[FSR1]	;
-	movf	FSR0H,w		;
-	movwi	zOS_HDH[FSR1]	; zOS_HD[fsr1] = fsr0; 
+	rlf	FSR1H,w		;
+	zOS_MEM	FSR0,WREG,0
+	movlw	low rxtask	; fsr0 = 0x10 + w << 4;
+	movwi	zOS_HDL[FSR0]	;
+	movwi	zOS_PCL[FSR0]	;
+	movlw	high rxtask	;
+	movwi	zOS_HDH[FSR0]	; zOS_HD[fsr0] = rxtask | 0x8000; 
 	andlw	0x7f		;
-	movwi	zOS_PCH[FSR1]	; zOS_PC[fsr1] = fsr0 & 0x7fff;
-	addfsr	FSR1,zOS_ISR	; fsr1 += zOS_ISR; // last 4 bytes of job record
-	movlw	low rxisr	; *fsr1++ = rxisr & 0x00ff;
-	movwi	FSR1++
-	movlw	high rxisr	; *fsr1++ = rxisr >> 8;
-	movwi	FSR1++
-	movf	zOS_AR2,w	; *fsr1++ |= (1<<RCIF);// |(0<<TXIF)|(1<<T0IF));
-	iorlw	1<<rxflag	; // still in job "0"; FSR1 set for final SWIval
-	movwi	FSR1++		;} // zOS_INP()
+	movwi	zOS_PCH[FSR0]	; zOS_PC[fsr0] = rxtask;
+	addfsr	FSR0,zOS_ISR	; fsr0 += zOS_ISR; // last 4 bytes of job record
+	movlw	low rxisr	; *fsr0++ = rxisr & 0x00ff;
+	movwi	FSR0++
+	movlw	high rxisr	; *fsr0++ = rxisr >> 8;
+	movwi	FSR0++
+	movf	zOS_AR2,w	; *fsr0++ |= (1<<RCIF);// |(0<<TXIF)|(1<<T0IF));
+	iorlw	1<<rxflag	; // still in job "0"; caller sets any SWI value
+	movwi	FSR0++		;} // zOS_INP()
 	endm
 
 
@@ -1815,9 +1815,9 @@ zOS_MAN	macro	p,rat,rts,hb,pin;inline void zOS_MAN(int8_t p, int8_t rat,
 
 	zOS_MON	p,rat,rts,hb,pin,0
 	movlw	low mantask	;                      int8_t* hb, int8_t pin) {
-	movwf	optadrl		; zOS_MON(p,ra,rt,h,pi,manisr);
+	movwi	FSR1++		; zOS_MON(p,ra,rt,h,pi,manisr); //fsr0=swi,1=adr
 	movlw	high mantask	; optadrl = mantask & 0x00ff;
-	movwf	optadrh		; optadrh = mantask >> 8;
+	movwi	FSR1++		; optadrh = mantask >> 8;
 	pagesel	endman
 	goto	endman		;}
 	
