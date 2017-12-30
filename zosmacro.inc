@@ -835,7 +835,7 @@ decl
 	endm
 
 zOS_CON	macro	p,rat,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t rat,int8_t
-	local	task,isr,loop,decl
+	local	task,isr,inited,loop,decl
 	bra	decl		;                    rts,int8_t* hb,int8_t pin){
 
 	;; initialize constants and variables
@@ -885,38 +885,40 @@ uatxmit	 set	TX#v(p)REG & 0x001f ; mask off just the sfr SFR
 rtsflag	 set	TX#v(p)IF	
 	endif
 task
-	zOS_DIS	GIE,0		; goto decl;
-	movlw	high uatbase	;// all init that requires knowledge of BSR here
-	movwf	FSR0H		;task:
-	zOS_MY2	FSR0		; zOS_DIS(&fsr0, zOS_JOB); // interrupts off!
-	movlw	0xff		; fsr0 = 0x70 + (bsr<<1);//global always visible
-	movwi	t0div[FSR0]	; 0[fsr0] = 0xff;// live TMR0 postscaler divider
+	movlw	high uatbase	; goto decl;
+	movwf	FSR0H		;task:// all init that requires knowledge of BSR
+	zOS_MY2	FSR0
+	moviw	t0rst[FSR0]	; do {
+	btfss	STATUS,Z	; fsr0 = (uatbase & 0xff00) | 0x0070 | (bsr<<1);
+	bra	inited		; if (1[fsr0] == 0) { // not initialized yet
+	zOS_DIS	GIE,0
+	movlw	0xff		;  zOS_DIS(&fsr0, zOS_JOB); // interrupts off!
+	movwi	t0div[FSR0]	;  0[fsr0] = 0xff;// live TMR0 postscaler divider
 	movlw	0x00		;
-	movwi	t0rst[FSR0]	; 1[fsr0] = 0x00; // live reset value for TMR0
+	movwi	t0rst[FSR0]	;  1[fsr0] = 0x00; // live reset value for TMR0
 	movlw	low uatbase	;
-	movwf	FSR0L		; const int8_t* uatbase = uatxmit & 0xff80;
-	rrf	zOS_ME		; fsr0 = uatbase;
-	clrw			; const char* max = 0x70;
-	rrf	WREG		; static char *p0, *p1, buf[]; //p0:task, p1:ISR
-	iorlw	buf		;
-	movwf	wrap		; const char* wrap = ((bsr&1)<<7) | buf;
-	movwf	p0		;
-	movwf	p1		; p0 = p1 = wrap; // reset value if they max out
-	zOS_ENA			; zOS_ENA(); // interrupts on after init done
-
+	movwf	FSR0L		;  const int8_t* uatbase = uatxmit & 0xff80;
+	rrf	zOS_ME		;  fsr0 = uatbase;
+	clrw			;  const char* max = 0x70;
+	rrf	WREG		;  static char *p0, *p1, buf[]; //p0:task, p1:ISR
+	iorlw	buf		;  const char* wrap = ((bsr&1)<<7) | buf;
+	movwf	wrap		;  p0 = p1 = wrap; // reset value if they max out
+	movwf	p0		;  zOS_ENA(); // interrupts on after init done
+	movwf	p1		;  puts("\r\nWelcome to zOS\r\n");
+	zOS_ENA	;//FIXME: superfluous due to subsequent SWI
 	zOS_OUT	0xff,"\r\nWelcome to zOS\r\n",char_io
-	
-loop
-	zOS_SWI	zOS_YLD		; do {
-	movlw	high rts	;  zOS_YLD();
- 	movwf	FSR1H		;
+inited	
+	zOS_SWI	zOS_YLD		; }
+	movlw	high rts	;
+ 	movwf	FSR1H		;  zOS_YLD();
 	movlw	low rts		;  // wait for SWI to store char(s) in buf[]
 	movwf	FSR1L		;
 	btfss	INDF1,rtsflag	;  if (*(fsr1 = rts) & (1<<rtsflag) == 0) //full
 	bra	loop		;   continue; // yield (still sending or no char)
 	lsrf	zOS_ME 		;
-	movwf	FSR1H		;
-	movf	p0,w		;  // READY TO SEND, AND...       
+	movwf	FSR1H		;  // READY TO SEND, AND...       
+	zOS_DIS	GIE,0
+	movf	p0,w		;  // begin critical section (freeze pointers)
 	movwf	FSR1L		;
 	xorwf	p1,w		;  fsr1 = (bsr<<7) | p0;
 	btfsc	STATUS,Z	;  if (p0 == p1)
@@ -930,8 +932,14 @@ loop
 	btfss	STATUS,Z	;
 	bra	loop		;  if (p0 & 0x7f == max) // ignore low bank bit
 	movf	wrap,w		;   p0 = wrap; // =buf xor the lowest bank bit
-	movwf	p0		;
-	bra	loop		; } while (1);
+	movwf	p0		;  // end critical section
+loop
+	zOS_ENA
+	zOS_MEM	FSR0,zOS_ME
+	moviw	zOS_HDH[FSR0]	;
+	movwf	PCLATH		;
+	moviw	zOS_HDL[FSR0]	;
+	movwf	PCL		; } while (1); // e.g. might run zOS_INP's task
 
 	;; HWI will be coming from a tmr0 expiration, for the blinking heartbeat
 	;; 
@@ -1120,10 +1128,8 @@ rxflag	 set	RC#v(p)IF
 	
 ;;; FIXME: haven't actually written the var init code for zOS_MON et al yet
 rxtask
-	movf	zOS_JOB,w	; goto rxdecl;
-	movwf	BSR		;rxtask:
-	movf	optadrh,w	;
-	movwf	PCLATH		;
+	movf	optadrh,w	; goto rxdecl;
+	movwf	PCLATH		;rxtask:
 	iorwf	optadrl,w	;
 	btfsc	STATUS,Z	;
 	bra	no_opt		;
@@ -1134,7 +1140,7 @@ no_opt
 	movf	tskadrh,w	;
 	movwf	PCLATH		;  goto (tskadrh<<8) | tskadrl;// zOS_CON() code
 	movf	tskadrl,w	;
-	movwf	PCL	;callw	;
+	movwf	PCL	;callw	; // will retreive its own address as a loop
 
 rxisr	
 	movf	zOS_JOB,w	;rxisr:
@@ -1169,9 +1175,11 @@ noovrrn
 	bcf	RCSTA,CREN	;   RCSTA &= ~(1<<CREN); // cleared by disable
 	bsf	RCSTA,CREN	;  RCSTA |= 1<<CREN; // (re-)enable reception
 #endif
+	if (isr)
 	pagesel	isr		;  if (zOS_AR0)
-	btfss	STATUS,Z	;   goto isr; // continue with parser
-	goto	isr		;  zOS_RFI(); //return from interrupt
+	 btfss	STATUS,Z	;   goto isr; // continue with parser
+	 goto	isr		;  zOS_RFI(); //return from interrupt
+	endif
 	zOS_RFI			; }
 rxdecl
 	local	vars,arg0,arg1,adrl,adrh,optl,opth,chio
@@ -1184,7 +1192,7 @@ optl	set	optadrl-vars
 opth	set	optadrh-vars	
 chio	set	char_io-vars
 
-	zOS_CON	p,rat,rts,hb,pin
+	zOS_CON	p,ra,rt,h,pi
 	zOS_LAU	FSR1H
 	zOS_LOC	FSR1L,FSR1H,vars
 	movf	zOS_AR0,w	;rxdecl:
@@ -1194,7 +1202,7 @@ chio	set	char_io-vars
 	movf	FSR0L,w		; isradr[fsr1] = (zOS_AR1<<8) | zOS_AR0;
 	movwi	adrl[FSR1]	;
 	movf	FSR0H,w		;
-	movwi	adrh[FSR1]	; tskadrl = fsr0; // all non-rx tasks here
+	movwi	adrh[FSR1]	; tskadr[fsr1] = fsr0; // still zOS_CON's handle
 	movlw	0		;
 	movwi	chio[FSR1]	; char_io[fsr1] = 0; // nonzero = action to take
 	addfsr	FSR1,optl	; fsr1 += optadrl; // caller sets optional task
@@ -1585,8 +1593,8 @@ monchr8
 monchr9
 	movf	accumul,w	;  } // switch ()
 	movwf	zOS_AR1		; } // if ()
-	pagesel	isr
 	if (isr)
+	pagesel	isr
 	 goto	isr		; char_io = 0; // unhandled
 	else
 	 clrf	char_io		; zOS_RFI(); // reached only if isr == 0
@@ -1613,199 +1621,7 @@ monlast
 endmon
 	endm	
 
-zOS_CLC	macro	p,ra,rt,h,pi,isr;inline void zOS_CLC(int8_t p, int8_t ra, int8_t
-	local	endclc,clcisr,clcprmp,endclc
-
-	zOS_MON	p,ra,rt,h,pi,clcisr
-	pagesel	endclc
-	goto	endclc		;      rt, int8_t* h, int8_t pi, void(*isr)()) {
-	
-	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,optadrl
-	local	optadrh,accumul,accumuh,numbase,destreg,destreh,char_io,buf,max
-
-	;; 0x20~24 reserved for zOS_CON
-p0	set	0x20
-p1	set	0x21
-wrap	set	0x22
-t0scale	set	0x23
-	
-	;; 0x24~28 reserved for zOS_INP
-isradrl	set	0x24
-isradrh	set	0x25
-tskadrl	set	0x26
-tskadrh	set	0x27
-
-	;; 0x28~2F reserved for zOS_MON and derivations e.g. zOS_MAN
-optadrl	set	0x28
-optadrh	set	0x29
-accumul	set	0x2a
-accumuh	set	0x2b
-numbase	set	0x2c	
-destreg	set	0x2d
-destreh	set	0x2e
-char_io	set	0x2f
-buf	set	0x30
-max	set	0x70
-
-;copy the preceding lines rather than including this file, as definitions for
-;zOS_MON()-derived macros referring to these local variables wouldn't open it
-;until expansion and would throw an undefined-var error during the processing
-
-clcisr
-	movf	zOS_AR0,w	; switch (char_io = zOS_AR0) {
-	movwf	char_io		;
-	xorlw	'+'		;
-	btfss	STATUS,Z	;
-	bra	clcchr2		; case '+': // 16-bit signed/unsigned add
-
-	movf	accumul,w	;
-	addwf	destreg,f	;
-	movf	accumuh,w	;
-	addwfc	1+destreg,f	;  destreg += (accumuh << 8) | accumul;
-	bra	clcprmp		; break;
-
-clcchr2
-	movf	char_io,w	;
-	xorlw	'-'		;
-	btfss	STATUS,Z	;
-	bra	clcchr3		; case '-': // 16-bit signed/unsigned subtract
-
-	movf	accumul,w	;
-	subwf	destreg,f	;
-	movf	accumuh,w	;
-	subwfc	1+destreg,f	;  destreg -= (accumuh << 8) | accumul;
-	bra	clcprmp		; break;
-	
-clcchr3
-	movf	char_io,w	;
-	xorlw	'*'		;
-	btfss	STATUS,Z	;
-	bra	clcchr4		; case '*': // 8-bit by 8-bit unsigned multiply
-	clrf	zOS_AR0		;  // invoker of macro must implement zos_mac():
-	clrf	zOS_AR1		;  //  input arg zOS_AR1:zOS_AR0 (accumulator)
-	movf	accumul,w	;  //                    zOS_AR2 (factor 1)
-	movwf	zOS_AR2		;  //                    zOS_AR3 (factor 2)
-	movf	destreg,w	;  //  output arg zOS_AR1:zOS_AR0 (product)
-	movwf	zOS_AR3		;  zOS_AR0 = (uint16_t) 0;
-				;  zOS_AR2 = accumul & 0x00ff;
-	zOS_LOC	FSR0,zOS_JOB,char_io
-	pagesel	zos_mac
-	call	zos_mac		;  zOS_AR3 = destreg & 0x00ff;
-	movf	zOS_AR0,w	;  fsr0 = &char_io; // temp register (as INDF0)
-	movwf	destreg		;  zos_mac(&zOS_AR0 /* += */,
-	movf	zOS_AR1,w	;          &zOS_AR2 /* * */, &zOS_AR3, fsr0);
-	movwf	1+destreg	;  destreg = (uint16_t) zOS_AR0;
-	bra	clcprmp		; break;
-
-clcchr4
-	movf	char_io,w	;
-	xorlw	'/'		;
-	btfss	STATUS,Z	;
-	bra	clcchr5		; case '/': // 15-bit by 8-bit unsigned divide
-	movf	destreg,w	;  // invoker of macro must implement zos_div():
-	movwf	zOS_AR0		;  //  input arg zOS_AR1:zOS_AR0 (dividend)
-	movf	1+destreg,w	;  //                    zOS_AR2 (divisor)
-	andlw	0x7f		;  //  output arg zOS_AR1:zOS_AR0 (quotient/exc)
-	movwf	zOS_AR1		;  zOS_AR0 = (uint16_t) destreg & 0x7fff;
-	movf	accumul,w	;  zOS_AR2 = accumul & 0xff;
-	movwf	zOS_AR2		;  fsr0 = &char_io; // temp register (as INDF0)  
-	zOS_LOC	FSR0,zOS_JOB,char_io
-	pagesel	zos_div
-	call	zos_div		;  zos_div(&zOS_AR0 /* /= */
-	movf	zOS_AR0,w	;          &zOS_AR2, &zOS_AR3/*scratch*/, fsr0);
-	movwf	destreg		;
-	movf	zOS_AR1,w	;
-	movwf	1+destreg	;  destreg = (uint16_t) zOS_AR0;
-	bra	clcprmp		; break;
-
-clcchr5
-	movf	char_io,w	;
-	xorlw	'^'		;
-	btfss	STATUS,Z	;
-	bra	clcchr6		; case '^': // 8-bit by 8-bit exponentiation
-	movlw	0x01		;  // invoker of macro must implement zos_mac():
-	clrf	zOS_AR1		;  //  input arg zOS_AR1:zOS_AR0 (accumulator)
-	movf	accumul,f	;  //                    zOS_AR2 (factor 1)
-	btfsc	STATUS,Z	;  //                    zOS_AR3 (factor 2)
-	bra	clcexp1		;  //  output arg zOS_AR1:zOS_AR0 (product)
-clcexp0
-	clrf	zOS_AR0		;  zOS_AR1 = 0;
-	clrf	zOS_AR1		;  for (uint8_t w = 1; accumul > 0; accumul--) {
-	movwf	zOS_AR2		;   zOS_AR0 = (uint16_t) 0;
-	movf	destreg,w	;   zOS_AR2 = w;
-	movwf	zOS_AR3		;   zOS_AR3 = destreg & 0x00ff;
-	zOS_LOC	FSR0,zOS_JOB,char_io
-	pagesel	zos_mac
-	call	zos_mac		;   fsr0 = &char_io; // temp register (as INDF0)
-	movf	zOS_AR0,w	;   zos_mac(&zOS_AR0 /* += */,           
-	decfsz	accumul,f	;           &zOS_AR2 /* * */, &zOS_AR3, fsr0);
-	bra	clcexp0		;   w = zOS_AR0;
-clcexp1
-	movwf	destreg		;  }
-	clrf	1+destreg	;  destreg = ((uint16_t) zOS_AR1) << 8) | w;
-	bra	clcprmp		; break;
-
-clcchr6
-	movf	char_io,w	;
-	xorlw	'!'		;
-	btfss	STATUS,Z	;
-	bra	clcchr7		; case '!': // 3-bit factorial
-	movlw	0x01		;  // invoker of macro must implement zos_mac():
-	clrf	zOS_AR1		;  //  input arg zOS_AR1:zOS_AR0 (accumulator)
-	movf	accumul,f	;  //                    zOS_AR2 (factor 1)
-	btfsc	STATUS,Z	;  //                    zOS_AR3 (factor 2)
-	bra	clcexp1		;  //  output arg zOS_AR1:zOS_AR0 (product)
-	decfsz	accumul,f	;
-	bra	clcexp1		;
-clcfac0
-	clrf	zOS_AR0		;  zOS_AR1 = 0;
-	clrf	zOS_AR1		;  for (uint8_t w = 1; accumul-- > 1; accumul--) {
-	movwf	zOS_AR2		;   zOS_AR0 = (uint16_t) 0;
-	movf	destreg,w	;   zOS_AR2 = w;
-	decf	destreg,f	;   zOS_AR3 = destreg-- & 0x00ff;
-	movwf	zOS_AR3		;   fsr0 = &char_io; // temp register (as INDF0)
-	zOS_LOC	FSR0,zOS_JOB,char_io
-	pagesel	zos_mac
-	call	zos_mac		;   zos_mac(&zOS_AR0 /* += */,
-	movf	zOS_AR0,w	;           &zOS_AR2 /* * */, &zOS_AR3, fsr0);
-	decfsz	accumul,f	;   w = zOS_AR0;
-	bra	clcexp0		;  }
-clcfac1
-	movwf	destreg		;  destreg = ((uint16_t) zOS_AR1) << 8) | w;
-	clrf	1+destreg	;  // 1 <= destreg <= 720
-	bra	clcprmp		; break;
-clcchr7
-	movf	accumul,w	; default: zOS_AR1 = accumul; if (isr) goto isr;
-	movwf	zOS_AR1		; }// caller may use zOS_AR1 or accumuh:accumul
-	pagesel	isr		;
-	if(isr)
-	 goto	isr		; zOS_RFI();
-	else
-	 zOS_RFI
-	endif
-	
-clcprmp
-	pagesel	moncrlf
-	call	moncrlf		;clcprmp:
-	movf	1+destreg,w	; moncrlf(zos_job, p0);
-	movwf	accumuh		; accumuh = destreg>>8; monhex(zos_job, p0);
-	pagesel	monhex
-	call	monhex		; accumuh = destreg & 0xff; monlsb(zos_job, p0);
-	movf	destreg,w	; moncrlf(zos_job, p0);
-	movwf	accumuh		;clclast: 
-	pagesel	monlsb
-	call	monlsb		; zOS_ACC(&accumul,&numbase); zOS_RFI();
-	pagesel	moncrlf
-	call	moncrlf		; char_io = 0;
-	zOS_ACC	accumul,numbase
-clclast
-	clrf	char_io		;}
-	zOS_RFI
-endclc
-	endm
-
-
-zOS_MAN	macro	p,rat,rts,hb,pin;inline void zOS_MAN(int8_t p, int8_t rat,
+zOS_MAN	macro	p,rat,rts,hb,pin,isr ;inline void zOS_MAN(int8_t p, int8_t rat,
 	local	mantask,manisr,manchr,manchr0,reenable,manchr1,manchr2,manchr3
 	local	manchr4,manchr5,manchr6,manchr7,manchr8,manchr9,mannone,jobinfo
 	local	crlf,stkinfo,stkloop,endman
@@ -1813,13 +1629,13 @@ zOS_MAN	macro	p,rat,rts,hb,pin;inline void zOS_MAN(int8_t p, int8_t rat,
 	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,optadrl
 	local	optadrh,accumul,accumuh,numbase,destreg,destreh,char_io,buf,max
 
-	zOS_MON	p,rat,rts,hb,pin,0
+	zOS_MON	p,rat,rts,hb,pin,isr
 	movlw	low mantask	;                      int8_t* hb, int8_t pin) {
 	movwi	FSR1++		; zOS_MON(p,ra,rt,h,pi,manisr); //fsr0=swi,1=adr
 	movlw	high mantask	; optadrl = mantask & 0x00ff;
 	movwi	FSR1++		; optadrh = mantask >> 8;
 	pagesel	endman
-	goto	endman		;}
+	goto	endman		;
 	
 	;; 0x20~24 reserved for zOS_CON
 p0	set	0x20
@@ -2159,7 +1975,7 @@ stkloop
 	btfsc	STATUS,Z	; zOS_ENA(); // interrupts back ON!
 	clrf	char_io		; return w;
 	zOS_ENA
-	return			;}
+	return			;} // stkinfo()
 	
 	;guaranteed to arrive with p0=p1, interrupts off and in the correct bank
 jobinfo
@@ -2246,6 +2062,239 @@ crlf
 	btfsc	STATUS,Z	; zOS_ENA(); // interrupts back ON!
 	clrf	char_io		; return w;
 	zOS_ENA
-	return			;}
+	return			;} // zOS_MAN()
 endman
 	endm
+
+;;; zOS_CLC is an extension of the zOS_MAN() job manager shell into an rpn calc-
+;;; ulator, as an example of how to use and customize the above console macros
+;;;
+;;; Note: because the max call depth of zOS_MON's ISR is nonzero (1), the max
+;;; call depth for jobs in a system invoking these macros is reduced from 3 to 2
+;;; 
+;;; (job 0)
+;;; zOS_CLC is invoked with an optional isr routine (for any custom extensions):
+;;;  zOS_MAN is invoked with all the zOS_CON arguments and its clcisr address:
+;;;   zOS_MON is invoked with all the zOS_CON arguments (and the clcisr address)
+;;;    zOS_INP is invoked with all the zOS_CON arguments (and monisr's address)
+;;;     Immediately a near branch to rxdecl over the rxtask and rxisr code:
+;;;     When run, rxtask first calls any code at nonzero optadrh:optadrl address
+;;;     then jumps to the mandatorily nonzero tskadrh:tskadrl task of zOS_CON
+;;;     When handling an interrupt, rxisr either handles a received character or
+;;;     jumps to the mandatorily nonzero isradrh:isradrl isr address of zOS_CON
+;;;     and if a received character the ISR in this case jumps to nonzero monisr
+;;; 	Unlike most declarations, rxdecl not only declares but launches, tweaks:
+;;;     zOS_CON is invoked with the port,rate,rtsflag,heartbeat,pin arguments:
+;;;      Immediately a near branch to decl over the task and isr code:
+;;;      When run, task initializes the global pair, circular buffer and greets
+;;;      (if the pair was still zero) then cedes the core awaiting a character
+;;;      which it then sends and loops back (to the zOS_INP task, not its own!)
+;;;      When handling an interrupt, isr handles the heartbeat and Timer0 stuff
+;;;      (if hardware) else assumes that a software interrupt is a char to send
+;;;      since any other applicable situation was handled by rxisr pre-jump
+;;;     zOS_LAU then immediately assigns a job bank to the zOS_CON instance and
+;;;     uses FSR1 to set locals isradrh:isradrl,tskadrh:tskadrl,optadrh:optadrl
+;;;     to values zOS_CON just put in zOS_ARG1:zOS_ARG0, FSR0 (left at latter)
+;;;     at which point it overwrites the Program Counter and HanDle fields with
+;;;     rxtask, ISR field with rxisr and RX HWI mask using FSR0 (left at SWI)
+;;;    Then a jump over zOS_MON's monisr and all its support functions (no task)
+;;;   FSR1 (pointing to optadrh:optadrl) then gets the address of the ensuing
+;;;   mantask code (no ISR) which is then jumped over
+;;;  Finally a jump over the clcisr code ends the macro expansion and returns to
+;;; (job 0)
+;;; Since the end of zOS_INP, FSR0 has been pointing to the job information byte
+;;; for the SWI mask that the job is to listen on for characters to output, so
+;;; movwi 0[FSR0] with w set to the appropriate value: 8, 16, 32, 64 or 128
+
+zOS_CLC	macro	p,ra,rt,h,pi,isr;inline void zOS_CLC(int8_t p, int8_t ra, int8_t
+	local	endclc,clcisr,clcprmp,endclc
+
+	zOS_MON	p,ra,rt,h,pi,clcisr
+	pagesel	endclc
+	goto	endclc		;      rt, int8_t* h, int8_t pi, void(*isr)()) {
+	
+	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,optadrl
+	local	optadrh,accumul,accumuh,numbase,destreg,destreh,char_io,buf,max
+
+	;; 0x20~24 reserved for zOS_CON
+p0	set	0x20
+p1	set	0x21
+wrap	set	0x22
+t0scale	set	0x23
+	
+	;; 0x24~28 reserved for zOS_INP
+isradrl	set	0x24
+isradrh	set	0x25
+tskadrl	set	0x26
+tskadrh	set	0x27
+
+	;; 0x28~2F reserved for zOS_MON and derivations e.g. zOS_MAN
+optadrl	set	0x28
+optadrh	set	0x29
+accumul	set	0x2a
+accumuh	set	0x2b
+numbase	set	0x2c	
+destreg	set	0x2d
+destreh	set	0x2e
+char_io	set	0x2f
+buf	set	0x30
+max	set	0x70
+
+;copy the preceding lines rather than including this file, as definitions for
+;zOS_MON()-derived macros referring to these local variables wouldn't open it
+;until expansion and would throw an undefined-var error during the processing
+
+clcisr
+	movf	zOS_AR0,w	; switch (char_io = zOS_AR0) {
+	movwf	char_io		;
+	xorlw	'+'		;
+	btfss	STATUS,Z	;
+	bra	clcchr2		; case '+': // 16-bit signed/unsigned add
+
+	movf	accumul,w	;
+	addwf	destreg,f	;
+	movf	accumuh,w	;
+	addwfc	1+destreg,f	;  destreg += (accumuh << 8) | accumul;
+	bra	clcprmp		; break;
+
+clcchr2
+	movf	char_io,w	;
+	xorlw	'-'		;
+	btfss	STATUS,Z	;
+	bra	clcchr3		; case '-': // 16-bit signed/unsigned subtract
+
+	movf	accumul,w	;
+	subwf	destreg,f	;
+	movf	accumuh,w	;
+	subwfc	1+destreg,f	;  destreg -= (accumuh << 8) | accumul;
+	bra	clcprmp		; break;
+	
+clcchr3
+	movf	char_io,w	;
+	xorlw	'*'		;
+	btfss	STATUS,Z	;
+	bra	clcchr4		; case '*': // 8-bit by 8-bit unsigned multiply
+	clrf	zOS_AR0		;  // invoker of macro must implement zos_mac():
+	clrf	zOS_AR1		;  //  input arg zOS_AR1:zOS_AR0 (accumulator)
+	movf	accumul,w	;  //                    zOS_AR2 (factor 1)
+	movwf	zOS_AR2		;  //                    zOS_AR3 (factor 2)
+	movf	destreg,w	;  //  output arg zOS_AR1:zOS_AR0 (product)
+	movwf	zOS_AR3		;  zOS_AR0 = (uint16_t) 0;
+				;  zOS_AR2 = accumul & 0x00ff;
+	zOS_LOC	FSR0,zOS_JOB,char_io
+	pagesel	zos_mac
+	call	zos_mac		;  zOS_AR3 = destreg & 0x00ff;
+	movf	zOS_AR0,w	;  fsr0 = &char_io; // temp register (as INDF0)
+	movwf	destreg		;  zos_mac(&zOS_AR0 /* += */,
+	movf	zOS_AR1,w	;          &zOS_AR2 /* * */, &zOS_AR3, fsr0);
+	movwf	1+destreg	;  destreg = (uint16_t) zOS_AR0;
+	bra	clcprmp		; break;
+
+clcchr4
+	movf	char_io,w	;
+	xorlw	'/'		;
+	btfss	STATUS,Z	;
+	bra	clcchr5		; case '/': // 15-bit by 8-bit unsigned divide
+	movf	destreg,w	;  // invoker of macro must implement zos_div():
+	movwf	zOS_AR0		;  //  input arg zOS_AR1:zOS_AR0 (dividend)
+	movf	1+destreg,w	;  //                    zOS_AR2 (divisor)
+	andlw	0x7f		;  //  output arg zOS_AR1:zOS_AR0 (quotient/exc)
+	movwf	zOS_AR1		;  zOS_AR0 = (uint16_t) destreg & 0x7fff;
+	movf	accumul,w	;  zOS_AR2 = accumul & 0xff;
+	movwf	zOS_AR2		;  fsr0 = &char_io; // temp register (as INDF0)  
+	zOS_LOC	FSR0,zOS_JOB,char_io
+	pagesel	zos_div
+	call	zos_div		;  zos_div(&zOS_AR0 /* /= */
+	movf	zOS_AR0,w	;          &zOS_AR2, &zOS_AR3/*scratch*/, fsr0);
+	movwf	destreg		;
+	movf	zOS_AR1,w	;
+	movwf	1+destreg	;  destreg = (uint16_t) zOS_AR0;
+	bra	clcprmp		; break;
+
+clcchr5
+	movf	char_io,w	;
+	xorlw	'^'		;
+	btfss	STATUS,Z	;
+	bra	clcchr6		; case '^': // 8-bit by 8-bit exponentiation
+	movlw	0x01		;  // invoker of macro must implement zos_mac():
+	clrf	zOS_AR1		;  //  input arg zOS_AR1:zOS_AR0 (accumulator)
+	movf	accumul,f	;  //                    zOS_AR2 (factor 1)
+	btfsc	STATUS,Z	;  //                    zOS_AR3 (factor 2)
+	bra	clcexp1		;  //  output arg zOS_AR1:zOS_AR0 (product)
+clcexp0
+	clrf	zOS_AR0		;  zOS_AR1 = 0;
+	clrf	zOS_AR1		;  for (uint8_t w = 1; accumul > 0; accumul--) {
+	movwf	zOS_AR2		;   zOS_AR0 = (uint16_t) 0;
+	movf	destreg,w	;   zOS_AR2 = w;
+	movwf	zOS_AR3		;   zOS_AR3 = destreg & 0x00ff;
+	zOS_LOC	FSR0,zOS_JOB,char_io
+	pagesel	zos_mac
+	call	zos_mac		;   fsr0 = &char_io; // temp register (as INDF0)
+	movf	zOS_AR0,w	;   zos_mac(&zOS_AR0 /* += */,           
+	decfsz	accumul,f	;           &zOS_AR2 /* * */, &zOS_AR3, fsr0);
+	bra	clcexp0		;   w = zOS_AR0;
+clcexp1
+	movwf	destreg		;  }
+	clrf	1+destreg	;  destreg = ((uint16_t) zOS_AR1) << 8) | w;
+	bra	clcprmp		; break;
+
+clcchr6
+	movf	char_io,w	;
+	xorlw	'!'		;
+	btfss	STATUS,Z	;
+	bra	clcchr7		; case '!': // 3-bit factorial
+	movlw	0x01		;  // invoker of macro must implement zos_mac():
+	clrf	zOS_AR1		;  //  input arg zOS_AR1:zOS_AR0 (accumulator)
+	movf	accumul,f	;  //                    zOS_AR2 (factor 1)
+	btfsc	STATUS,Z	;  //                    zOS_AR3 (factor 2)
+	bra	clcexp1		;  //  output arg zOS_AR1:zOS_AR0 (product)
+	decfsz	accumul,f	;
+	bra	clcexp1		;
+clcfac0
+	clrf	zOS_AR0		;  zOS_AR1 = 0;
+	clrf	zOS_AR1		;  for (uint8_t w = 1; accumul-- > 1; accumul--) {
+	movwf	zOS_AR2		;   zOS_AR0 = (uint16_t) 0;
+	movf	destreg,w	;   zOS_AR2 = w;
+	decf	destreg,f	;   zOS_AR3 = destreg-- & 0x00ff;
+	movwf	zOS_AR3		;   fsr0 = &char_io; // temp register (as INDF0)
+	zOS_LOC	FSR0,zOS_JOB,char_io
+	pagesel	zos_mac
+	call	zos_mac		;   zos_mac(&zOS_AR0 /* += */,
+	movf	zOS_AR0,w	;           &zOS_AR2 /* * */, &zOS_AR3, fsr0);
+	decfsz	accumul,f	;   w = zOS_AR0;
+	bra	clcexp0		;  }
+clcfac1
+	movwf	destreg		;  destreg = ((uint16_t) zOS_AR1) << 8) | w;
+	clrf	1+destreg	;  // 1 <= destreg <= 720
+	bra	clcprmp		; break;
+clcchr7
+	movf	accumul,w	; default: zOS_AR1 = accumul; if (isr) goto isr;
+	movwf	zOS_AR1		; }// caller may use zOS_AR1 or accumuh:accumul
+	pagesel	isr		;
+	if(isr)
+	 goto	isr		; zOS_RFI();
+	else
+	 zOS_RFI
+	endif
+	
+clcprmp
+	pagesel	moncrlf
+	call	moncrlf		;clcprmp:
+	movf	1+destreg,w	; moncrlf(zos_job, p0);
+	movwf	accumuh		; accumuh = destreg>>8; monhex(zos_job, p0);
+	pagesel	monhex
+	call	monhex		; accumuh = destreg & 0xff; monlsb(zos_job, p0);
+	movf	destreg,w	; moncrlf(zos_job, p0);
+	movwf	accumuh		;clclast: 
+	pagesel	monlsb
+	call	monlsb		; zOS_ACC(&accumul,&numbase); zOS_RFI();
+	pagesel	moncrlf
+	call	moncrlf		; char_io = 0;
+	zOS_ACC	accumul,numbase
+clclast
+	clrf	char_io		;} // zOS_CLC()
+	zOS_RFI
+endclc
+	endm
+
+
