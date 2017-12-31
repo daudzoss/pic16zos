@@ -888,17 +888,15 @@ task
 	movlw	high uatbase	; goto decl;
 	movwf	FSR0H		;task:// all init that requires knowledge of BSR
 	zOS_MY2	FSR0
-	moviw	t0rst[FSR0]	; do {
-	btfss	STATUS,Z	; fsr0 = (uatbase & 0xff00) | 0x0070 | (bsr<<1);
-	bra	inited		; if (1[fsr0] == 0) { // not initialized yet
+	moviw	t0div[FSR0]	; do {
+	btfss	STATUS,Z	;  fsr0 = (uatbase & 0xff00) | 0x0070 | (bsr<<1);
+	bra	inited		;  if (1[fsr0] == 0) { // not initialized yet
 	zOS_DIS	GIE,0
 	movlw	0xff		;  zOS_DIS(&fsr0, zOS_JOB); // interrupts off!
 	movwi	t0div[FSR0]	;  0[fsr0] = 0xff;// live TMR0 postscaler divider
 	movlw	0x00		;
 	movwi	t0rst[FSR0]	;  1[fsr0] = 0x00; // live reset value for TMR0
-	movlw	low uatbase	;
-	movwf	FSR0L		;  const int8_t* uatbase = uatxmit & 0xff80;
-	rrf	zOS_ME		;  fsr0 = uatbase;
+	rrf	zOS_ME		;
 	clrw			;  const char* max = 0x70;
 	rrf	WREG		;  static char *p0, *p1, buf[]; //p0:task, p1:ISR
 	iorlw	buf		;  const char* wrap = ((bsr&1)<<7) | buf;
@@ -908,7 +906,9 @@ task
 	zOS_ENA	;//FIXME: superfluous due to subsequent SWI
 	zOS_OUT	0xff,"\r\nWelcome to zOS\r\n",char_io
 inited	
-	zOS_SWI	zOS_YLD		; }
+	zOS_SWI	zOS_YLD		; 
+	movlw	low uatbase	;  const int8_t* uatbase = uatxmit & 0xff80;
+	movwf	FSR0L		;  fsr0 = uatbase;
 	movlw	high rts	;
  	movwf	FSR1H		;  zOS_YLD();
 	movlw	low rts		;  // wait for SWI to store char(s) in buf[]
@@ -935,7 +935,7 @@ inited
 	movwf	p0		;  // end critical section
 loop
 	zOS_ENA
-	zOS_MEM	FSR0,zOS_ME
+	zOS_MEM	FSR0,BSR,0
 	moviw	zOS_HDH[FSR0]	;
 	movwf	PCLATH		;
 	moviw	zOS_HDL[FSR0]	;
