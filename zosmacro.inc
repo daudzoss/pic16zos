@@ -829,14 +829,14 @@ decl
 	zOS_ARG	1		; w = zOS_ARG(2, 1<<T0IF);
 	movlw	hwflag		; w = zOS_ARG(3, 0 /* no SWI */);
 	zOS_ARG	2
-	clrw		  	;}
+	clrw		  	;} // zOS_NUL()
 	zOS_ARG	3
 	movlb   0               ; // still in job "0": don't forget this!!!!
 	endm
 
 zOS_CON	macro	p,rat,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t rat,int8_t
-	local	task,isr,inited,loop,decl
-	bra	decl		;                    rts,int8_t* hb,int8_t pin){
+	local	contask,conisr,inited,conloop,condecl
+	bra	condecl		;                    rts,int8_t* hb,int8_t pin){
 
 	;; initialize constants and variables
 	local	t0div,t0rst
@@ -884,7 +884,7 @@ uatbase	 set	TX#v(p)REG & 0xff80
 uatxmit	 set	TX#v(p)REG & 0x001f ; mask off just the sfr SFR
 rtsflag	 set	TX#v(p)IF	
 	endif
-task
+contask
 	movlw	high uatbase	; goto decl;
 	movwf	FSR0H		;task:// all init that requires knowledge of BSR
 	zOS_MY2	FSR0
@@ -914,7 +914,7 @@ inited
 	movlw	low rts		;  // wait for SWI to store char(s) in buf[]
 	movwf	FSR1L		;
 	btfss	INDF1,rtsflag	;  if (*(fsr1 = rts) & (1<<rtsflag) == 0) //full
-	bra	loop		;   continue; // yield (still sending or no char)
+	bra	conloop		;   continue; // yield (still sending or no char)
 	lsrf	zOS_ME 		;
 	movwf	FSR1H		;  // READY TO SEND, AND...       
 	zOS_DIS	GIE,0
@@ -922,7 +922,7 @@ inited
 	movwf	FSR1L		;
 	xorwf	p1,w		;  fsr1 = (bsr<<7) | p0;
 	btfsc	STATUS,Z	;  if (p0 == p1)
-	bra	loop		;   continue; // nothing to do
+	bra	conloop		;   continue; // nothing to do
 	moviw	FSR1++		;
 	movwi	uatxmit[FSR0]	;  uatxmit[fsr0] = *fsr1++; // send a character
 	movf	FSR1L,w		;
@@ -930,10 +930,10 @@ inited
 	andlw	0x7f		;
 	xorlw	max		;
 	btfss	STATUS,Z	;
-	bra	loop		;  if (p0 & 0x7f == max) // ignore low bank bit
+	bra	conloop		;  if (p0 & 0x7f == max) // ignore low bank bit
 	movf	wrap,w		;   p0 = wrap; // =buf xor the lowest bank bit
 	movwf	p0		;  // end critical section
-loop
+conloop
 	zOS_ENA
 	zOS_MEM	FSR0,BSR,0
 	moviw	zOS_HDH[FSR0]	;
@@ -948,7 +948,7 @@ loop
 	;;  number of characters stored in the buffer
 	;; Note: caller needs to make sure to check status of return value for
 	;; != 0, just in case job is in between sleeps or with a full buffer
-isr
+conisr
 	local	done,do_swi,nottmr
 	
 	;; if it's a simple and frequent timer overflow interrupt finish quickly
@@ -995,10 +995,10 @@ do_swi
 	zOS_BUF	FSR0,max,p0	; }
 	zOS_RFS	WREG		; zOS_RFI(); // HWI finished
 done
-	zOS_RFI			;}
+	zOS_RFI			;
 	
 	;; intialize the UART peripheral, job handle and first three arguments
-decl
+condecl
 	banksel	uatbase
 	bcf	RCSTA,SPEN	;decl: // all init that is BSR independent here
 #if 1
@@ -1043,10 +1043,10 @@ brgvall	set	low brgvalm
 	banksel	PIE1
 	bsf	PIE1,RCIE	; PIE1 |= 1<<RCIE; //(4) "Set..RCIE..and..PEIE"
 #endif
-	zOS_ADR	task,zOS_UNP	; fsr0 = task & 0x7fff;// MSB 0 => unprivileged
-	movlw	low isr		; w = zOS_ARG(0, isr & 0x00ff);
+	zOS_ADR	contask,zOS_PRB	; fsr0 = contask & 0x7fff;// MSB 1 => privileged
+	movlw	low conisr	; w = zOS_ARG(0, conisr & 0x00ff);
 	zOS_ARG	0
-	movlw	high isr	; w = zOS_ARG(1, isr>>8);
+	movlw	high conisr	; w = zOS_ARG(1, conisr>>8);
 	zOS_ARG	1		; w = zOS_ARG(2, (0<<TXIF)|(1<<T0IF));
 	movlw (0<<TXIF)|(1<<T0IF)
 	zOS_ARG	2
@@ -1181,7 +1181,7 @@ noovrrn
 	 goto	isr		;  zOS_RFI(); //return from interrupt
 	endif
 	zOS_RFI			; }
-rxdecl
+
 	local	vars,arg0,arg1,adrl,adrh,optl,opth,chio
 vars	set	0x20
 arg0	set	isradrl-vars	
@@ -1192,6 +1192,7 @@ optl	set	optadrl-vars
 opth	set	optadrh-vars	
 chio	set	char_io-vars
 
+rxdecl
 	zOS_CON	p,ra,rt,h,pi
 	zOS_LAU	FSR1H
 	zOS_LOC	FSR1L,FSR1H,vars
