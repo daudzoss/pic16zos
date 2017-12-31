@@ -1156,7 +1156,7 @@ rxisr
 	movf	isradrh,w	;
 	movwf	PCLATH		;
 	movf	isradrl,w	; if (rt && (1<<RCIF) == 0) // SWI, not inp char
-	banksel	uarbase
+	banksel	rt
 	btfss	rt,rxflag	;  goto (isradrh<<8)|isradrl;//zOS_CON takes SWI
 	movwf	PCL		; else {
 	bcf	rt,rxflag	;  rt &= ~(1<<RCIF);
@@ -1168,14 +1168,15 @@ rxisr
 	zOS_BUF	zOS_JOB,buf,p0	;  }
 noovrrn
 #endif
-	movf	RCREG,w		;  // this read removes it from the FIFO
-	movwf	zOS_AR0		;  zOS_AR0 = RCREG;
+	banksel	uarbase
+	movf	uarecv,w	;  // this read removes it from the FIFO
 #ifdef CAUTIOUS
 	btfss	RCSTA,OERR	;  if (RCSTA & (1<<OERR)) // rx overrun
 	bcf	RCSTA,CREN	;   RCSTA &= ~(1<<CREN); // cleared by disable
 	bsf	RCSTA,CREN	;  RCSTA |= 1<<CREN; // (re-)enable reception
 #endif
 	if (isr)
+	 movwf	zOS_AR0		;  zOS_AR0 = RCREG;
 	pagesel	isr		;  if (zOS_AR0)
 	 btfss	STATUS,Z	;   goto isr; // continue with parser
 	 goto	isr		;  zOS_RFI(); //return from interrupt
