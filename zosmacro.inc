@@ -1251,7 +1251,6 @@ zOS_MON	macro	p,ra,rt,h,pi,isr;inline void zOS_MON(int8_t p, int8_t ra, int8_t
 	local	monisr,monchr1,monchr2,monchr3,mondump,mondest,monram,monchr4
 	local	monchr5,monchr6,monchr7,monchr8,monchr9,monprmp,monlast,endmon
 	
-	zOS_INP	p,ra,rt,h,pi,monisr 
 	pagesel	endmon		;      rt, int8_t* h, int8_t pi, void(*isr)()) {
 	goto	endmon		; zOS_INP(p,ra,rt,h,pi,monisr); }// isr may be 0
 
@@ -1614,6 +1613,7 @@ monlast
 	clrf	char_io		;} // zOS_MON()
 	zOS_RFI
 endmon
+	zOS_INP	p,ra,rt,h,pi,monisr 
 	endm	
 
 zOS_MAN	macro	p,rat,rts,hb,pin,isr ;inline void zOS_MAN(int8_t p, int8_t rat,
@@ -1624,11 +1624,6 @@ zOS_MAN	macro	p,rat,rts,hb,pin,isr ;inline void zOS_MAN(int8_t p, int8_t rat,
 	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,optadrl
 	local	optadrh,accumul,accumuh,numbase,destreg,destreh,char_io,buf,max
 
-	zOS_MON	p,rat,rts,hb,pin,isr
-	movlw	low mantask	;                      int8_t* hb, int8_t pin) {
-	movwi	FSR1++		; zOS_MON(p,ra,rt,h,pi,manisr); //fsr0=swi,1=adr
-	movlw	high mantask	; optadrl = mantask & 0x00ff;
-	movwi	FSR1++		; optadrh = mantask >> 8;
 	pagesel	endman
 	goto	endman		;
 	
@@ -2059,6 +2054,11 @@ crlf
 	zOS_ENA
 	return			;} // zOS_MAN()
 endman
+	zOS_MON	p,rat,rts,hb,pin,isr
+	movlw	low mantask	;                      int8_t* hb, int8_t pin) {
+	movwi	FSR1++		; zOS_MON(p,ra,rt,h,pi,manisr); //fsr0=swi,1=adr
+	movlw	high mantask	; optadrl = mantask & 0x00ff;
+	movwi	FSR1++		; optadrh = mantask >> 8;
 	endm
 
 ;;; zOS_CLC is an extension of the zOS_MAN() job manager shell into an rpn calc-
@@ -2104,7 +2104,6 @@ endman
 zOS_CLC	macro	p,ra,rt,h,pi,isr;inline void zOS_CLC(int8_t p, int8_t ra, int8_t
 	local	endclc,clcisr,clcprmp,endclc
 
-	zOS_MON	p,ra,rt,h,pi,clcisr
 	pagesel	endclc
 	goto	endclc		;      rt, int8_t* h, int8_t pi, void(*isr)()) {
 	
@@ -2161,7 +2160,7 @@ clcchr2
 	movf	accumul,w	;
 	subwf	destreg,f	;
 	movf	accumuh,w	;
-	subwfc	1+destreg,f	;  destreg -= (accumuh << 8) | accumul;
+	subwfb	1+destreg,f	;  destreg -= (accumuh << 8) | accumul;
 	bra	clcprmp		; break;
 	
 clcchr3
@@ -2169,6 +2168,7 @@ clcchr3
 	xorlw	'*'		;
 	btfss	STATUS,Z	;
 	bra	clcchr4		; case '*': // 8-bit by 8-bit unsigned multiply
+#ifdef zos_mac
 	clrf	zOS_AR0		;  // invoker of macro must implement zos_mac():
 	clrf	zOS_AR1		;  //  input arg zOS_AR1:zOS_AR0 (accumulator)
 	movf	accumul,w	;  //                    zOS_AR2 (factor 1)
@@ -2183,6 +2183,7 @@ clcchr3
 	movwf	destreg		;  zos_mac(&zOS_AR0 /* += */,
 	movf	zOS_AR1,w	;          &zOS_AR2 /* * */, &zOS_AR3, fsr0);
 	movwf	1+destreg	;  destreg = (uint16_t) zOS_AR0;
+#endif
 	bra	clcprmp		; break;
 
 clcchr4
@@ -2190,6 +2191,7 @@ clcchr4
 	xorlw	'/'		;
 	btfss	STATUS,Z	;
 	bra	clcchr5		; case '/': // 15-bit by 8-bit unsigned divide
+#ifdef zos_div
 	movf	destreg,w	;  // invoker of macro must implement zos_div():
 	movwf	zOS_AR0		;  //  input arg zOS_AR1:zOS_AR0 (dividend)
 	movf	1+destreg,w	;  //                    zOS_AR2 (divisor)
@@ -2204,6 +2206,7 @@ clcchr4
 	movwf	destreg		;
 	movf	zOS_AR1,w	;
 	movwf	1+destreg	;  destreg = (uint16_t) zOS_AR0;
+#endif
 	bra	clcprmp		; break;
 
 clcchr5
@@ -2211,6 +2214,7 @@ clcchr5
 	xorlw	'^'		;
 	btfss	STATUS,Z	;
 	bra	clcchr6		; case '^': // 8-bit by 8-bit exponentiation
+#ifdef zos_mac
 	movlw	0x01		;  // invoker of macro must implement zos_mac():
 	clrf	zOS_AR1		;  //  input arg zOS_AR1:zOS_AR0 (accumulator)
 	movf	accumul,f	;  //                    zOS_AR2 (factor 1)
@@ -2231,6 +2235,7 @@ clcexp0
 clcexp1
 	movwf	destreg		;  }
 	clrf	1+destreg	;  destreg = ((uint16_t) zOS_AR1) << 8) | w;
+#endif
 	bra	clcprmp		; break;
 
 clcchr6
@@ -2238,6 +2243,7 @@ clcchr6
 	xorlw	'!'		;
 	btfss	STATUS,Z	;
 	bra	clcchr7		; case '!': // 3-bit factorial
+#ifdef zos_mac
 	movlw	0x01		;  // invoker of macro must implement zos_mac():
 	clrf	zOS_AR1		;  //  input arg zOS_AR1:zOS_AR0 (accumulator)
 	movf	accumul,f	;  //                    zOS_AR2 (factor 1)
@@ -2261,6 +2267,7 @@ clcfac0
 clcfac1
 	movwf	destreg		;  destreg = ((uint16_t) zOS_AR1) << 8) | w;
 	clrf	1+destreg	;  // 1 <= destreg <= 720
+#endif
 	bra	clcprmp		; break;
 clcchr7
 	movf	accumul,w	; default: zOS_AR1 = accumul; if (isr) goto isr;
@@ -2290,6 +2297,7 @@ clclast
 	clrf	char_io		;} // zOS_CLC()
 	zOS_RFI
 endclc
+	zOS_MON	p,ra,rt,h,pi,clcisr
 	endm
 
 

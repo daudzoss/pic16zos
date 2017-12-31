@@ -163,13 +163,13 @@ main
 	movwf	PPSLOCK
 	bsf	PPSLOCK,PPSLOCKED
 
-	zOS_MON	0,.32000000/.9600,PIR1,LATA,RA4,0
+;	zOS_INP	0,.32000000/.9600,PIR1,LATA,RA4,0
+;	zOS_MON	0,.32000000/.9600,PIR1,LATA,RA4,0
+;	zOS_MAN	0,.32000000/.9600,PIR1,LATA,RA4,0
+	zOS_CLC	0,.32000000/.9600,PIR1,LATA,RA4,0
 	movlw	OUTCHAR		;void main(void) {
-	movwi	0[FSR0]		;
-;	zOS_CON	0,.32000000/.9600,PIR1,LATA,RA4
-;	zOS_ARG	3		; zOS_CON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
-;	zOS_LAU	WREG		; zOS_ARG(3,OUTCHAR/*only 1 SWI*/); zOS_LAU(&w);
-
+	movwi	0[FSR0]		; zOS_xxx(/*UART*/1,32MHz/9600bps,PIR1,LATA,4);
+	
 ;	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler for splash
 ;	zOS_ADR	splash,zOS_PRB	; zOS_ADR(fsr0 = splash&~zOS_PRV);// privileged
 ;	zOS_LAU	WREG		; zOS_LAU(&w);
