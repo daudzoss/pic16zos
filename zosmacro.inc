@@ -1296,32 +1296,27 @@ monback
 monloop
 	zOS_BUF	FSR0,max,p0
 	andlw	0x1		;  for (zOS_AR1 = w; zOS_AR1; zOS_AR1--) {
-	btfss	STATUS,Z	;   if (zOS_BUF(job, ptr) == 0) // buff full
+	btfsc	STATUS,Z	;   if (zOS_BUF(job, ptr) == 0) // buff full
 	return			;    return;
 	decfsz	zOS_AR1,f	;  }
 	bra	monloop		; }
 	return			;} // monback()
 	
 monhex
-	movlw	'0'		;void monhex(uint3_t job, uint8_t ptr) {
-	movwf	zOS_AR0		; extern uint8_t accumuh;
-	zOS_BUF	FSR0,max,p0
-	andlw	0x1		; zOS_AR0 = '0';
-	btfss	STATUS,Z	; if (zOS_BUF(job, ptr) == 0) // buf full
-	return			;  return;
-	movlw	'x'		; 
-	movwf	zOS_AR0		; zOS_AR0 = 'x';
-	zOS_BUF	FSR0,max,p0
-	andlw	0x1		; if (zOS_BUF(job, ptr) == 0) // buf full
-	btfss	STATUS,Z	;  return;
-	return			; monlsb(job, ptr, w = accumuh); // not accumul
 	movf	accumuh,w	;} // monhex()
-
 monlsb
 	clrf	zOS_AR0		;void monlsb(uint3_t job, uint8_t ptr, char w) {
 	movwf	zOS_AR1		; zOS_AR0 = 0; zOS_AR1 = w; monbuf(job, ptr);
 	bra	monbuf		;} // monlsb()
 	
+mon0
+	movlw	'0'		;void mon0(void) { zOS_AR0 = '0'; monbufs(ptr);
+	bra	monbufs		;}
+
+monx
+	movlw	'x'		;void monx(void) { zOS_AR0 = '0'; monbufs(ptr);
+	bra	monbufs		;}
+
 moncrlf
 	movlw	'\r'		;void moncrlf(uint3_t job, uint8_t ptr, char w){
 	movwf	zOS_AR0		; zOS_AR0 = '\r';
@@ -1329,17 +1324,18 @@ moncrlf
 	andlw	0x1		;  return 0;
 	btfss	STATUS,Z	;
 	return			; zOS_AR0 = '\n';
-	
 monlf
 	movlw	'\n'		; return zOS_BUF(zos_job, ptr, w);
+monbufs
 	movwf	zOS_AR0		;} // moncrlf() monlf()
-	
 monbuf
-	zOS_BUF	FSR0,max,p0	;void monbuf(uint3_t job, uint8_t ptr, char w) {
+	zOS_BUF	FSR0,max,p0	;void monbuf(uint8_t ptr, char w) {
 	return			; return zOS_BUF(job,ptr,w); } // 0/1/2 printed
 	
 monisr
-	pagesel	monbuf		;void monisr(void) {
+	movf	zOS_JOB,w	;void monisr(void) {
+	movwf	BSR		;  bsr = zos_job;// to access char_io var et al
+	pagesel	monbuf
 	movlw	0xe0		; // from zOS_INP isr with char zOS_AR0>0
 	addwf	zOS_AR0,w	;
 	btfss	WREG,7		; // refuse to echo unprintable characters
@@ -1347,13 +1343,15 @@ monisr
 	andlw	0x1		;  // successful echo into circular buffer
 	btfsc	STATUS,Z	;
 	bra	monlast		;
-	movf	zOS_JOB,w	;
-	movwf	BSR		;  bsr = zos_job;// to access char_io var et al
 	
 	movf	zOS_AR0,w	;  // handle '~' before the tolower() conversion
 	xorlw	'~'		;
 	btfss	STATUS,Z	;
 	bra	monchr1		;  if (zOS_AR0 == '~') {
+	pagesel	mon0
+	call	mon0		;
+	pagesel	monx
+	call	monx		;
 	comf	accumul,f	;   accumul = ~accumul;
 	comf	accumuh,w	;
 	movwf	accumuh		;
@@ -1439,6 +1437,10 @@ mondest
 	btfsc	1+destreg,7	;   if (destreg & 0x8000) { // flash, not RAM
 	bra	monram		;
 ;;; FIXME: access upper byte in Flash instead of printing it as zero
+	pagesel	mon0
+	call	mon0		;
+	pagesel	monx
+	call	monx		;
 	clrf	accumuh		;
 	pagesel	monhex
 	call	monhex		;    monhex(zos_job, p0, accumuh=0);// put 0x00
@@ -1460,6 +1462,10 @@ mondest
 	bra	monprmp		;   }
 	
 monram
+	pagesel	mon0
+	call	mon0		;
+	pagesel	monx
+	call	monx		;
 	moviw	FSR0++		;
 	movf	FSR0L,w		;
 	movwf	destreg		;
@@ -1467,7 +1473,7 @@ monram
 	movwf	1+destreg	;
 	movwf	accumuh		;   accumuh = *(destreg = fsr0++);
 	pagesel	monhex
-	call	monhex		;   monhex(
+	call	monhex		;   monhex(p0, accumuh);
 
 	movf	char_io,w	;
 	xorlw	'.'		;   // then exits in the '.' case to just print
