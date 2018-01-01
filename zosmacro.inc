@@ -1307,7 +1307,8 @@ monhex
 monlsb
 	clrf	zOS_AR0		;void monlsb(uint3_t job, uint8_t ptr, char w) {
 	movwf	zOS_AR1		; zOS_AR0 = 0; zOS_AR1 = w; monbuf(job, ptr);
-	bra	monbuf		;} // monlsb()
+	zOS_BUF	FSR0,max,p0	;void monbuf(uint8_t ptr, char w) {
+	return			; return zOS_BUF(job,ptr,w); } // 0/1/2 printed
 	
 mon0
 	movlw	'0'		;void mon0(void) { zOS_AR0 = '0'; monbufs(ptr);
@@ -1317,32 +1318,37 @@ monx
 	movlw	'x'		;void monx(void) { zOS_AR0 = '0'; monbufs(ptr);
 	bra	monbufs		;}
 
+#if 0
 moncrlf
 	movlw	'\r'		;void moncrlf(uint3_t job, uint8_t ptr, char w){
+	bra	monbufs		;
 	movwf	zOS_AR0		; zOS_AR0 = '\r';
 	zOS_BUF	FSR0,max,p0	; if (zOS_BUF(zos_job, ptr) < 1)
 	andlw	0x1		;  return 0;
 	btfss	STATUS,Z	;
 	return			; zOS_AR0 = '\n';
+#endif
 monlf
 	movlw	'\n'		; return zOS_BUF(zos_job, ptr, w);
 monbufs
 	movwf	zOS_AR0		;} // moncrlf() monlf()
-monbuf
-	zOS_BUF	FSR0,max,p0	;void monbuf(uint8_t ptr, char w) {
-	return			; return zOS_BUF(job,ptr,w); } // 0/1/2 printed
+monbufd
+	movlw	1		;
+	movwf	zOS_AR1		;
+	bra	monloop		;
 	
 monisr
 	movf	zOS_JOB,w	;void monisr(void) {
 	movwf	BSR		;  bsr = zos_job;// to access char_io var et al
-	pagesel	monbuf
+	pagesel	monbufd
 	movlw	0xe0		; // from zOS_INP isr with char zOS_AR0>0
 	addwf	zOS_AR0,w	;
 	btfss	WREG,7		; // refuse to echo unprintable characters
-	call	monbuf		; if (zOS_AR0 > 31 && monbuf(zos_job,p0) > 0) {
+	call	monbufd		; if (zOS_AR0 > 31 && monbuf(zos_job,p0) > 0) {
 	andlw	0x1		;  // successful echo into circular buffer
+	pagesel	monlast
 	btfsc	STATUS,Z	;
-	bra	monlast		;
+	goto	monlast		;
 	
 	movf	zOS_AR0,w	;  // handle '~' before the tolower() conversion
 	xorlw	'~'		;
@@ -1376,8 +1382,8 @@ monchr1
 	btfss	STATUS,Z	;  case '\b':
 	bra	monchr2		;
 	movlw	'\r'		;
-	pagesel	monbuf
-	call	monbuf		;   monbuf(zos_job, p0, '\r');
+	pagesel	monbufs
+	call	monbufs		;   monbuf(zos_job, p0, '\r');
 	bra	monprmp		;   goto monprmp;
 	
 monchr2
@@ -1457,8 +1463,11 @@ mondest
 	pagesel	monlsb	
 	call	monlsb		;    moncrlf(zos_job, p0);          //     \r\n
 ;;; FIXME: disassemble the instruction here once the upper 6 bits are available
-	pagesel	moncrlf
-	call	moncrlf		;    goto monprmp;
+	movlw	'\r'
+	pagesel	monbufs
+	call	monbufs
+	pagesel	monlf
+	call	monlf		;    goto monprmp;
 	bra	monprmp		;   }
 	
 monram
@@ -1477,10 +1486,14 @@ monram
 
 	movf	char_io,w	;
 	xorlw	'.'		;   // then exits in the '.' case to just print
-	pagesel	moncrlf
 	btfss	STATUS,Z	;   if (char_io == '.')
-	goto	moncrlf		;    goto moncrlf;
-
+	bra	monramd
+	movlw	'\r'		;
+	pagesel	monbufs
+	call	monbufs		;
+	pagesel	monlf
+	goto	monlf		;    goto moncrlf;
+monramd
 	movf	char_io,w	;   // or follow by 3 backspaces in the ' ' case
 	xorlw	'='		;   // to show that \r will result in a 0 write
 	btfss	STATUS,Z	;
