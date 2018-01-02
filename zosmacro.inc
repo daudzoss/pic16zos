@@ -1176,7 +1176,7 @@ noovrrn
 	endif
 	zOS_RFI			; }
 
-	local	vars,arg0,arg1,adrl,adrh,optl,opth,chio
+	local	vars,arg0,arg1,adrl,adrh,optl,opth,accl,acch,base,dstl,dsth,chio
 vars	set	0x20
 arg0	set	isradrl-vars	
 arg1	set	isradrh-vars
@@ -1184,6 +1184,11 @@ adrl	set	tskadrl-vars
 adrh	set	tskadrh-vars	
 optl	set	optadrl-vars
 opth	set	optadrh-vars	
+accl	set	accumul-vars
+acch	set	accumuh-vars
+base	set	numbase-vars
+dstl	set	destreg-vars
+dsth	set	destreh-vars
 chio	set	char_io-vars
 
 rxdecl
@@ -1199,10 +1204,15 @@ rxdecl
 	movf	FSR0H,w		;
 	movwi	adrh[FSR1]	; tskadr[fsr1] = fsr0; // still zOS_CON's handle
 	movlw	0		;
-	movwi	chio[FSR1]	; char_io[fsr1] = 0; // nonzero = action to take
-	addfsr	FSR1,optl	; fsr1 += optadrl; // caller sets optional task
-	movwi	0[FSR1]		;
-	movwi	1[FSR1]		; optadr[fsr1] = ((*void)()) 0; // no func
+	movwi	optl[FSR1]	; // caller sets optional task
+	movwi	opth[FSR1]	; optadr[fsr1] = ((*void)()) 0; // no func
+	movwi	accl[FSR1]	;
+	movwi	acch[FSR1]	;
+	movwi	dstl[FSR1]	;
+	movwi	dsth[FSR1]	;
+	movwi	chio[FSR1]	; char_io[fsr1] = 0; // zero = no action to take
+	movlw	0x0a		;
+	movwi	base[FSR1]	;
 	rlf	FSR1L,w		; w = fsr1 >> 7; // restore zOS_LAU() job number
 	rlf	FSR1H,w		;
 	zOS_MEM	FSR0,WREG,0
