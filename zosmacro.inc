@@ -1308,13 +1308,13 @@ monbac2
 	bra	monbarn		;
 	movf	p1,w		;
 	xorwf	wrap,w		;
-	movlw	max		;
+	movlw	max-1		;
 	btfss	STATUS,Z	;
 	movwf	p1		;
 	btfsc	wrap,7		;
 	bsf	p1,7		;
 	decf	p1,f		;
-	decfsz	zOS_AR0,f	;
+	decfsz	zOS_AR1,f	;
 	bra	monbac2		;
 	return			;
 monbarn
@@ -1408,8 +1408,8 @@ monchr1
 	movf	zOS_AR0,w	;//FIXME: ` { | } ~ DEL mapped onto @ [ \ ] ^ _
 	movwf	char_io		;
 	xorlw	0x08		;  switch (char_io = zOS_AR0) {
-	btfsc	STATUS,Z	;  case '\b':
 	movlw	0x7f		;
+	btfss	STATUS,Z	;  case '\b':
 	movf	char_io,w	;
 	xorlw	0x7f		;
 	btfss	STATUS,Z	;  case '\0177':
@@ -1422,8 +1422,8 @@ monchr1
 monchr2
 	movf	char_io,w	;
 	xorlw	0x0d		;
-	btfsc	STATUS,Z	;  case '\n':
 	movlw	0x0a		;
+	btfss	STATUS,Z	;  case '\n':
 	movf	char_io,w	;
 	xorlw	0x0a		;
 	btfss	STATUS,Z	;  case '\r':
@@ -1533,11 +1533,11 @@ monram
 monramd
 	movf	char_io,w	;   // or follow by 3 backspaces in the ' ' case
 	xorlw	'='		;   // to show that \r will result in a 0 write
-	btfsc	STATUS,Z	;
 	movlw	' '		;
+	btfss	STATUS,Z	;
 	movf	char_io,w	;
 	xorlw	' '		;
-	movlw	3		;
+	movlw	2		;
 	pagesel	monback
 	call	monback		;   monback(zos_job, p0, (char_io == '=')?0:3);
 	clrf	char_io		;   char_io = 0;
