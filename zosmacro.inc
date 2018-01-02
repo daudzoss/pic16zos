@@ -1300,6 +1300,25 @@ monback
 	btfsc	STATUS,Z	; if (w &= 0x3f) {
 	return			;  // 63 \b's should be enough in a buffer of 64
 	movwf	zOS_AR1		;  
+#if 0	
+monbac2
+	movf	p0,w		; // don't actually want to wind back buffer;
+	xorwf	p1,w		; // the point is show what will be overwritten
+	btfsc	STATUS,Z	;
+	bra	monbarn		;
+	movf	p1,w		;
+	xorwf	wrap,w		;
+	movlw	max		;
+	btfss	STATUS,Z	;
+	movwf	p1		;
+	btfsc	wrap,7		;
+	bsf	p1,7		;
+	decf	p1,f		;
+	decfsz	zOS_AR0,f	;
+	bra	monbac2		;
+	return			;
+monbarn
+#endif
 	movlw	0x08		;
 	movwf	zOS_AR0		;  zOS_AR0 = '\b'; // FIXME: or '\0177'?
 
@@ -1514,7 +1533,10 @@ monram
 monramd
 	movf	char_io,w	;   // or follow by 3 backspaces in the ' ' case
 	xorlw	'='		;   // to show that \r will result in a 0 write
-	btfss	STATUS,Z	;
+	btfsc	STATUS,Z	;
+	movlw	' '		;
+	movf	char_io,w	;
+	xorlw	' '		;
 	movlw	3		;
 	pagesel	monback
 	call	monback		;   monback(zos_job, p0, (char_io == '=')?0:3);
