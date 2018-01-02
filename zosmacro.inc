@@ -1493,11 +1493,11 @@ monram
 	movf	1+destreg,w	;
 	movwf	FSR0H		;   fsr0 = destreg;
 	moviw	FSR0++		;
+	movwf	accumuh		;   accumuh = *(destreg = fsr0++);
 	movf	FSR0L,w		;
 	movwf	destreg		;
 	movf	FSR0H,w		;
 	movwf	1+destreg	;
-	movwf	accumuh		;   accumuh = *(destreg = fsr0++);
 	pagesel	monhex
 	call	monhex		;   monhex(p0, accumuh);
 
@@ -1509,7 +1509,8 @@ monram
 	pagesel	monbufs
 	call	monbufs		;
 	pagesel	monlf
-	goto	monlf		;    goto moncrlf;
+	call	monlf		;    goto moncrlf;
+	bra	monprmp		;
 monramd
 	movf	char_io,w	;   // or follow by 3 backspaces in the ' ' case
 	xorlw	'='		;   // to show that \r will result in a 0 write
