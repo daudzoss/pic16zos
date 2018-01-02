@@ -1301,7 +1301,7 @@ monback
 	return			;  // 63 \b's should be enough in a buffer of 64
 	movwf	zOS_AR1		;  
 	movlw	0x08		;
-	movwf	zOS_AR0		;  zOS_AR0 = '\b';
+	movwf	zOS_AR0		;  zOS_AR0 = '\b'; // FIXME: or '\0177'?
 
 monloop
 	zOS_BUF	FSR0,max,p0
@@ -1389,7 +1389,11 @@ monchr1
 	movf	zOS_AR0,w	;//FIXME: ` { | } ~ DEL mapped onto @ [ \ ] ^ _
 	movwf	char_io		;
 	xorlw	0x08		;  switch (char_io = zOS_AR0) {
-	btfss	STATUS,Z	;  case '\b':
+	btfsc	STATUS,Z	;  case '\b':
+	movlw	0x7f		;
+	movf	char_io,w	;
+	xorlw	0x7f		;
+	btfss	STATUS,Z	;  case '\0177':
 	bra	monchr2		;
 	movlw	'\r'		;
 	pagesel	monbufs
@@ -1397,6 +1401,10 @@ monchr1
 	bra	monprmp		;   goto monprmp;
 	
 monchr2
+	movf	char_io,w	;
+	xorlw	0x0d		;
+	btfsc	STATUS,Z	;  case '\n':
+	movlw	0x0a		;
 	movf	char_io,w	;
 	xorlw	0x0a		;
 	btfss	STATUS,Z	;  case '\r':
@@ -1445,12 +1453,7 @@ mondump
 	movwf	1+destreg	;    destreg = accumul; // otherwise no clobber
 	
 mondest
-	movf	destreg,w	;
-	movwf	FSR0L		;
-	movf	1+destreg,w	;
-	movwf	FSR0H		;   fsr0 = destreg;
-	
-	btfsc	1+destreg,7	;   if (destreg & 0x8000) { // flash, not RAM
+	btfss	1+destreg,7	;   if (destreg & 0x8000) { // flash, not RAM
 	bra	monram		;
 ;;; FIXME: access upper byte in Flash instead of printing it as zero
 	pagesel	mon0
@@ -1485,6 +1488,10 @@ monram
 	call	mon0		;
 	pagesel	monx
 	call	monx		;
+	movf	destreg,w	;
+	movwf	FSR0L		;
+	movf	1+destreg,w	;
+	movwf	FSR0H		;   fsr0 = destreg;
 	moviw	FSR0++		;
 	movf	FSR0L,w		;
 	movwf	destreg		;
