@@ -1533,15 +1533,16 @@ monchr5
 	zOS_RFI
 	
 monchr6
-	movlw	0-0x10		;  default:
+	movlw	0-0x30		;  default:
 	addwf	char_io,f	;
 	btfsc	char_io,7	;
 	bra	monchr9 	;   if ((char_io -= ('0'&0xdf /*0x10*/)) >= 0) {
+	movlw	0-0x10		;
 	addwf	char_io,w	;
 	btfsc	WREG,7		;    if (char_io > 0x10)
 	bra	$+3		;
 	movlw	0xf9		;
-	addwf	char_io,f	;     char_io -= 0x07;// 0x41->0x31->0x2a... so
+	addwf	char_io,f	;     char_io -= 0x07;// 0x41->0x11->0x0a... so
 	movf	char_io,f	;                     // now in range 0x00-0x09,
 	btfss	STATUS,Z	;                     // or :=0x0a,...,?=0x0f,
 	bra	monchr7		;                     // or A=0x2a,B=0x2b,...
@@ -1554,10 +1555,10 @@ monchr6
 	zOS_RFI
 	
 monchr7
-	movlw	0x50		;
+	movlw	0xf0		;
 	andwf	char_io,w	;
-	btfss	STATUS,Z	;    } else if ((char_io & 0x50 == 0) // 0-9,a-f
-	bra	monchr8		;              && (numbase & 0x10)) { // base 16
+	btfss	STATUS,Z	;    } else if ((char_io & 0xf0 == 0) // 0-9,a-f
+	bra	monchr9		;              && (numbase & 0x10)) { // base 16
 	btfss	numbase,4	;
 	bra	monchr8		;
 	swapf	accumuh,f	;
