@@ -1421,18 +1421,24 @@ monchr1
 	
 monchr2
 	movf	char_io,w	;
-	xorlw	0x0d		;
-	movlw	0x0a		;
+#if 0
+	xorlw	0x0a		;
+	movlw	0x0d		;
 	btfss	STATUS,Z	;  case '\n':
 	movf	char_io,w	;
-	xorlw	0x0a		;
+#endif	
+	xorlw	0x0d		;
 	btfss	STATUS,Z	;  case '\r':
 	bra	monchr3		;   monbuf(zos_job, p0, '\n');// follows the \r
-	pagesel	monlf		
-	call	monlf		;
+	movlw	'\r'		;
+	pagesel	monbufs		;
+	call	monbufs		;
+	movlw	'\n'		;
+	pagesel	monbufs		;
+	call	monbufs		;
 	
 	movf	destreg,w	;   // repeat \r's can set a whole range of
-	movwf	FSR0L		;   // addresses to zero
+	movwf	FSR0L		;   // addresses to zero???
 	movf	1+destreg,w	;
 	movwf	FSR0H		;   fsr0 = destreg;
 	iorwf	FSR0L,w		;
@@ -1486,12 +1492,16 @@ mondest
 	movwf	FSR0L		;
 	movf	1+destreg,w	;
 	movwf	FSR0H		;    fsr0 = destreg; // monhex() clobbered fsr0
+#if 1
+	moviw	0[FSR0]
+#else
 	moviw	FSR0++		;
 	movwf	accumuh		;
 	movf	FSR0L,w		;
 	movwf	destreg		;    accumuh = *fsr0++;
 	movf	FSR0H,w		;    destreg = fsr0;
 	movwf	1+destreg	;    monlsb(zos_job, p0, accumuh);  //      LSB
+#endif
 	pagesel	monlsb	
 	call	monlsb		;    moncrlf(zos_job, p0);          //     \r\n
 ;;; FIXME: disassemble the instruction here once the upper 6 bits are available
