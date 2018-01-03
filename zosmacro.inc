@@ -1335,8 +1335,8 @@ monhex
 	movf	accumuh,w	;} // monhex()
 monlsb
 	clrf	zOS_AR0		;void monlsb(uint3_t job, uint8_t ptr, char w) {
-	movwf	zOS_AR1		; zOS_AR0 = 0; zOS_AR1 = w; monbuf(job, ptr);
-	zOS_BUF	FSR0,max,p0	;void monbuf(uint8_t ptr, char w) {
+	movwf	zOS_AR1		;
+	zOS_BUF	FSR1,max,p0	;
 	return			; return zOS_BUF(job,ptr,w); } // 0/1/2 printed
 	
 mon0
@@ -1362,7 +1362,7 @@ monlf
 monbufs
 	movwf	zOS_AR0		;} // moncrlf() monlf()
 monbufd
-	movlw	1		;
+	movlw	1		;void monbuf(uint8_t ptr, char w) {
 	movwf	zOS_AR1		;
 	bra	monloop		;
 	
@@ -1492,16 +1492,12 @@ mondest
 	movwf	FSR0L		;
 	movf	1+destreg,w	;
 	movwf	FSR0H		;    fsr0 = destreg; // monhex() clobbered fsr0
-#if 1
-	moviw	0[FSR0]
-#else
 	moviw	FSR0++		;
 	movwf	accumuh		;
 	movf	FSR0L,w		;
 	movwf	destreg		;    accumuh = *fsr0++;
 	movf	FSR0H,w		;    destreg = fsr0;
 	movwf	1+destreg	;    monlsb(zos_job, p0, accumuh);  //      LSB
-#endif
 	pagesel	monlsb	
 	call	monlsb		;    moncrlf(zos_job, p0);          //     \r\n
 ;;; FIXME: disassemble the instruction here once the upper 6 bits are available
@@ -1522,24 +1518,24 @@ monram
 	movf	1+destreg,w	;
 	movwf	FSR0H		;   fsr0 = destreg;
 	moviw	FSR0++		;
-	movwf	accumuh		;   accumuh = *(destreg = fsr0++);
-	movf	FSR0L,w		;
-	movwf	destreg		;
-	movf	FSR0H,w		;
-	movwf	1+destreg	;
+	movwf	accumuh		;   accumuh = *fsr0++;
 	pagesel	monhex
 	call	monhex		;   monhex(p0, accumuh);
 
 	movf	char_io,w	;
 	xorlw	'.'		;   // then exits in the '.' case to just print
-	btfss	STATUS,Z	;   if (char_io == '.')
+	btfss	STATUS,Z	;   if (char_io != '.') {
 	bra	monramd
-	movlw	'\r'		;
+	movf	FSR0L,w		;
+	movwf	destreg		;
+	movf	FSR0H,w		;
+	movwf	1+destreg	;    destreg = fsr0;
+	movlw	'\r'		;    monbufs('\r');
 	pagesel	monbufs
-	call	monbufs		;
+	call	monbufs		;    monbufs('\n');
 	pagesel	monlf
-	call	monlf		;    goto moncrlf;
-	bra	monprmp		;
+	call	monlf		;    goto monprmp;
+	bra	monprmp		;   }
 monramd
 	movf	char_io,w	;   // or follow by 3 backspaces in the ' ' case
 	xorlw	'='		;   // to show that \r will result in a 0 write
@@ -1547,7 +1543,7 @@ monramd
 	btfss	STATUS,Z	;
 	movf	char_io,w	;
 	xorlw	' '		;
-	movlw	2		;
+	movlw	3		;
 	pagesel	monback
 	call	monback		;   monback(zos_job, p0, (char_io == '=')?0:3);
 	clrf	char_io		;   char_io = 0;
