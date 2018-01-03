@@ -1570,7 +1570,7 @@ monchr5
 	btfss	WREG,7		;   if (accumul > 102)
 	movwf	accumul		;    accumul = 102;
 	zOS_PCT	accumul
-	movwf	accumul		;   accumul = zOS_PCT(accumul);
+	movf	accumul,w	;   accumul = zOS_PCT(accumul);
 	movwf	accumuh		;   accumuh = accumul;
 	pagesel	monhex		;   monhex(zos_job, p0); print as e.g. 50%0x7d
 	call	monhex		;   accumuh = 0;
@@ -1803,7 +1803,7 @@ manchr1
 	btfss	STATUS,Z	; caseJ:
 	bra	manchr2		; case 'J': // List struct for all running jobs
 
-	decf	accumul,w	; // keep char_io='S' until last job line prints
+	decf	accumul,w	; // keep char_io='J' until last job line prints
 	andlw	0x07		;
 	btfsc	WREG,2		;  if ((accumul < 1) || (accumul > 5))
 	movlw	zOS_NUM-1	;
@@ -1953,7 +1953,7 @@ manchr8
 	bra	manchr9		; case 'S': // Stack dump is actually scratch
 	clrf	char_io		;  char_io = 0; // always succeeds, no arg
 
-	decf	accumul,w	; // keep char_io='J' until last job line prints
+	decf	accumul,w	; // keep char_io='S' until last job line prints
 	andlw	0x07		;
 	btfsc	WREG,2		;  if ((accumul < 1) || (accumul > 5))
 	movlw	zOS_NUM-1	;
@@ -2035,7 +2035,7 @@ stkloop
 	
 	;guaranteed to arrive with p0=p1, interrupts off and in the correct bank
 jobinfo
-	movf	wrap,f		;int8_t jobinfo(void) {
+	movf	wrap,w		;int8_t jobinfo(void) {
 	movwf	p0		; p0 = p1 = wrap;
 	movwf	p1		; fsr0 = 0x10 * (1 + accumul); //FIXME: 2+
 	zOS_MEM	FSR0,accumul,0
@@ -2135,8 +2135,10 @@ endman
 ;;; 
 ;;; (job 0)
 ;;; zOS_CLC is invoked with an optional isr routine (for any custom extensions):
+;;;  First a jump over the clcisr code ends the macro expansion
 ;;;  zOS_MAN is invoked with all the zOS_CON arguments and its clcisr address:
 ;;;   zOS_MON is invoked with all the zOS_CON arguments (and the clcisr address)
+;;;    First a jump over zOS_MON's monisr and all its support functions (no task)
 ;;;    zOS_INP is invoked with all the zOS_CON arguments (and monisr's address)
 ;;;     Immediately a near branch to rxdecl over the rxtask and rxisr code:
 ;;;     When run, rxtask first calls any code at nonzero optadrh:optadrl address
@@ -2153,15 +2155,18 @@ endman
 ;;;      When handling an interrupt, isr handles the heartbeat and Timer0 stuff
 ;;;      (if hardware) else assumes that a software interrupt is a char to send
 ;;;      since any other applicable situation was handled by rxisr pre-jump
+;;;     end of zOS_CON expansion
 ;;;     zOS_LAU then immediately assigns a job bank to the zOS_CON instance and
 ;;;     uses FSR1 to set locals isradrh:isradrl,tskadrh:tskadrl,optadrh:optadrl
 ;;;     to values zOS_CON just put in zOS_ARG1:zOS_ARG0, FSR0 (left at latter)
 ;;;     at which point it overwrites the Program Counter and HanDle fields with
 ;;;     rxtask, ISR field with rxisr and RX HWI mask using FSR0 (left at SWI)
-;;;    Then a jump over zOS_MON's monisr and all its support functions (no task)
+;;;    end of zOS_INP expansion
 ;;;   FSR1 (pointing to optadrh:optadrl) then gets the address of the ensuing
 ;;;   mantask code (no ISR) which is then jumped over
-;;;  Finally a jump over the clcisr code ends the macro expansion and returns to
+;;;   end of zOS_MON expansion
+;;;  end of zOS_MAN expansion
+;;; end of zOS_CLC expansion
 ;;; (job 0)
 ;;; Since the end of zOS_INP, FSR0 has been pointing to the job information byte
 ;;; for the SWI mask that the job is to listen on for characters to output, so
