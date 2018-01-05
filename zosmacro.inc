@@ -1498,8 +1498,8 @@ mondest
 	movwf	destreg		;    accumuh = *fsr0++;
 	movf	FSR0H,w		;    destreg = fsr0;
 	movwf	1+destreg	;    monlsb(zos_job, p0, accumuh);  //      LSB
-	pagesel	monlsb	
-	call	monlsb		;    moncrlf(zos_job, p0);          //     \r\n
+	pagesel	monhex	
+	call	monhex		;    moncrlf(zos_job, p0);          //     \r\n
 ;;; FIXME: disassemble the instruction here once the upper 6 bits are available
 	movlw	'\r'
 	pagesel	monbufs
