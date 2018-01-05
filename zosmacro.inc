@@ -1482,12 +1482,23 @@ mondest
 	bra	monram		;
 ;;; FIXME: access upper byte in Flash instead of printing it as zero
 	pagesel	mon0
-	call	mon0		;
+	call	mon0		;    putchar('0');
 	pagesel	monx
-	call	monx		;
-	clrf	accumuh		;
+	call	monx		;    putchar('x');
+	zOS_PSH	BSR
+	banksel	zOS_ADL
+	movf	FSR0L,w		;    zOS_PSH(&bsr);
+	movwf	zOS_ADL		;
+	movf	FSR0H,w		;
+	movwf	zOS_ADH		;    zOS_AD = fsr0;
+	zOS_RDF
+	movf	zOS_RDH,w	;    zOS_RDF();
+	movwf	zOS_AR0		;    zOS_ARG(0,zOS_RDH); // only way to access
+	zOS_POP	BSR
+	movf	zOS_AR0,w	;    zOS_POP(&bsr);
+	movwf	accumuh		;
 	pagesel	monhex
-	call	monhex		;    monhex(zos_job, p0, accumuh=0);// put 0x00
+	call	monhex		;    monhex(zos_job, p0, accumuh=0);// high byte
 	movf	destreg,w	;
 	movwf	FSR0L		;
 	movf	1+destreg,w	;
