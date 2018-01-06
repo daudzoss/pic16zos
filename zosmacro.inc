@@ -1480,11 +1480,14 @@ mondump
 mondest
 	btfss	1+destreg,7	;   if (destreg & 0x8000) { // flash, not RAM
 	bra	monram		;
-;;; FIXME: access upper byte in Flash instead of printing it as zero
 	pagesel	mon0
 	call	mon0		;    putchar('0');
 	pagesel	monx
 	call	monx		;    putchar('x');
+	movf	destreg,w	;
+	movwf	FSR0L		;
+	movf	1+destreg,w	;
+	movwf	FSR0H		;    fsr0 = destreg;
 	zOS_PSH	BSR
 	banksel	zOS_ADL
 	movf	FSR0L,w		;    zOS_PSH(&bsr);
