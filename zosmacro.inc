@@ -1329,7 +1329,7 @@ monloop
 	return			;    return;
 	decfsz	zOS_AR1,f	;  }
 	bra	monloop		; }
-	return			;} // monback()
+	return			;} // monback() monloop()
 	
 monhex
 	movf	accumuh,w	;} // monhex()
@@ -1347,6 +1347,9 @@ monx
 	movlw	'x'		;void monx(void) { zOS_AR0 = '0'; monbufs(ptr);
 	bra	monbufs		;}
 
+monspc
+	movlw	' '		;void monspc(void) { zOS_AR0 = ' '; monbufs(ptr);
+	bra	monbufs		;}
 #if 0
 moncrlf
 	movlw	'\r'		;void moncrlf(uint3_t job, uint8_t ptr, char w){
@@ -1362,9 +1365,9 @@ monlf
 monbufs
 	movwf	zOS_AR0		;} // moncrlf() monlf()
 monbufd
-	movlw	1		;void monbuf(uint8_t ptr, char w) {
-	movwf	zOS_AR1		;
-	bra	monloop		;
+	movlw	1		;void monbufs(uint8_t ptr, char w) {
+	movwf	zOS_AR1		; goto monloop();
+	bra	monloop		;} //FIXME: these comments above are useless
 	
 monisr
 	movf	zOS_JOB,w	;void monisr(void) {
@@ -1507,14 +1510,19 @@ mondest
 	movf	1+destreg,w	;
 	movwf	FSR0H		;    fsr0 = destreg; // monhex() clobbered fsr0
 	moviw	FSR0++		;
-	movwf	accumuh		;
+	movwf	accumul		;
 	movf	FSR0L,w		;
 	movwf	destreg		;    accumuh = *fsr0++;
 	movf	FSR0H,w		;    destreg = fsr0;
 	movwf	1+destreg	;    monlsb(zos_job, p0, accumuh);  //      LSB
-	pagesel	monhex	
-	call	monhex		;    moncrlf(zos_job, p0);          //     \r\n
-;;; FIXME: disassemble the instruction here once the upper 6 bits are available
+	movf	accumul,w	;
+	pagesel	monlsb	
+	call	monlsb		;    moncrlf(zos_job, p0);          //     \r\n
+#ifdef zos_opc
+	pagesel	zos_opc
+	goto	zos_opc		;    zos_opc(); // disassemble accumu, jump back
+zos_opr
+#endif	
 	movlw	'\r'
 	pagesel	monbufs
 	call	monbufs
@@ -1538,8 +1546,8 @@ monram
 
 	movf	char_io,w	;
 	xorlw	'.'		;   // then exits in the '.' case to just print
-	btfss	STATUS,Z	;   if (char_io != '.') {
-	bra	monramd
+	btfss	STATUS,Z	;   if (char_io == '.') {
+	bra	monramd		;
 	movf	FSR0L,w		;
 	movwf	destreg		;
 	movf	FSR0H,w		;
@@ -1559,7 +1567,7 @@ monramd
 	xorlw	' '		;
 	movlw	3		;
 	pagesel	monback
-	call	monback		;   monback(zos_job, p0, (char_io == '=')?0:3);
+	call	monback		;   monback(zos_job, p0, (char_io == ' ')?0:3);
 	clrf	char_io		;   char_io = 0;
 	zOS_RFI			;  break;
 
@@ -1688,6 +1696,8 @@ monprmp
 	movwf	accumuh		;monlast: zOS_ACC(&accumul,&numbase); zOS_RFI();
 	pagesel	monlsb
 	call	monlsb		;         char_io = 0;
+	pagesel	monspc
+	call	monspc		;    putchar(' ');
 	zOS_ACC	accumul,numbase
 monlast
 	clrf	char_io		;} // zOS_MON()
