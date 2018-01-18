@@ -1707,6 +1707,9 @@ endmon
 	endm	
 
 zOS_MAN	macro	p,rat,rts,hb,pin,isr ;inline void zOS_MAN(int8_t p, int8_t rat,
+	pagesel	endman
+	goto	endman		;                      int8_t* hb, int8_t pin) {
+	
 	local	mantask,manisr,manchr,manchr0,reenable,manchr1,manchr2,manchr3
 	local	manchr4,manchr5,manchr6,manchr7,manchr8,manchr9,mannone,jobinfo
 	local	crlf,stkinfo,stkloop,endman
@@ -1714,9 +1717,6 @@ zOS_MAN	macro	p,rat,rts,hb,pin,isr ;inline void zOS_MAN(int8_t p, int8_t rat,
 	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,optadrl
 	local	optadrh,accumul,accumuh,numbase,destreg,destreh,char_io,buf,max
 
-	pagesel	endman
-	goto	endman		;
-	
 	;; 0x20~24 reserved for zOS_CON
 p0	set	0x20
 p1	set	0x21
@@ -2142,13 +2142,18 @@ crlf
 	btfsc	STATUS,Z	; zOS_ENA(); // interrupts back ON!
 	clrf	char_io		; return w;
 	zOS_ENA
-	return			;} // zOS_MAN()
+	return			;
 endman
+	local	vars,manl,manh
+vars	set	0x20
+manl	set	optadrl-vars
+manh	set	optadrh-vars
+	
 	zOS_MON	p,rat,rts,hb,pin,isr
-	movlw	low mantask	;                      int8_t* hb, int8_t pin) {
-	movwi	FSR1++		; zOS_MON(p,ra,rt,h,pi,manisr); //fsr0=swi,1=adr
-	movlw	high mantask	; optadrl = mantask & 0x00ff;
-	movwi	FSR1++		; optadrh = mantask >> 8;
+	movlw	low mantask	; zOS_MON(p,ra,rt,h,pi,manisr); //fsr0=swi,1=adr
+	movwi	manl[FSR1]	; optadrl = mantask & 0x00ff;
+	movlw	high mantask	; optadrh = mantask >> 8;
+	movwi	manh[FSR1]	;} // zOS_MAN()
 	endm
 
 ;;; zOS_CLC is an extension of the zOS_MAN() job manager shell into an rpn calc-
