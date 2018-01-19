@@ -1709,13 +1709,20 @@ endmon
 	zOS_INP	p,ra,rt,h,pi,monisr 
 	endm	
 
+zOS_NAM	macro	str
+	local	start
+start
+	dt	str,0
+	dt	start-$
+	endm
+
 zOS_MAN	macro	p,rat,rts,hb,pin,isr ;inline void zOS_MAN(int8_t p, int8_t rat,
 	pagesel	endman
 	goto	endman		;                      int8_t* hb, int8_t pin) {
 	
 	local	mantask,manisr,manchr,manchr0,reenable,manchr1,manchr2,manchr3
 	local	manchr4,manchr5,manchr6,manchr7,manchr8,manchr9,mannone,jobinfo
-	local	crlf,stkinfo,stkloop,endman
+	local	manname,crlf,stkinfo,stkloop,endman
 
 	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,optadrl
 	local	optadrh,accumul,accumuh,numbase,destreg,destreh,char_io,buf,max
@@ -2080,9 +2087,9 @@ jobinfo
 	moviw	zOS_HDH[FSR0]	;
 	andlw	1<<zOS_PRB	;
 	movlw	':'		; // print '*' if the job is privileged else ':'
-	btfsc	STATUS,Z	;
+	btfss	STATUS,Z	;
 	movlw	'*'		; p1 += sprintf(p1, "%c", (zOS_HDH[fsr0] &
-	moviw	FSR1++		;                    (1<<zOS_PRB)) ? '*' : ':');
+	movwi	FSR1++		;                    (1<<zOS_PRB)) ? '*' : ':');
 	
 	zOS_IHF	zOS_HDH,FSR0,FSR1
 	zOS_IHF	zOS_HDL,FSR0,FSR1
@@ -2096,20 +2103,20 @@ jobinfo
 	moviw	zOS_PCH[FSR0]	;
 	andlw	1<<zOS_WAI	;
 	movlw	'='		; // print '=' if the job is sleeping else 'z'
-	btfsc	STATUS,Z	;
+	btfss	STATUS,Z	;
 	movlw	'z'		; p1 += sprintf(p1, "%c", (zOS_PCH[fsr0] &
 	movwi	FSR1++		;                    (1<<zOS_WAI)) ? 'z' : ':');
 	
 	zOS_IHF	zOS_PCH,FSR0,FSR1
 	moviw	zOS_PCH[FSR0]	; // drop out after PCH if 0 (job is deleted)
 	btfsc	STATUS,Z	; p1 += sprintf(p1, "%02X", zOS_PCH[fsr0]);
-	bra	crlf		; if (zOS_PCH[fsr0] & 0xff00) {
+	bra	manname		; if (zOS_PCH[fsr0] & 0xff00) {
 	zOS_IHF	zOS_PCL,FSR0,FSR1
 	movlw	' '		;  // print the low byte of program counter
 	movwi	FSR1++		;  p1 += sprintf(p1, "%02X", zOS_PCL[fsr0]); 
 	moviw	zOS_ISH[FSR0]	;
-	btfss	STATUS,Z	;  // drop out after PCL if no interrupt routine
-	bra	crlf		;  if (zOS_ISH[fsr0] & 0xff00) {
+	btfsc	STATUS,Z	;  // drop out after PCL if no interrupt routine
+	bra	manname		;  if (zOS_ISH[fsr0] & 0xff00) {
 	movlw	'I'		;
 	movwi	FSR1++		;
 	movlw	'S'		;
@@ -2124,17 +2131,45 @@ jobinfo
 	movwi	FSR1++		;         (zOS_ISH[fsr0] << 8) + zOS_ISR[fsr0]);
 	movlw	'h'		;
 	movwi	FSR1++		;
-	movlw	'w'		;
-	movwi	FSR1++		;
 	zOS_IHF	zOS_HIM,FSR0,FSR1
 	movlw	's'		;
-	movwi	FSR1++		;
-	movlw	'w'		;
 	movwi	FSR1++		;  // print (hw HwIMask sw SwIMask) scrunched up
 	zOS_IHF	zOS_SIM,FSR0,FSR1
-	movlw	')'		;   p1 += sprintf(p1, "(hw%02Xsw%02X)",
+	movlw	')'		;   p1 += sprintf(p1, "(h%02Xs%02X) ",
 	movwi	FSR1++		;                 zOS_HIM[fsr0], zOS_SIM[fsr0]);
-crlf
+
+	movlw	' '		;
+	movwi	FSR1++		;
+	movlw	'"'		;
+	movwi	FSR1++		;
+	moviw	zOS_PCL[FSR0]	;
+	movwf	char_io		;
+	moviw	zOS_PCH[FSR0]	;
+	movwf	FSR0H		;
+	movf	char_io,w	;
+	movwf	FSR0L		;   fsr0 = zOS_PCL[fsr0];
+	moviw	--FSR0		;
+	iorlw	0xe0		;
+	movwf	char_io		;   char_io = 0xe0 | *--fsr0; // max 32? chars
+	addwf	FSR0L,f		;
+	movlw	0		;
+	addwfc	FSR0H,f		;   for (fsr0 -= char_io; ++char_io; fsr1++) {
+manname
+	incfsz	char_io,f	;
+	bra	crlf		;
+	moviw	FSR0++		;    char w = *fsr0++ ;
+	btfsc	WREG,7		;
+	bra	crlf		;    if ((w > '\0177') ||
+	addlw	0-0x20		;
+	btfsc	WREG,7		;
+	bra	crlf		;        (w < ' '))
+	addlw	0x20		;     break;
+	movwi	FSR1++		;    *fsr1 = w; // added to buffer
+	bra	manname		;   }
+	
+crlf	
+	movlw	'"'		;
+	movwi	FSR1++		;
 	movlw	'\r'		;  }
 	movwi	FSR1++		; }
 	movlw	'\n'		; // print a second \r\n, double-spacing table  
