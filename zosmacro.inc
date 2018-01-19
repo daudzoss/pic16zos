@@ -2148,6 +2148,18 @@ manname
 	moviw	zOS_PCL[FSR0]	;
 	movwf	char_io		;
 	moviw	zOS_PCH[FSR0]	;
+	btfss	STATUS,Z	;
+	bra	manlive		;
+	movlw 	low mandead	;
+	movwf	FSR0L		;
+	movlw	high mandead	;
+	movwf	FSR0H		;
+	bra	manloop		;
+	movlw	mandead-manlive	;
+	movwf	char_io		;
+mandead
+	zOS_NAM	"<not running>"
+manlive
 	iorlw	0x80		;
 	movwf	FSR0H		;   fsr0 = 0x8000 | (zOS_PCH[fsr0] << 8) ;
 	movf	char_io,w	;
@@ -2175,9 +2187,6 @@ manbit1
 	movwf	FSR0L		;   for (fsr0 -= char_io; ++char_io; fsr1++) {
 #endif
 manloop
-	incfsz	char_io,f	;
-	bra	$+2		;
-	bra	crlf		;
 	moviw	FSR0++		;    char w = *fsr0++ ;
 	btfsc	WREG,7		;
 	bra	crlf		;    if ((w > '\0177') ||
@@ -2186,6 +2195,7 @@ manloop
 	bra	crlf		;        (w < ' '))
 	addlw	0x20		;     break;
 	movwi	FSR1++		;    *fsr1 = w; // added to buffer
+	incfsz	char_io,f	;
 	bra	manloop		;   }
 crlf	
 	movlw	'"'		;
