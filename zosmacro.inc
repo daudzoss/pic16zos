@@ -884,6 +884,7 @@ uatbase	 set	TX#v(p)REG & 0xff80
 uatxmit	 set	TX#v(p)REG & 0x001f ; mask off just the sfr SFR
 rtsflag	 set	TX#v(p)IF	
 	endif
+	zOS_NAM	"console (output-only)"
 contask
 	movlw	high uatbase	; goto decl;
 	movwf	FSR0H		;task:// all init that requires knowledge of BSR
@@ -1126,6 +1127,7 @@ uarecv	 set	RC#v(p)REG & 0x7f
 rxflag	 set	RC#v(p)IF
 	endif
 	
+	zOS_NAM	"console I/O"
 ;;; FIXME: haven't actually written the var init code for zOS_MON et al yet
 rxtask
 	movf	optadrh,w	; goto rxdecl;
@@ -1712,7 +1714,8 @@ endmon
 zOS_NAM	macro	str
 	local	start
 start
-	dt	str,0
+	dt	str
+	dt	0
 	dt	start-$
 	endm
 
@@ -1722,7 +1725,7 @@ zOS_MAN	macro	p,rat,rts,hb,pin,isr ;inline void zOS_MAN(int8_t p, int8_t rat,
 	
 	local	mantask,manisr,manchr,manchr0,reenable,manchr1,manchr2,manchr3
 	local	manchr4,manchr5,manchr6,manchr7,manchr8,manchr9,mannone,jobinfo
-	local	manname,crlf,stkinfo,stkloop,endman
+	local	manname,manloop,crlf,stkinfo,stkloop,endman
 
 	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,optadrl
 	local	optadrh,accumul,accumuh,numbase,destreg,destreh,char_io,buf,max
@@ -2137,7 +2140,7 @@ jobinfo
 	zOS_IHF	zOS_SIM,FSR0,FSR1
 	movlw	')'		;   p1 += sprintf(p1, "(h%02Xs%02X) ",
 	movwi	FSR1++		;                 zOS_HIM[fsr0], zOS_SIM[fsr0]);
-
+manname
 	movlw	' '		;
 	movwi	FSR1++		;
 	movlw	'"'		;
@@ -2145,17 +2148,35 @@ jobinfo
 	moviw	zOS_PCL[FSR0]	;
 	movwf	char_io		;
 	moviw	zOS_PCH[FSR0]	;
-	movwf	FSR0H		;
+	iorlw	0x80		;
+	movwf	FSR0H		;   fsr0 = 0x8000 | (zOS_PCH[fsr0] << 8) ;
 	movf	char_io,w	;
-	movwf	FSR0L		;   fsr0 = zOS_PCL[fsr0];
+	movwf	FSR0L		;   fsr0 |= zOS_PCL[fsr0];
 	moviw	--FSR0		;
 	iorlw	0xe0		;
 	movwf	char_io		;   char_io = 0xe0 | *--fsr0; // max 32? chars
+#if 1
 	addwf	FSR0L,f		;
-	movlw	0		;
-	addwfc	FSR0H,f		;   for (fsr0 -= char_io; ++char_io; fsr1++) {
-manname
+	btfss	STATUS,C	;
+	decf	FSR0H,f		;
+#else	
+	local	manbit0,manbit1
+	movf	FSR0L,w		;
+	addwf	char_io,w	;
+	btfss	WREG,7		;
+	bra	manbit0		;
+	btfss	FSR0L,7		;
+	decf	FSR0H,f		;
+	bra	manbit1		;
+manbit0
+	btfsc	FSR0L,7		;
+	decf	FSR0H,f		;
+manbit1
+	movwf	FSR0L		;   for (fsr0 -= char_io; ++char_io; fsr1++) {
+#endif
+manloop
 	incfsz	char_io,f	;
+	bra	$+2		;
 	bra	crlf		;
 	moviw	FSR0++		;    char w = *fsr0++ ;
 	btfsc	WREG,7		;
@@ -2165,8 +2186,7 @@ manname
 	bra	crlf		;        (w < ' '))
 	addlw	0x20		;     break;
 	movwi	FSR1++		;    *fsr1 = w; // added to buffer
-	bra	manname		;   }
-	
+	bra	manloop		;   }
 crlf	
 	movlw	'"'		;
 	movwi	FSR1++		;
@@ -2175,6 +2195,8 @@ crlf
 	movlw	'\n'		; // print a second \r\n, double-spacing table  
 	movwi	FSR1++		; p1 += sprintf(p1, "\r\n");
 	
+	movlw	'J'		;
+	movwf	char_io		;
 	movf	FSR1L,w		;
 	movwf	p1		; w = accumul--; // return with w as nonzero job
 	movf	accumul,w	; if (accumul == 0)
