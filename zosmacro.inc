@@ -1611,7 +1611,9 @@ monchr6
 	bra	$+3		;
 	movlw	0xf9		;
 	addwf	char_io,f	;     char_io -= 0x07;// 0x41->0x11->0x0a... so
+#if 0;seems unnec 18 Jan
 	movf	char_io,f	;                     // now in range 0x00-0x09,
+#endif
 	btfss	STATUS,Z	;                     // or :=0x0a,...,?=0x0f,
 	bra	monchr7		;                     // or A=0x2a,B=0x2b,...
 	movf	accumul,w	;                     // G=0x30,...,Z=0x43
@@ -1626,7 +1628,7 @@ monchr7
 	movlw	0xf0		;
 	andwf	char_io,w	;
 	btfss	STATUS,Z	;    } else if ((char_io & 0xf0 == 0) // 0-9,a-f
-	bra	monchr9		;              && (numbase & 0x10)) { // base 16
+	bra	monsave		;              && (numbase & 0x10)) { // base 16
 	btfss	numbase,4	;
 	bra	monchr8		;
 	swapf	accumuh,f	;
@@ -1639,16 +1641,16 @@ monchr7
 	andwf	char_io,f	;     char_io &= 0x0f;
 	andwf	accumul,f	;     accumul &= 0x0f;
 	swapf	accumul,w	;
-	iorwf	char_io,w	;
-	movwf	accumul		;     accumul = (accumul << 4) | char_io;
-	clrf	char_io		;     char_io = 0;
-	zOS_RFI			;     break;
+	iorwf	char_io,w	;     accumul = (accumul << 4) | char_io;
+	movwf	accumul		;     char_io = 0;
+	clrf	char_io		;     break;
+	zOS_RFI
 	
 monchr8
-	movf	char_io,w	;    } else if (char_io <= 9) { //dec only<=99?
+	movf	char_io,w	;    } else /*if (char_io <= 9)*/ {
 	andlw	0xf0		;     uint16_t sum;
 	btfss	STATUS,Z	;     accumuh <<= 1;
-	bra	monchr9		;     accumuh |= (accumul & 0x80) ? 1 : 0;
+	bra	monsave		;     accumuh |= (accumul & 0x80) ? 1 : 0;
 				;     accumul <<= 1;
 	lslf	accumul,f	;     w = accumul;//w keeps original accumul<<1
 	rlf	accumuh,f	;     accumuh <<= 1;
@@ -1666,20 +1668,21 @@ monchr8
 	addwfc	accumuh,f	;     accumuh = sum >> 8;
 	movf	char_io,w	;     break;
 	andlw	0x0f		;    }
-	addwf	accumul,f	;   } // if ()
-	movlw	0		;   char_io = 0;
+	addwf	accumul,f	;   } // if we get here, restore input character
+	movlw	0		;   char_io += 0x37; // 0x10->'G',0x11->'H' etc.
 	addwfc	accumuh,f	;   zOS_AR1 = accumul;
-	clrf	char_io		;   if (isr) goto isr; // with zOS_AR1=accumul
 	zOS_RFI
-	
 monchr9
-	movf	accumul,w	;  } // switch ()
-	movwf	zOS_AR1		; } // if ()
+	movlw	0-0x37		;   if (isr) goto isr; // with zOS_AR1=accumul
+monsave
+	movlw	0x37		;  } // switch ()
+	addwf	char_io,f	;  char_io = 0;
+	movf	accumul,w	; } // if () // was less than 32 so aborts
+	movwf	zOS_AR1		;
 	if (isr)
 	pagesel	isr
-	 goto	isr		; char_io = 0; // unhandled
+	 goto	isr		; zOS_RFI(); // reached only if isr == 0
 	else
-	 clrf	char_io		; zOS_RFI(); // reached only if isr == 0
 	 zOS_RFI
 	endif
 
@@ -1747,8 +1750,10 @@ max	set	0x70
 
 	
 mantask
+#if 0;seems unnec 18 Jan
 	movf	zOS_JOB,w	;int8_t mantask(void) {//destreg,accumul,char_io
 	movwf	BSR		; bsr = zos_job; // to access char_io
+#endif
 	movf	char_io,w	; if (char_io == 0)
 	btfsc	STATUS,Z	;  return 0; // back to zOS_CON task
 	return			; switch (char_io) {
