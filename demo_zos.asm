@@ -170,6 +170,11 @@ main
 	movlw	OUTCHAR		;void main(void) {
 	movwi	0[FSR0]		; zOS_xxx(/*UART*/1,32MHz/9600bps,PIR1,LATA,4);
 	
+	zOS_INT	0,0
+	zOS_ADR	dummy,zOS_UNP
+	zOS_LAU	WREG
+
+
 ;	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler for splash
 ;	zOS_ADR	splash,zOS_PRB	; zOS_ADR(fsr0 = splash&~zOS_PRV);// privileged
 ;	zOS_LAU	WREG		; zOS_LAU(&w);
@@ -180,5 +185,9 @@ main
 ;	zOS_LAU	WREG		; zOS_LAU(&w); // launch two copies
 	
 	zOS_RUN	INTCON,INTCON	; zOS_RUN(/*T0IE in*/INTCON, /*T0IF in*/INTCON);
+	
+	zOS_NAM	"infinite loop"
+dummy
+	bra	$
 	end			;}
 	

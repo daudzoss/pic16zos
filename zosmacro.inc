@@ -1911,14 +1911,14 @@ manchr4
 	zOS_ARG	2
 	zOS_ARG	3
 	zOS_SWI	zOS_NEW
-	zOS_ARG	0
-	zOS_BUF	FSR0,max,p0
+;experi-	zOS_ARG	0
+;menting	zOS_BUF	FSR0,max,p0
 	movlw	'J'		;
 	movwf	char_io		;
 
-	movf	accumul,w	;  if (accumul == 0)
-	btfsc	STATUS,Z	;   return 0;
-	return			;  zOS_ARG(0, accumul);
+;experi-	movf	accumul,w	;  if (accumul == 0)
+;menting	btfsc	STATUS,Z	;   return 0;
+;with K:	return			;  zOS_ARG(0, accumul);
 	zOS_ARG	0
 	zOS_ACC	accumul,numbase
 	movlw	'J'		;  zOS_ACC(&accumul, &numbase);
@@ -2145,32 +2145,33 @@ manname
 	movwi	FSR1++		;
 	movlw	'"'		;
 	movwi	FSR1++		;
-	moviw	zOS_PCL[FSR0]	;
-	movwf	char_io		;
 	moviw	zOS_PCH[FSR0]	;
 	btfss	STATUS,Z	;
-	bra	manlive		;
-	movlw 	low mandead	;
+	bra	manlive		;   if (zOS_PCH[fsr0] == 0) {
+	movlw 	low mandead	;    static char mandead = "<not running>";
 	movwf	FSR0L		;
 	movlw	high mandead	;
-	movwf	FSR0H		;
-	bra	manloop		;
+	movwf	FSR0H		;    fsr0 = mandead;
 	movlw	mandead-manlive	;
-	movwf	char_io		;
+	movwf	char_io		;    char_io = strlen(mandead);
+	bra	manloop		;
 mandead
 	zOS_NAM	"<not running>"
 manlive
+	moviw	zOS_HDL[FSR0]	;   } else {
+	movwf	char_io		;
+	moviw	zOS_HDH[FSR0]	;
 	iorlw	0x80		;
-	movwf	FSR0H		;   fsr0 = 0x8000 | (zOS_PCH[fsr0] << 8) ;
+	movwf	FSR0H		;    fsr0 = 0x8000 | (zOS_HDH[fsr0] << 8) ;
 	movf	char_io,w	;
-	movwf	FSR0L		;   fsr0 |= zOS_PCL[fsr0];
+	movwf	FSR0L		;    fsr0 |= zOS_HDL[fsr0];
 	moviw	--FSR0		;
 	iorlw	0xe0		;
-	movwf	char_io		;   char_io = 0xe0 | *--fsr0; // max 32? chars
+	movwf	char_io		;    char_io = 0xe0 | *--fsr0; // max 32? chars
 #if 1
 	addwf	FSR0L,f		;
 	btfss	STATUS,C	;
-	decf	FSR0H,f		;
+	decf	FSR0H,f		;   for (fsr0 -= char_io; ++char_io; fsr1++) {
 #else	
 	local	manbit0,manbit1
 	movf	FSR0L,w		;
