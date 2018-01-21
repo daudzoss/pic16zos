@@ -1972,6 +1972,12 @@ manchr7
 	bra	manchr8		; case 'R': // Resume a pause/asleep job 
 	clrf	char_io		;  char_io = 0;
 
+	swapf	accumul,w	;  if (accumul == 0x5a /*e.g.*/)
+	xorwf	accumul,w	;
+	addlw	1		;
+	btfsc	STATUS,Z	;
+	reset			;   reset();
+	
 	movf	accumul,w	;  if (accumul == 0)
 	btfsc	STATUS,Z	;   return 0;
 	return			;  fsr1 = 0x10 * (1 + accumul) + zOS_PCH;
