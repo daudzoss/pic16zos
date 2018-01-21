@@ -16,7 +16,7 @@
 ;;; 
 ;;; since only 4 of 5 possible task slots are used in this demo reducing the max
 ;;; allowed value by 1 will make scheduler run faster:
-zOS_NUM	equ	4
+;zOS_NUM	equ	4
 
 	processor 16f1719
 	include p16f1719.inc
@@ -174,6 +174,9 @@ main
 	zOS_ADR	dummy,zOS_UNP
 	zOS_LAU	WREG
 
+	zOS_INT	0,0
+	zOS_ADR	dummy2,zOS_UNP
+	zOS_LAU	WREG
 
 ;	zOS_INT	0,0		; zOS_INT(0,0);//no interrupt handler for splash
 ;	zOS_ADR	splash,zOS_PRB	; zOS_ADR(fsr0 = splash&~zOS_PRV);// privileged
@@ -188,6 +191,12 @@ main
 	
 	zOS_NAM	"infinite loop"
 dummy
-	bra	$
+	bra	dummy
+
+	zOS_NAM	"cooperative loop"
+dummy2
+	zOS_SWI	zOS_YLD
+	bra	dummy2
+
 	end			;}
 	

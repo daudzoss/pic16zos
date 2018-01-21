@@ -631,8 +631,8 @@ zos_cp1
 	btfsc	STATUS,Z	;
 	bra	zos_cpd		;        
 	
-	zOS_MEM	FSR0,BSR,0
-	moviw	zOS_PCH[FSR0]	;    fsr0 = 0x10 * (1+BSR);
+	zOS_MEM	FSR0,zOS_JOB,0
+	moviw	zOS_PCH[FSR0]	;    fsr0 = 0x10 * (1+zOS_JOB);
 	btfss	STATUS,Z	;    if (zOS_PCH[fsr0] == 0)
 	bra	zos_cp1		;     continue; // can't touch a running job
 	
@@ -658,9 +658,9 @@ zos_cpd
 	movf	BSR,w		;
 	movwf	zOS_JOB		;   zOS_JOB = BSR;
 	zOS_MEM	FSR1,zOS_JOB,0
-	moviw	zOS_PCH[FSR1]	;
+	moviw	zOS_PCH[FSR1]	;   fsr1 = zOS_MEM(&fsr1, zOS_JOB, 0);
 	btfsc	STATUS,Z	;
-	bra	zos_sw4		;   if (zOS_PCH[fsr1]) {
+	bra	zos_sw4		;   if ((w = zOS_PCH[fsr1]) != 0) {
 	moviw	zOS_HDL[FSR1]	;
 	movwf	FSR0L		;
 	moviw	zOS_HDH[FSR1]	;
@@ -675,8 +675,9 @@ zos_cpd
 	movwf	zOS_AR3		;    zOS_AR3 = zOS_SIM[fsr1];
 	banksel	WREG_SHAD
 	clrf	WREG_SHAD	;    WREG_SHAD = zOS_NEW;
-	movlb	0		;    goto zos_cre;//spoof privilege to fork self
-	bra	zos_cre		;   }
+	movlb	0		;    zOS_MSK = 0; //spoof having passed zOS_NEW
+	clrf	zOS_MSK		;    goto zos_cre;//spoof privilege to fork self
+	bra	zos_cre		;   } else zOS_RFS(w);
 zos_sw6
 	movf	BSR,w		;  case zOS_EXE:
 	movwf	zOS_JOB		;   zOS_JOB = BSR;

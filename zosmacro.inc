@@ -1781,7 +1781,7 @@ mantask
 	movlw	'J'		;  zOS_ACC(&accumul, &numbase); // reset
 	movwf	char_io		;  if (zOS_SWI(zOS_FRK))
 	zOS_SWI	zOS_FRK
-	andlw	0x00		;   goto caseJ; // success, prints in job list
+	andlw	0x07		;   goto caseJ; // success, prints in job list
 	btfsc	STATUS,Z	;  else
 	clrf	char_io		;   break; // failure, drop to end of switch()
 
@@ -1804,7 +1804,7 @@ manchr
 	movlw	'J'		;  zOS_ACC(&accumul, &numbase);
 	movwf	char_io		;  if (zOS_SWI(zOS_FND))
 	zOS_SWI	zOS_FND
-	andlw	0x00		;   goto caseJ; // FIXME: table, from match down
+	andlw	0x07		;   goto caseJ; // FIXME: table, from match down
 	btfsc	STATUS,Z	;  else
 	clrf	char_io		;   break;
 	
@@ -1889,7 +1889,7 @@ manchr3
 	movlw	'J'		;  zOS_ACC(&accumul, &numbase); // reset
 	movwf	char_io		;  if ((w = zOS_SWI(zOS_FRK)) != 0) {
 	zOS_SWI	zOS_FRK
-	andlw	0x00		;   zOS_ARG(0,w); zOS_SWI(zOS_RST);
+	andlw	0x07		;   zOS_ARG(0,w); zOS_SWI(zOS_RST);
 	btfsc	STATUS,Z	;   goto caseJ; // success, prints in job list
 	clrf	char_io		;  } else
 	zOS_ARG	0
