@@ -1904,7 +1904,7 @@ manchr4
 	movf	accumul,w	;
 	movwf	FSR0L		;
 	movf	accumuh,w	;
-	movwf	FSR0L		;
+	movwf	FSR0H		;
 	clrw			;
 	zOS_ARG	0
 	zOS_ARG	1
@@ -2480,3 +2480,16 @@ endclc
 	endm
 
 
+zOS_T64	macro	
+	local	chrtran
+	movf	char_io,w	;#define zOS_T64(w) \
+	addlw	0-0x1f		;\
+	btfsc	WREG,7		;\
+	clrw			;\
+	andlw	0x3f		;\
+	pagesel	chrtran		;\
+	call	chrtran		; w = table[(w >= ' ') ? (w & 0x3f) : 0];\
+	bra	$+0x41		; /*must be followed by 64-char retlw string:*/\
+chrtran
+	brw			; static char table[64] = // zOS_T64()
+	endm
