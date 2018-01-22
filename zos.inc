@@ -406,7 +406,6 @@ zos_itr
 	bra	zos_don		;    if (zOS_JOB != BSR_SHAD) {
 
 	;; copy the interrupted job's (BSR_SHAD) criticals into its bank 0 slot;
-	;; by pure chance this clobbers the "unused" range 0x72~0x7b on 1st run!
 	zOS_MEM	FSR0,BSR_SHAD,zOS_PCL
 	movf	TOSL,w		;     fsr0 = 0x10 * (1+BSR_SHAD) + zOS_PCL;
 	movwi	FSR0++		;     *fsr0++ = TOSL; // return address from IRQ
@@ -429,6 +428,17 @@ zos_itr
 	movwi	FSR0++		;     *fsr0++ = FSR1L_SHAD;
 	movf	FSR1H_SHAD,w	;
 	movwi	FSR0++		;     *fsr0++ = FSR1H_SHAD;
+
+	;; by pure chance this clobbers the "unused" range 0x72~0x7b on 1st run!
+	movlw	0x0a		;
+	movwf	FSR0H		;
+	movlw	0x72		;
+	movwf	FSR0L		;     fsr0 = 0x0072;
+	clrw			;     for (uint8_t i; i < 10; i++)
+zos_re0
+	movwi	FSR0++		;      *fsr0 = 0;
+	decfsz	FSR0H,f		;
+	bra	zos_re0		;
 
 	;; get stack spun around to where zOS_JOB expects it on return from ISR
 	zOS_ROL	BSR_SHAD,zOS_JOB,zOS_MSK,FSR1,zOS_STK
