@@ -430,15 +430,20 @@ zos_itr
 	movwi	FSR0++		;     *fsr0++ = FSR1H_SHAD;
 
 	;; by pure chance this clobbers the "unused" range 0x72~0x7b on 1st run!
+	movlw	0x7c		;
+	xorwf	FSR0L,f		;
+	btfss	STATUS,Z	;
+	bra	zos_no0		;     if (fsr0 == 0x007c) {
 	movlw	0x0a		;
 	movwf	FSR0H		;
 	movlw	0x72		;
-	movwf	FSR0L		;     fsr0 = 0x0072;
-	clrw			;     for (uint8_t i; i < 10; i++)
+	movwf	FSR0L		;      fsr0 = 0x0072;
+	clrw			;      for (uint8_t i; i < 10; i++)
 zos_re0
-	movwi	FSR0++		;      *fsr0 = 0;
+	movwi	FSR0++		;       *fsr0 = 0;
 	decfsz	FSR0H,f		;
-	bra	zos_re0		;
+	bra	zos_re0		;     }
+zos_no0
 
 	;; get stack spun around to where zOS_JOB expects it on return from ISR
 	zOS_ROL	BSR_SHAD,zOS_JOB,zOS_MSK,FSR1,zOS_STK
