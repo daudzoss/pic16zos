@@ -1911,23 +1911,24 @@ manchr4
 	zOS_ARG	2
 	zOS_ARG	3
 	zOS_SWI	zOS_NEW
-;experi-	zOS_ARG	0
-;menting	zOS_BUF	FSR0,max,p0
-	movlw	'J'		;
-	movwf	char_io		;
+	zOS_ARG	0
+;	zOS_BUF	FSR0,max,p0
+;	movlw	'J'		;
+;	movwf	char_io		;
 
-;experi-	movf	accumul,w	;  if (accumul == 0)
-;menting	btfsc	STATUS,Z	;   return 0;
-;with K:	return			;  zOS_ARG(0, accumul);
+;	movf	accumul,w	;  if (accumul == 0)
+;	btfsc	STATUS,Z	;   return 0;
+;	return			;  zOS_ARG(0, accumul);
+	clrw			;
 	zOS_ARG	0
 	zOS_ACC	accumul,numbase
 	movlw	'J'		;  zOS_ACC(&accumul, &numbase);
 	movwf	char_io		;  if ((w = zOS_SWI(zOS_SLP)) != 0) {
-	zOS_SWI	zOS_SLP
-	andlw	0xff		;   accumul = w;
-	movwf	accumul		;   goto caseJ;
-	btfsc	STATUS,Z	;  } else
-	clrf	char_io		;   break;
+;	zOS_SWI	zOS_SLP
+;	andlw	0xff		;   accumul = w;
+;	movwf	accumul		;   goto caseJ;
+;	btfsc	STATUS,Z	;  } else
+;	clrf	char_io		;   break;
 
 manchr5
 	movf	char_io,w	;
