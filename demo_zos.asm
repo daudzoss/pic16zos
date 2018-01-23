@@ -6,16 +6,11 @@
 ;;; after starting job #1 as a console output buffer (zOS_CON() in zosmacro.inc)
 ;;; to demonstrate privileged mode (able to kill or otherwise tweak other tasks)
 ;;; 
-;;; it starts a splash() job #2 to copy a packed ascii greeting into the buffer
-;;; (using the SWI line zOS_SI3) character by character, also privileged so that
-;;; it can un-wait the two unprivileged tasks (to guarantee they don't overwrite
-;;; the potential long greeting)
-;;; 
 ;;; two final processes (should end up numbered jobs 3 and 4) run in re-entrant
-;;; function splitjob() printing their own job numbers to the console
+;;; functions dummy and dummy2
 ;;; 
-;;; since only 4 of 5 possible task slots are used in this demo reducing the max
-;;; allowed value by 1 will make scheduler run faster:
+;;; if fewer than the 5 possible job slots are used, as in this demo, reducing
+;;; the max allowed value to 4 or lower will waste less time in the scheduler:
 ;zOS_NUM	equ	4
 
 	processor 16f1719

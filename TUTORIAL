@@ -1,0 +1,147 @@
+How to build the demo_zos.asm project for PIC16F1719
+====================================================
+
+(Modyfing to run on other enhanced mid-range PIC microcontrollers is possible by
+editing the hardware-specific setup code in the main function of demo_zos.asm)
+
+
+First, check out this project with one of the following commands:
+   svn co http://github.com/daudzoss/pic16zos
+or
+   git clone http://github.com/daudzoss/pic16zos
+
+If desired create an MPLAB X project, add the following files then build it:
+   zos.inc and zosmacro.inc in "Header Files"
+   demo_zos.asm in "Source Files"
+Make certain that mpasm is set to build in Absolute Mode since many of the macro
+expansions confuse it.
+
+Or you can build with the command-line assembler included with the free gputils
+toolchain:
+   gpasm -D GPASM demo_zos.asm
+
+Now USB transfer the code to the PIC, for example using the Curiosity HPC board.
+Start a 9600bps terminal such as minicom/putty and connect a UART cable from the
+computer to the PIC as follows:
+
+host receiving from MCU on RC7 (pin 26)
+host transmitting to MCU on RC6 (pin 25)
+
+The Curiosity HPC board accepts a number of mikroBUS plug-in UART-to-USB boards,
+and these pin assignments correspond to the installation of one in slot 1.  Or
+if you're using an FTDI wire-ended cable such as TTL-232R connect it as follows:
+
+BLK = GND
+RED = 5V (or +3.3V as appropriate)
+ORA = TX/RC6
+YEL = RX/RC7
+
+Upon running the code you'll see a welcome greeting from the console I/O parser,
+running along with two types of endless loop as 3 jobs.  To list them type "J":
+
+Welcome to zOS
+j
+5:0000 PC=00 "<not running>"
+
+4:0000 PC=00 "<not running>"
+
+3:08CE PC=08D1  "cooperative loop"
+
+2:08BB PC=08BB  "infinite loop"
+
+1*871A PC=078F ISR@0725(h24s08) "console I/O"
+
+
+Because all jobs run with the same priority, the infinite loop is slowing down
+the console quite a bit.  It can be paused by typing its job number followed by
+"P", and the equal sign preceding the Program Counter will change to the letter
+z since it is indicating to the OS scheduler that it is not currently runnable:
+
+2p
+5:0000 PC=00 "<not running>"
+
+4:0000 PC=00 "<not running>"
+
+3:08CE PC=08D1  "cooperative loop"
+
+2:08BB PCz88BB  "infinite loop"
+
+1*871A PC=078F ISR@0725(h24s08) "console I/O"
+
+
+Notice how much more quickly the job info list got printed without competition
+from the infinite loop for half the PIC core's computing cycles! The cooperative
+loop on the other hand cedes the processor continuously, so its overhead is
+almost none.  To prove it to ourselves let's start up more copies of this loop,
+first by specifying a new job with "N" and then by forking that job with "G":
+
+0x08CEn
+5:0000 PC=00 "<not running>"
+
+4:08CE PC=08D1  "cooperative loop"
+
+3:08CE PC=08D1  "cooperative loop"
+
+2:08BB PCz88BB  "infinite loop"
+
+1*871A PC=078F ISR@0725(h24s08) "console I/O"
+4g
+5:08CE PC=08D1  "cooperative loop"
+
+4:08CE PC=08D1  "cooperative loop"
+
+3:08CE PC=08D1  "cooperative loop"
+
+2:08BB PCz88BB  "infinite loop"
+
+1*871A PC=078F ISR@0725(h24s08) "console I/O"
+
+
+The job comments in quotation marks by the way are from dt assembler directives
+immediately preceding the handle address shown after the asterisk or colon.
+Notice the extra information indicated for job 1:
+
+1* means job 1 is privileged and can manage other jobs, for example killing or
+pausing/resuming them
+
+ISR@0725(h24s08) indicates that the job has registered an interrupt handler at
+0x725, which address the OS will jump to if a hardware interrupt arrives with
+bit 5 or bit 3 set in any of the PIR registers, or if any job issues a software
+interrupt (SWI) request with bit 3 set in WREG.  In this case, the two HWI bits
+correspond to "transmitter ready for char" and "received char ready in buffer"
+interrupts from the PIC EUSART peripheral.  The SWI functionality, not normally
+supported in the PIC architecture, in this case allows any job to output a byte
+to the display in either ASCII or as two hexadecimal digits.
+
+
+Let's kill the 3 cooperative loops by typing their job numbers followed by "K",
+then generating copies of the infinite loop using one of the methods just seen,
+either before or after the "R" command to resume job 2:
+
+3k
+4k
+5k
+2r
+2g
+2g
+2g
+
+
+Output slows to a crawl, since the job that empties the print buffer now runs
+for only 20% of the time.  Congratulations, your PIC16F1719 is now running a
+preemptively multitasking operating system with 5 jobs sharing the processor
+equally.  You may start any PIC program residing in program memory in the same
+manner as long as it obeys the following restrictions:
+
+* doesn't manipulate the BSR register with interrupts active (GIE set in INTCON)
+
+* directly uses only the 80 bytes RAM between 0x20 and 0x6f (a heap allocator is
+  supported for larger amounts up to 4KiB in multiples of 16 bytes via pointers,
+  accepting malloc/free via SWI and running garbage collection as its own job)
+
+* communicates with other jobs only through shared mailboxes between 0x72 and 7b
+  in the global address space, or the SWI mechanism which allows up to 5 
+
+* a maximum stack depth of 2 (two active function calls at a time like the old
+  low-range 8-bit PIC16's) if the console input parser is running, 3 otherwise
+
