@@ -1261,7 +1261,8 @@ zOS_PCT	macro	reg
 	
 zOS_MON	macro	p,ra,rt,h,pi,isr;inline void zOS_MON(int8_t p, int8_t ra, int8_t
 	local	monisr,monchr1,monchr2,monchr3,mondump,mondest,monram,monchr4
-	local	monchr5,monchr6,monchr7,monchr8,monchr9,monprmp,monlast,endmon
+	local	monchr5,monchr6,monchr7,monchr8,monchr9,monprmp,monlast,monpctg
+	local	endmon
 	
 	pagesel	endmon		;      rt, int8_t* h, int8_t pi, void(*isr)()) {
 	goto	endmon		; zOS_INP(p,ra,rt,h,pi,monisr); }// isr may be 0
@@ -1481,7 +1482,10 @@ mondump
 	movwf	destreg		;
 	movf	accumuh,w	;   if (accumul) // typed a value before ' '/=
 	movwf	1+destreg	;    destreg = accumul; // otherwise no clobber
-	
+	movf	char_io,w	;   if (char_io == ' ') {
+	xorlw	' '		;    char_io = 0; // all we do is a destreg xfer
+	btfsc	STATUS,Z	;    break;
+	bra	monlast		;   }
 mondest
 	btfss	1+destreg,7	;   if (destreg & 0x8000) { // flash, not RAM
 	bra	monram		;
@@ -1561,15 +1565,12 @@ monram
 	call	monlf		;    goto monprmp;
 	bra	monprmp		;   }
 monramd
-	movf	char_io,w	;   // or follow by 3 backspaces in the ' ' case
-	xorlw	'='		;   // to show that \r will result in a 0 write
-	movlw	' '		;
+	movf	char_io,w	;   // or follow by 3 backspaces in the '=' case
+	xorlw	'.'		;   // to show that \r will result in a 0 write
 	btfss	STATUS,Z	;
-	movf	char_io,w	;
-	xorlw	' '		;
 	movlw	3		;
 	pagesel	monback
-	call	monback		;   monback(zos_job, p0, (char_io == ' ')?0:3);
+	call	monback		;   monback(zos_job, p0, (char_io == '.')?0:3);
 	clrf	char_io		;   char_io = 0;
 	zOS_RFI			;  break;
 
