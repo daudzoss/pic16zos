@@ -1590,11 +1590,14 @@ monchr5
 	bra	monchr6		;
 	movlw	0x9b		;
 	addwf	accumul,w	;
+	btfsc	WREG,7		;
+	bra	monpctg		;   if (accumul > 102)
 	movlw	0x66		;
-	btfss	WREG,7		;   if (accumul > 102)
 	movwf	accumul		;    accumul = 102;
-	zOS_PCT	accumul
+monpctg
 	movf	accumul,w	;   accumul = zOS_PCT(accumul);
+	zOS_PCT	accumul
+	movf	accumul,w	;  monecho:
 	movwf	accumuh		;   accumuh = accumul;
 	pagesel	monhex		;   monhex(zos_job, p0); print as e.g. 50%0x7d
 	call	monhex		;   accumuh = 0;
@@ -1990,7 +1993,7 @@ manchr7
 	btfss	STATUS,Z	;   zOS_ACC(&accumul, &numbase);
 	bra	manchr8		;
 	zOS_ACC	accumul,numbase
-	clrf	char_io		;   break; // only clear accumul if not caseJ
+	clrf	char_io		;   break;
 	
 manchr8
 	movf	char_io,w	;  }
