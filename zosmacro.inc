@@ -2464,8 +2464,12 @@ clcchr7
 	endif
 	
 clcprmp
-	pagesel	moncrlf
-	call	moncrlf		;clcprmp:
+	movlw	'\r'		;
+	pagesel	monbufs
+	call	monbufs		;
+	movlw	'\n'		;
+	pagesel	monbufs
+	call	monbufs		;clcprmp:
 	movf	1+destreg,w	; moncrlf(zos_job, p0);
 	movwf	accumuh		; accumuh = destreg>>8; monhex(zos_job, p0);
 	pagesel	monhex
@@ -2474,8 +2478,12 @@ clcprmp
 	movwf	accumuh		;clclast: 
 	pagesel	monlsb
 	call	monlsb		; zOS_ACC(&accumul,&numbase); zOS_RFI();
-	pagesel	moncrlf
-	call	moncrlf		; char_io = 0;
+	movlw	'\r'		;
+	pagesel	monbufs
+	call	monbufs		;
+	movlw	'\n'		;
+	pagesel	monbufs
+	call	monbufs		; char_io = 0;
 	zOS_ACC	accumul,numbase
 clclast
 	clrf	char_io		;} // zOS_CLC()
