@@ -45,11 +45,11 @@ j
 
 4:0000 PC=00 "<not running>"
 
-3:08CE PC=08D1  "cooperative loop"
+3:081C PC=081F  "cooperative loop"
 
-2:08BB PC=08BB  "infinite loop"
+2:0809 PC=0809  "infinite loop"
 
-1*871A PC=078F ISR@0725(h24s08) "console I/O"
+1*8668 PC=06DD ISR@0725(h24s08) "console I/O"
 
 
 Because all jobs run with the same priority, the infinite loop is slowing down
@@ -62,11 +62,11 @@ z since it is indicating to the OS scheduler that it is not currently runnable:
 
 4:0000 PC=00 "<not running>"
 
-3:08CE PC=08D1  "cooperative loop"
+3:081C PC=081F  "cooperative loop"
 
-2:08BB PCz88BB  "infinite loop"
+2:0809 PCz8809  "infinite loop"
 
-1*871A PC=078F ISR@0725(h24s08) "console I/O"
+1*8668 PC=06DD ISR@0725(h24s08) "console I/O"
 
 
 Notice how much more quickly the job info list got printed without competition
@@ -75,26 +75,26 @@ loop on the other hand cedes the processor continuously, so its overhead is
 almost none.  To prove it to ourselves let's start up more copies of this loop,
 first by specifying a new job with "N" and then by forking that job with "G":
 
-0x08CEn
+0x081Cn
 5:0000 PC=00 "<not running>"
 
-4:08CE PC=08D1  "cooperative loop"
+4:081C PC=081F  "cooperative loop"
 
-3:08CE PC=08D1  "cooperative loop"
+3:081C PC=081F  "cooperative loop"
 
-2:08BB PCz88BB  "infinite loop"
+2:0809 PCz8809  "infinite loop"
 
-1*871A PC=078F ISR@0725(h24s08) "console I/O"
+1*8668 PC=06DD ISR@0725(h24s08) "console I/O"
 4g
-5:08CE PC=08D1  "cooperative loop"
+5:081C PC=081F  "cooperative loop"
 
-4:08CE PC=08D1  "cooperative loop"
+4:081C PC=081F  "cooperative loop"
 
-3:08CE PC=08D1  "cooperative loop"
+3:081C PC=081F  "cooperative loop"
 
-2:08BB PCz88BB  "infinite loop"
+2:0809 PCz8809  "infinite loop"
 
-1*871A PC=078F ISR@0725(h24s08) "console I/O"
+1*8668 PC=06DD ISR@0725(h24s08) "console I/O"
 
 
 The job comments in quotation marks by the way are from dt assembler directives
@@ -142,6 +142,6 @@ manner as long as it obeys the following restrictions:
 * communicates with other jobs only through shared mailboxes between 0x72 and 7b
   in the global address space, or the SWI mechanism which allows up to 5 
 
-* a maximum stack depth of 2 (two active function calls at a time like the old
-  low-range 8-bit PIC16's) if the console input parser is running, 3 otherwise
+* a maximum stack depth of 2 (two active function calls at a time, as with the
+  low-end, 12-bit-word PIC) if the console input parser is running, 3 otherwise
 
