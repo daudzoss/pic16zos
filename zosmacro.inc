@@ -1461,7 +1461,12 @@ monchr2
 
 monchr3
 	movf	char_io,w	;
-	xorlw	0x20		;
+	xorlw	','		;
+	movlw	' '		;
+	btfsc	STATUS,Z	;
+	movwf	char_io		;  case ',': // synonym for ' '
+	movf	char_io,w	;
+	xorlw	' '		;
 	btfsc	STATUS,Z	;  case ' ':
 	bra	mondump		;
 	movf	char_io,w	;
@@ -1485,7 +1490,7 @@ mondump
 	movf	char_io,w	;   if (char_io == ' ') {
 	xorlw	' '		;    char_io = 0; // all we do is a destreg xfer
 	btfsc	STATUS,Z	;    break;
-	bra	monlast		;   }
+	bra	monzero		;   }
 mondest
 	btfss	1+destreg,7	;   if (destreg & 0x8000) { // flash, not RAM
 	bra	monram		;
@@ -1707,6 +1712,7 @@ monprmp
 	call	monlsb		;         char_io = 0;
 	pagesel	monspc
 	call	monspc		;    putchar(' ');
+monzero
 	zOS_ACC	accumul,numbase
 monlast
 	clrf	char_io		;} // zOS_MON()
@@ -2489,7 +2495,7 @@ clclast
 	clrf	char_io		;} // zOS_CLC()
 	zOS_RFI
 endclc
-	zOS_MON	p,ra,rt,h,pi,clcisr
+	zOS_MAN	p,ra,rt,h,pi,clcisr
 	endm
 
 
