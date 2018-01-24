@@ -2485,7 +2485,7 @@ endclc
 	endm
 
 
-zOS_T64	macro	
+zOS_T63	macro	
 	local	chrtran
 	movf	char_io,w	;#define zOS_T64(w) \
 	addlw	0-0x1f		;\
@@ -2494,7 +2494,9 @@ zOS_T64	macro
 	andlw	0x3f		;\
 	pagesel	chrtran		;\
 	call	chrtran		; w = table[(w >= ' ') ? (w & 0x3f) : 0];\
-	bra	$+0x41		; /*must be followed by 64-char retlw string:*/\
+	bra	$+0x41		; /*must be followed by 63-char retlw string:*/\
 chrtran
-	brw			; static char table[64] = // zOS_T64()
+	brw			; static char table[64] = "\0\
+	retlw	0		;/* zOS_T64() */ \
 	endm
+
