@@ -2487,7 +2487,7 @@ endclc
 
 zOS_T63	macro	
 	local	chrtran
-	movf	char_io,w	;#define zOS_T64(w) \
+	movf	char_io,w	;#define zOS_T63(w) \
 	addlw	0-0x1f		;\
 	btfsc	WREG,7		;\
 	clrw			;\
@@ -2497,6 +2497,6 @@ zOS_T63	macro
 	bra	$+0x41		; /*must be followed by 63-char retlw string:*/\
 chrtran
 	brw			; static char table[64] = "\0\
-	retlw	0		;/* zOS_T64() */ \
+	retlw	0		;/* zOS_T63() */ 
 	endm
 
