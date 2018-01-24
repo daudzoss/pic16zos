@@ -2328,8 +2328,78 @@ max	set	0x70
 ;zOS_MON()-derived macros referring to these local variables wouldn't open it
 ;until expansion and would throw an undefined-var error during the processing
 
+	local	clctbl,clcsiz
 clcisr
 	movf	zOS_AR0,w	; switch (char_io = zOS_AR0) {
+	zOS_T63			;
+clctbl
+	retlw	' '
+	retlw   '!'
+	retlw	'"'
+	retlw	'#'
+	retlw	'$'
+	retlw	'%'
+	retlw	'&'
+	retlw	"'"
+	retlw	'('
+	retlw	')'
+	retlw	0 ;zos_mac() not defined for '*'
+	retlw	'+'
+	retlw	','
+	retlw	'-'
+	retlw	'.'
+	retlw	0 ;zos_div() not defined for '/'
+	retlw	'0'
+	retlw	'1'
+	retlw	'2'
+	retlw	'3'
+	retlw	'4'
+	retlw	'5'
+	retlw	'6'
+	retlw	'7'
+	retlw	'8'
+	retlw	'9'
+	retlw	':'
+	retlw	0x3b
+	retlw	'<'
+	retlw	'='
+	retlw	'>'
+	retlw	'?'
+	retlw	'@'
+	retlw	'A'
+	retlw	'B'
+	retlw	'C'
+	retlw	'D'
+	retlw	'E'
+	retlw	'F'
+	retlw	'G'
+	retlw	'H'
+	retlw	'I'
+	retlw	'J'
+	retlw	'K'
+	retlw	'L'
+	retlw	'M'
+	retlw	'N'
+	retlw	'O'
+	retlw	'P'
+	retlw	'Q'
+	retlw	'R'
+	retlw	'S'
+	retlw	'T'
+	retlw	'U'
+	retlw	'V'
+	retlw	'W'
+	retlw	'X'
+	retlw	'Y'
+	retlw	'Z'
+	retlw	'[' ; '{'	;
+	retlw	'\' ; '|'	;
+	retlw	']' ; '}'	;
+	retlw	'^' ; '~'	;
+clcsiz	equ	$-clctbl
+	if clcsiz-63
+	 error "bad size: ASCII translation table expected to span 0x20 to 0x5e"
+	endif
 	movwf	char_io		;
 	xorlw	'+'		;
 	btfss	STATUS,Z	;
