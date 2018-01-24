@@ -2328,7 +2328,7 @@ max	set	0x70
 ;zOS_MON()-derived macros referring to these local variables wouldn't open it
 ;until expansion and would throw an undefined-var error during the processing
 
-	local	clctbl,clcsiz
+	local	clctbl;,clcsize	; throws "Duplicate label or redefining symbol"
 clcisr
 	movf	zOS_AR0,w	; switch (char_io = zOS_AR0) {
 	zOS_T63			;
@@ -2393,11 +2393,11 @@ clctbl
 	retlw	'Y'
 	retlw	'Z'
 	retlw	'[' ; '{'	;
-	retlw	'\' ; '|'	;
+	retlw	'\\' ; '|'	;
 	retlw	']' ; '}'	;
 	retlw	'^' ; '~'	;
-clcsiz	equ	$-clctbl
-	if clcsiz-63
+clcsize	equ	$-clctbl
+	if clcsize-0x3f
 	 error "bad size: ASCII translation table expected to span 0x20 to 0x5e"
 	endif
 	movwf	char_io		;
@@ -2569,10 +2569,9 @@ endclc
 	endm
 
 
-zOS_T63	macro	
+zOS_T63	macro
 	local	chrtran
-	movf	char_io,w	;#define zOS_T63(w) \
-	addlw	0-0x1f		;\
+	addlw	0-0x1f		;#define zOS_T63(w) \
 	btfsc	WREG,7		;\
 	clrw			;\
 	andlw	0x3f		;\
