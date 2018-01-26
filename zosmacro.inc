@@ -1815,6 +1815,7 @@ manchr
 	movwf	char_io		;  if (zOS_SWI(zOS_FND))
 	zOS_SWI	zOS_FND
 	andlw	0x07		;   goto caseJ; // FIXME: table, from match down
+	movwf	accumul		;
 	btfsc	STATUS,Z	;  else
 	clrf	char_io		;   break;
 	
@@ -1826,28 +1827,28 @@ manchr0
 	clrf	char_io		;  char_io = 0; // with destreg zOS_AR1:zOS_AR0
 	
 	movf	destreg,w	;  zOS_ARG(0, destreg);
+	clrf	destreg		;
 	zOS_ARG	0
 	movf	1+destreg,w	;  zOS_ARG(1, destreh);
+	clrf	1+destreg	;
 	zOS_ARG	1
-	movlw	0xf8		;  zOS_ACC(&accumul, &numbase); // reset
-	andwf	accumul,w	;
+	movf	accumul,w	;  w = accumul;
 	zOS_ACC	accumul,numbase
-	btfsc	STATUS,Z	;  if (accumul) {
+	andlw	0xf8		;  zOS_ACC(&accumul, &numbase); // reset
+	btfsc	STATUS,Z	;  if (w & 0xf8) {
 	bra	reenabl		;   int w = zOS_SWI(accumul); // disable again
 	movlp	0		;   INTCON &= ~(1<<GIE);// for zOS_AR and _BUF()
 	call	0x02		;   zOS_ARG(1, w);
-	bcf	INTCON,GIE	;   zOS_ARG(0, 0);
+	zOS_ARG	0		;   zOS_ARG(0, 0);
 	clrf	zOS_AR1		;   zOS_BUF(zos_job, p0); // print hex SWI result
 	xorwf	zOS_AR1,f	;   zOS_ENA();
 	xorwf	zOS_AR0,f	;   goto caseJ;
 	zOS_BUF	FSR0,max,p0
-	movlw	'J'		;  } else
-	movwf	char_io		;   zOS_ENA(); break;
 reenabl
 	zOS_ENA
 
 manchr1
-	movf	char_io,w	;
+	movf	char_io,w	; }
 	xorlw	'J'		;
 	btfss	STATUS,Z	; caseJ:
 	bra	manchr2		; case 'J': // List struct for all running jobs
@@ -2577,7 +2578,7 @@ zOS_T63	macro
 	andlw	0x3f		;\
 	pagesel	chrtran		;\
 	call	chrtran		; w = table[(w >= ' ') ? (w & 0x3f) : 0];\
-	bra	$+0x41		; /*must be followed by 63-char retlw string:*/\
+	bra	$+0x42		; /*must be followed by 63-char retlw string:*/\
 chrtran
 	brw			; static char table[64] = "\0\
 	retlw	0		;/* zOS_T63() */ 

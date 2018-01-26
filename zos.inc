@@ -708,7 +708,7 @@ zos_sw7
 	addlw	1		;
 	movwf	zOS_JOB		;
 	addlw	0xfe-zOS_NUM	;   if (zOS_AR2 && ((uint8_t)zOS_AR2<=zOS_NUM))
-	btfss	WREG,7		;    zOS_JOB = zOS_AR2 + 1;
+	btfsc	WREG,7		;    zOS_JOB = zOS_AR2 + 1;
 	movlw	1+zOS_NUM	;   else
 	movwf	zOS_JOB		;    zOS_JOB = zOS_NUM + 1;
 	zOS_MEM	FSR1,zOS_JOB,0	;   fsr1 = 0x10 * (1 + zOS_JOB);
