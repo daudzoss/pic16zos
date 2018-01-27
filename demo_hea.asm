@@ -1,7 +1,7 @@
 ;;; demo_hea.asm
 ;;;
 ;;; demonstration app for zOS running two heap allocators launched by zOS_HEA
-;;; to build: gpasm -D GPASM demo_zos.asm
+;;; to build: gpasm -D GPASM demo_hea.asm
 ;;;
 ;;; after starting job #1 as a job management shell (zOS_MAN() in zosmacro.inc)
 ;;; to demonstrate privileged mode (able to kill or otherwise tweak other tasks)
@@ -16,13 +16,14 @@
 ;;; since only 4 of 5 possible task slots are used in this demo reducing the max
 ;;; allowed value by 1 will make scheduler run faster as well as freeing an extra
 ;;; 80 bytes for the heap itself:
-zOS_NUM	equ	4
+zOS_NUM	equ	5
 
-	processor 16f1847
-	include p16f1847.inc
+	processor 16f1719
+	include p16f1719.inc
 	
-	__CONFIG _CONFIG1,_FOSC_HS & _WDTE_OFF & _PWRTE_OFF & _MCLRE_ON & _CP_OFF & _CPD_OFF & _BOREN_ON & _CLKOUTEN_OFF & _IESO_ON & _FCMEN_ON
-
+	__CONFIG _CONFIG1,_FOSC_INTOSC & _WDTE_OFF & _PWRTE_OFF & _CP_OFF & _BOREN_ON & _CLKOUTEN_ON & _IESO_ON & _FCMEN_ON
+	__CONFIG _CONFIG2,_WRT_OFF & _PPS1WAY_OFF & _ZCDDIS_ON & _PLLEN_ON & _STVREN_ON & _BORV_LO & _LPBOR_OFF & _LVP_ON
+	
 ;;; uncomment to reduce zOS footprint by 100 words (at cost of zOS_FRK/EXE/FND):
 ;zOS_MIN	equ	1
 	
@@ -193,7 +194,7 @@ linsert
 	movf	inserth,w	; return fsr0 = insert; // return new head
 	movwf	FSR0H		;}
 	
-	
+	zOS_NAM	"malloc/free loop"
 myprog
 	zOS_SWI	zOS_YLD		;void myprog(void) {
 	pagesel	maklist
@@ -247,16 +248,12 @@ main
 	bcf	OPTION_REG,PSA	; OPTION_REG &= ~(1<<PSA);// max timer0 prescale
 	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
 
-#if 0
 OUTCHAR	equ	zOS_SI3
+	
 ;	zOS_MAN	0,20000000/9600,PIR1,PORTB,RB5
-	zOS_CON	0,20000000/9600,PIR1,PORTB,RB5
+	zOS_CLC	0,.032000000/.000009600,PIR1,LATA,RA4
 	movlw	OUTCHAR		;
-	zOS_ARG	3		; zOS_CON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
-#else	
-	zOS_NUL	1<<T0IF
-#endif
-	zOS_LAU	WREG		; zOS_ARG(3,OUTCHAR/*only 1 SWI*/); zOS_LAU(&w);
+	movwi	0[FSR0]		; zOS_CLC(/*TX*/0,32MHz/9600bps,PIR1,LATA,RA4);
 
 	zOS_INT	0,0
 	zOS_ADR	myprog,zOS_UNP
