@@ -1841,10 +1841,23 @@ manchr0
 	movlp	0		;   INTCON &= ~(1<<GIE);// for zOS_AR and _BUF()
 	call	0x02		;   zOS_ARG(1, w);
 	zOS_ARG	0		;   zOS_ARG(0, 0);
+#if 0
 	clrf	zOS_AR1		;   zOS_BUF(zos_job, p0); // print hex SWI result
 	xorwf	zOS_AR1,f	;   zOS_ENA();
 	xorwf	zOS_AR0,f	;   goto caseJ;
 	zOS_BUF	FSR0,max,p0
+#else
+	zOS_ARG	1		;
+	xorwf	zOS_AR0,f	;
+	zOS_SWI	0xff
+	movlw	'\r'		;
+	zOS_ARG	0		;
+	zOS_SWI	0xff		;
+	movlw	'\n'		;
+	zOS_ARG	0		;
+	zOS_SWI	0xff		;
+#endif
+	
 reenabl
 	zOS_ENA
 
