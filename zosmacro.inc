@@ -491,7 +491,7 @@ invalid
 done
 	zOS_RFS	WREG		; done: return w;
 	
-	
+	zOS_NAM	"malloc(), free() w/ garbage coll"
 task
 	local	iniarry,coalesc,coaloop,coscoot
 	

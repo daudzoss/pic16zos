@@ -13,10 +13,10 @@
 ;;; it then starts a job #4 to start making malloc() and free() calls in order
 ;;; to observet the action of the help allocators
 ;;; 
-;;; since only 4 of 5 possible task slots are used in this demo reducing the max
+;;; if only 4 of 5 possible task slots are used in this demo reducing the max
 ;;; allowed value by 1 will make scheduler run faster as well as freeing an extra
 ;;; 80 bytes for the heap itself:
-zOS_NUM	equ	5
+;zOS_NUM	equ	4
 
 	processor 16f1719
 	include p16f1719.inc
@@ -35,7 +35,7 @@ SMALLOC	equ	zOS_SI4
 SFREE	equ	zOS_SI5
 LMALLOC	equ	zOS_SI6
 LFREE	equ	zOS_SI7
-	include	zosalloc.asm
+	include	zosalloc.inc
 
 	pagesel main
 	goto	main
@@ -194,7 +194,7 @@ linsert
 	movf	inserth,w	; return fsr0 = insert; // return new head
 	movwf	FSR0H		;}
 	
-	zOS_NAM	"malloc/free loop"
+	zOS_NAM	"heap-churning loop"
 myprog
 	zOS_SWI	zOS_YLD		;void myprog(void) {
 	pagesel	maklist
@@ -250,8 +250,8 @@ main
 
 OUTCHAR	equ	zOS_SI3
 	
-;	zOS_MAN	0,20000000/9600,PIR1,PORTB,RB5
-	zOS_CLC	0,.032000000/.000009600,PIR1,LATA,RA4
+;	zOS_MAN	0,.032000000/.000009600,PIR1,LATA,RA4,0
+	zOS_CLC	0,.032000000/.000009600,PIR1,LATA,RA4,0
 	movlw	OUTCHAR		;
 	movwi	0[FSR0]		; zOS_CLC(/*TX*/0,32MHz/9600bps,PIR1,LATA,RA4);
 
