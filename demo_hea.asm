@@ -30,12 +30,13 @@
 	include zos.inc
 	include zosmacro.inc
 	
-MAXSRAM	equ	0x2400
+OUTCHAR	equ	zOS_SI3
+	
 SMALLOC	equ	zOS_SI4
 SFREE	equ	zOS_SI5
 LMALLOC	equ	zOS_SI6
 LFREE	equ	zOS_SI7
-	include	zosalloc.inc
+MAXSRAM	equ	0x2400
 
 	pagesel main
 	goto	main
@@ -238,23 +239,58 @@ gettiny
 	bra	myprog		;}
 	
 main
-	banksel	ANSELB
-	bcf	ANSELB,RB5	; ANSELB &= ~(1<<RB5); // allow digital function
-
-	banksel	TRISB
-	bcf	TRISB,RB5	; TRISB &= ~(1<<RB5); // allow output heartbeat
+		banksel OSCCON			;{
+	movlw	0x70		;    // SCS FOSC; SPLLEN disabled; IRCF 8MHz_HF; 
+	movwf	OSCCON		;    OSCCON = 0x70;
+	movlw	0x80		;    // SOSCR enabled; 
+	movwf	OSCSTAT		;    OSCSTAT = 0x80;
+	movlw	0x00		;    // TUN 0; 
+	movwf	OSCTUNE		;    OSCTUNE = 0x00;
+				;    // Wait for PLL to stabilize
+	btfss	OSCSTAT,PLLR	;    while(PLLR == 0)
+	bra	$-1		;     ;
 	
+	banksel	ANSELA
+	movlw	0xaf		;
+	movwf	ANSELA		; ANSELA = 0xaf; // allow heartbeat GPIO, CLKOUT
+	movlw	0x3c		;
+	movwf	ANSELC		; ANSELC = 0x3c; // allow serial port
+
 	banksel	OPTION_REG
 	bcf	OPTION_REG,PSA	; OPTION_REG &= ~(1<<PSA);// max timer0 prescale
 	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
 
-OUTCHAR	equ	zOS_SI3
+	banksel	TRISC
+	bcf	TRISA,RA4	; TRISA &= ~(1<<RA4); // allow heartbeat output
+;	bcf	TRISA,RA6	; TRISA &= ~(1<<RA6); // allow clock output
+	movlw	0x7f
+	movwf	TRISC
+
+	banksel	PPSLOCK
+	movlw	0x55
+	movwf	PPSLOCK
+	movlw	0xaa
+	movwf	PPSLOCK
+	bcf	PPSLOCK,PPSLOCKED
+	movlw	0x16
+	movwf	RXPPS
 	
+	banksel	RC7PPS
+	movlw	0x14
+	movwf	RC7PPS
+	movlw	0x55
+	movwf	PPSLOCK
+	movlw	0xaa
+	movwf	PPSLOCK
+	bsf	PPSLOCK,PPSLOCKED
+
 ;	zOS_MAN	0,.032000000/.000009600,PIR1,LATA,RA4,0
 	zOS_CLC	0,.032000000/.000009600,PIR1,LATA,RA4,0
 	movlw	OUTCHAR		;
 	movwi	0[FSR0]		; zOS_CLC(/*TX*/0,32MHz/9600bps,PIR1,LATA,RA4);
 
+	include	zosalloc.inc
+	
 	zOS_INT	0,0
 	zOS_ADR	myprog,zOS_UNP
 	zOS_LAU	WREG
