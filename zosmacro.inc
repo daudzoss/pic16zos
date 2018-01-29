@@ -338,9 +338,7 @@ fsrn set 0
 ;;; SWI behavior for free(w) is to return in w the number of bytes now free/16
 ;;;  intersecting with the address whose middle nybble is zOS_AR0, or 0 in w if
 ;;;  zOS_AR0 didn't point to a valid (i.e. previously allocated) block of bytes
-;;; 
-;;; FIXME: demo idea would be two heap allocators running for two differently
-;;; targeted (quantum) allocation heaps, leaving final SWI remaining for zOS_CON
+
 zOS_HEA	macro	base,size,mi,fi	;void zOS_HEA(void* base, void* size, uint8_t
 	local	isr,decl,task	;             mi/*malloc*/,uint8_t fi/*free*/) {
 
@@ -395,9 +393,8 @@ mloop
 	movwf	temp		;
 	movwf	alloced		;
 	moviw	FSR1++		;   w = *fsr1++; // number of bytes used,0=freed
-	btfsc	STATUS,Z	;
-	bra	mcandid		;   if (w == 0) { // allocatable
-	bra	mloop		;
+	btfss	STATUS,Z	;
+	bra	mloop		;   if (w == 0) { // allocatable
 mcandid
 	moviw	0[FSR0]		;    w = *fsr0;// upper limit to allocating here
 	btfsc	STATUS,Z	;    if (w == 0)
@@ -416,7 +413,8 @@ mcandid
 
 mexact
 	movf	zOS_AR0,w	;    if (w == 0) { // exactly enough!
-	movwi	-1[FSR1]	;     w = -1[fsr1] = zOS_AR0;
+	movwi	-1[FSR1]	;     -1[fsr1] = zOS_AR0; // allocated size
+	moviw	-1[FSR0]	;     w = -1[fsr0]; // recycled handle
 	bra	done		;     goto done;
 mnotall	
 	movf	maxnon0,f	;    } else if (adrarry[tblrows-2] != 0) // full
