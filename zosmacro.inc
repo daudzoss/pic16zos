@@ -494,10 +494,10 @@ done
 task
 	local	iniarry,coalesc,coaloop,coscoot
 	
-	zOS_DIS	GIE,0
+	bcf	INTCON,GIE	;task:
 	zOS_LOC	FSR0,BSR,0x70
 iniarry
-	clrw			; task: INTCON &= ~(1<<GIE);
+	clrw			; INTCON &= ~(1<<GIE);
 	movwi	--FSR0		; for (fsr0 = (bsr<<7)|(adrarry+tblsize);
 	movlw	adrarry		;      fsr > adrarry; fsr--)
 	xorwf	FSR0L,w		;  *fsr = 0; // zero each address and size entry
@@ -513,27 +513,27 @@ iniarry
 	movlw	membase+memsize	; // and second addres entry is the end of heap
 	movwi	1[FSR1]		; (0x70|(bsr<<1))[1] =
 	movwi	1[FSR0]		; adrarry[1] = membase+memsize;//max allocatable
-	zOS_ENA
 
 coalesc
 	zOS_SWI	zOS_YLD
 	zOS_LOC	FSR0,BSR,adrarry+1
 	zOS_LOC	FSR1,BSR,sizarry
 coaloop
-	moviw	++FSR0		; do { // combine adjacent rows whose size are 0
-	btfsc	STATUS,Z	;  zOS_SWI(zOS_YLD); // only 1 pass per schedule
+	bcf	INTCON,GIE	; do { // combine adjacent rows whose size are 0
+	moviw	++FSR0		;  zOS_SWI(zOS_YLD); // only 1 pass per schedule
+	btfsc	STATUS,Z	;  INTCON &= ~(1<<GIE); // critical section (
 	bra	coalesc		;  for (fsr0 = &adrarry[1], fsr1 = &sizarry[0];
-	moviw	FSR1++		;       *++fsr0;
-	btfss	STATUS,Z	;       fsr1++)
-	bra	coaloop		;   if (0[fsr1] === 0 && 1[fsr1] == 0) {
-	moviw	0[FSR1]		;    // fsr1->redundant row siz, trails fsr0->adr
-	btfss	STATUS,Z	;    do {
+	moviw	FSR1++		;       *++fsr0; fsr1++)
+	btfss	STATUS,Z	;   if (0[fsr1] === 0 && 1[fsr1] == 0) {
+	bra	coaloop		;    INTCON |= 1<<GIE;
+	moviw	0[FSR1]		;    do {// fsr1->redun row siz,trails fsr0->adr
+	btfss	STATUS,Z	;     INTCON &= ~(1<<GIE); // critical section (
 	bra	coaloop		;     uint8_t w = *++fsr1;
 coscoot
 	moviw	++FSR1		;     -1[fsr1] = w;
 	movwi	-1[FSR1]	;     w = *fsr0++;
 	moviw	FSR0++		;    } while ((-2[fsr0] = w) != 0);
-	movwi	-2[FSR0]	;    break;
+	movwi	-2[FSR0]	;    break; // ) critical section ended by SWI
 	btfss	STATUS,Z	;   }
 	bra	coscoot		; } while (1);
 	bra	coalesc		;decl:
