@@ -889,7 +889,7 @@ contask
 	movwf	FSR0H		;task:// all init that requires knowledge of BSR
 	zOS_MY2	FSR0
 	moviw	t0div[FSR0]	; do {
-	btfss	STATUS,Z	;  fsr0 = (uatbase & 0xff00) | 0x0070 | (bsr<<1);
+	btfss	STATUS,Z	;  fsr0 = (uatbase & 0xff00) | 0x0070 |(bsr<<1);
 	bra	inited		;  if (1[fsr0] == 0) { // not initialized yet
 	zOS_DIS	GIE,0
 	movlw	0xff		;  zOS_DIS(&fsr0, zOS_JOB); // interrupts off!
@@ -1014,7 +1014,11 @@ brgvall	set	low brgvalm
 	banksel	uatbase
 	bsf	BAUDCON,BRG16	; // section 26.1.2.8 of 16F1847 steps below:
 	banksel	uatbase
+#ifdef SYNC
 	bcf	TXSTA,SYNC	; // (1) "Initialize..the desired baud rate"
+#else
+	bcf	TXSTA,SYNC_TXSTA
+#endif
 	bsf	TXSTA,BRGH	; BAUDCON |= 1<<BRG16; // 16-bit generator
 	movlw	brgvall		; TXSTA &= ~(1<<SYNC); // async mode
 	movwf	SPBRGL		; TXSTA |= 1<<BRGH;    // high speed
