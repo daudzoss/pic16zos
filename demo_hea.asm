@@ -199,7 +199,7 @@ linsert
 myprog
 	zOS_SWI	zOS_YLD		;void myprog(void) {
 	pagesel	maklist
-	call	maklist
+	call	maklist		;
 	zOS_LOC	FSR1,BSR,larges	; uint8_t i, smalls[3], larges[3];
 	zOS_LOC	FSR0,BSR,smalls	; zOS_SWI(zOS_YLD); // let malloc(),free() init
 	movlw	0x03		; while (1) {
@@ -239,7 +239,7 @@ gettiny
 	bra	myprog		;}
 	
 main
-		banksel OSCCON			;{
+	banksel OSCCON		;{
 	movlw	0x70		;    // SCS FOSC; SPLLEN disabled; IRCF 8MHz_HF; 
 	movwf	OSCCON		;    OSCCON = 0x70;
 	movlw	0x80		;    // SOSCR enabled; 
@@ -291,9 +291,9 @@ main
 
 	include	zosalloc.inc
 	
-	zOS_INT	0,0
-	zOS_ADR	myprog,zOS_UNP
-	zOS_LAU	WREG
+;	zOS_INT	0,0
+;	zOS_ADR	myprog,zOS_UNP
+;	zOS_LAU	WREG
 	
 	zOS_RUN	INTCON,INTCON
 	end
