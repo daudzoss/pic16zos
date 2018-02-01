@@ -59,12 +59,14 @@ newnode
 	movf	WREG		; uint8_t temp = w; // job number to copy struct
 	btfss	STATUS,Z	;
 	bra	nncopy		; do {
+	movf	zOS_ME		;  zOS_ARG(0, 2); // 16 bytes from bank 0, 2 ptr
+	zOS_ARG	0
 	zOS_SWI	zOS_YLD
-	movf	temp,w		;  zOS_ARG(0, 2); // 16 bytes from bank 0, 2 ptr
-	bra	newnode		;  if ((w = zOS_SWI(SMALLOC)) == 0)
+	movf	temp,w		;  if ((w = zOS_SWI(SMALLOC)) == 0) {
+	bra	newnode		;   zOS_ARG(0, bsr);
 nncopy
 	zOS_PTR	FSR1
-	movf	FSR0H,w		;   zOS_SWI(zOS_YLD); // hope coalescing happens
+	movf	FSR0H,w		;   zOS_SWI(zOS_YLD);}// hope coalescing happens
 	movwi	NEXTHI[FSR1]	; } while (w == 0);
 	movf	FSR0L,w		; *fsr1 = zOS_PTR(w);
 	movwi	NEXT[FSR1]	; w = temp;
@@ -197,10 +199,12 @@ linsert
 	
 	zOS_NAM	"heap-churning loop"
 myprog
-	zOS_SWI	zOS_YLD		;void myprog(void) {
+	movf	zOS_ME		;void myprog(void) {
+	zOS_ARG	0
+	zOS_SWI	zOS_YLD		; uint8_t i, smalls[3], larges[3];
 	pagesel	maklist
 	call	maklist		;
-	zOS_LOC	FSR1,BSR,larges	; uint8_t i, smalls[3], larges[3];
+	zOS_LOC	FSR1,BSR,larges	; zOS_ARG(0, bsr);
 	zOS_LOC	FSR0,BSR,smalls	; zOS_SWI(zOS_YLD); // let malloc(),free() init
 	movlw	0x03		; while (1) {
 	movwf	i		;  uint8_t* fsr1 = larges; 
@@ -220,7 +224,7 @@ gettiny
 	call	malloc		;  // grab three 32-byte cells
 	movf	WREG		;  for (i = 3; i; i--) {
 	btfsc	STATUS,Z	;   do {
-	bra	gettiny		;    w = zOS_SWI(32 >> 4);
+	bra	gettiny		;    w = malloc(32 >> 4);
 	movwi	FSR0++		;   } while (!w);
 	decfsz	i,f		;   *fsr0++ = w;
 	bra	gettiny		;  }

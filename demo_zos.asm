@@ -100,6 +100,8 @@ dummy
 
 	zOS_NAM	"cooperative loop"
 dummy2
+	movf	zOS_ME,w
+	zOS_ARG	0
 	zOS_SWI	zOS_YLD
 	bra	dummy2
 

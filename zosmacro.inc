@@ -237,10 +237,12 @@ bsy	set	PID1BUSY
 spinget
 	btfss	INDF#v(fn),enb	;  while ((**fsr&(1<<enb))&& // MATHACC for sure
 	bra	notbusy		;         (**fsr&(1<<bsy)))  // ours if not busy
-	btfss	INDF#v(fn),bsy	;                            // or never enabled
-	bra	notbusy		;
-	zOS_SWI	zOS_YLD		;   zOS_SWI(zOS_YLD);
-	bra	spinget		;   // interrupts now enabled if zOS_SWI called
+	btfss	INDF#v(fn),bsy	;  {                         // or never enabled
+	bra	notbusy		;   zOS_ARG(0, bsr);
+	movf	zOS_ME		;   zOS_SWI(zOS_YLD);
+	zOS_ARG	0
+	zOS_SWI	zOS_YLD		;  }
+	bra	spinget		;  // interrupts now enabled if zOS_SWI called
 notbusy
 	bcf	INTCON,GIE	;  INTCON &= ~(1<<GIE);
 	btfsc	INDF#v(fn),enb	;  // begin critical section (seizing MATHACC)
@@ -274,6 +276,8 @@ spinmul
 #if 0
 	clrwdt			;  clrwdt();
 #endif
+	movf	zOS_ME		;  zOS_ARG(0, bsr);
+	zOS_ARG	0
 	zOS_SWI	zOS_YLD
 	btfss	INDF#v(fn),bsy	;  zOS_YLD();
 	bra	spinmul		; } while (**fsr & 1<<PID1BUSY);
@@ -515,11 +519,13 @@ iniarry
 	movwi	1[FSR0]		; adrarry[1] = membase+memsize;//max allocatable
 
 coalesc
+	movf	zOS_ME		; do { // combine adjacent rows whose size are 0
+	zOS_ARG	0
 	zOS_SWI	zOS_YLD
 	zOS_LOC	FSR0,BSR,adrarry+1
 	zOS_LOC	FSR1,BSR,sizarry
 coaloop
-	bcf	INTCON,GIE	; do { // combine adjacent rows whose size are 0
+	bcf	INTCON,GIE	;  zOS_ARG(0, bsr);
 	moviw	++FSR0		;  zOS_SWI(zOS_YLD); // only 1 pass per schedule
 	btfsc	STATUS,Z	;  INTCON &= ~(1<<GIE); // critical section (
 	bra	coalesc		;  for (fsr0 = &adrarry[1], fsr1 = &sizarry[0];
@@ -609,6 +615,8 @@ setup
 	 movlw	len		; zOS_SWI(zOS_YLD); // get buffer empty as poss.
 	 movwf	temp		; for (*temp = strlen(str); *temp; --*temp) {
 sloop
+	 movf	zOS_ME		;
+	zOS_ARG	0
 	zOS_SWI	zOS_YLD
 loop
 	 movf	temp,w		;  zOS_ARG(0, w = str[strlen(str) - *temp]);
@@ -619,6 +627,8 @@ loop
 	
 	else
 sloop
+	movf	zOS_ME		;
+	zOS_ARG	0
 	zOS_SWI	zOS_YLD
 setup
 	 if (temp - zOS_AR0)
@@ -812,6 +822,8 @@ zOS_NUL	macro	hwflag		;void zOS_NUL(void) { // replacement for zOS_CON
 	bra	decl		; goto decl;
 	local	task,isr,decl	; task: do {
 task
+	movf	zOS_ME		;  zOS_ARG(0, bsr);
+	zOS_ARG	0
 	zOS_SWI	zOS_YLD		;  zOS_SWI(zOS_YLD);
 	bra	task		; } while (1);
 	
@@ -906,11 +918,13 @@ contask
 	zOS_ENA	;//FIXME: superfluous due to subsequent SWI
 	zOS_OUT	0xff,"\r\nWelcome to zOS\r\n",char_io
 inited	
+	movf	zOS_ME		;  zOS_ARG(0, bsr);
+	zOS_ARG	0
 	zOS_SWI	zOS_YLD		; 
 	movlw	low uatbase	;  const int8_t* uatbase = uatxmit & 0xff80;
 	movwf	FSR0L		;  fsr0 = uatbase;
-	movlw	high rts	;
- 	movwf	FSR1H		;  zOS_YLD();
+	movlw	high rts	;  zOS_ARG(0, bsr);
+ 	movwf	FSR1H		;  zOS_SWI(zOS_YLD);
 	movlw	low rts		;  // wait for SWI to store char(s) in buf[]
 	movwf	FSR1L		;
 	btfss	INDF1,rtsflag	;  if (*(fsr1 = rts) & (1<<rtsflag) == 0) //full
