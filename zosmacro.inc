@@ -1015,9 +1015,7 @@ done
 condecl
 	banksel	uatbase
 	bcf	RCSTA,SPEN	;decl: // all init that is BSR independent here
-#if 1
 	bcf	RCSTA,CREN	; RCSTA &= ~((1<<SPEN)|(1<<CREN));
-#endif
 	bcf	TXSTA,TXEN	; TXSTA &= ~(1<<TXEN);
 	local brgval,brgvalm,brgvalh,brgvall
 #ifdef BRG16
@@ -1025,9 +1023,7 @@ brgval	set	rat>>2
 brgvalm	set	brgval-1
 brgvalh	set	high brgvalm
 brgvall	set	low brgvalm
-	banksel	uatbase
 	bsf	BAUDCON,BRG16	; // section 26.1.2.8 of 16F1847 steps below:
-	banksel	uatbase
 #ifdef SYNC
 	bcf	TXSTA,SYNC	; // (1) "Initialize..the desired baud rate"
 #else
@@ -1045,22 +1041,15 @@ brgvalm	set	brgval-1
 brgvalh	set	0
 brgvall	set	low brgvalm
 	bsf	TXSTA,BRGH	; TXSTA |= 1<<BRGH; // (1) the desired baud rate
-	banksel	uatbase
 	movlw	brgvall		;
 	movwf	SPBRG		; SPBRG = (rat/16) - 1;
 #endif
-#if 1
-	banksel	uatbase
 	bsf	RCSTA,SPEN	; // (3) "Enable..by setting..SPEN"
 	bcf	RCSTA,RX9	; RCSTA &= ~(1<<RX9);  // (5) "9-bit..set..RX9"
 	bsf	RCSTA,CREN	; RCSTA |= (1<<SPEN) | (1<<CREN); // (6) "CREN" 
-#endif
-	banksel	uatbase
 	bsf	TXSTA,TXEN	; TXSTA |= 1<<TXEN; // (5) "Enable..by..TXEN"
-#if 1
 	banksel	PIE1
 	bsf	PIE1,RCIE	; PIE1 |= 1<<RCIE; //(4) "Set..RCIE..and..PEIE"
-#endif
 	zOS_ADR	contask,zOS_PRB	; fsr0 = contask & 0x7fff;// MSB 1 => privileged
 	movlw	low conisr	; w = zOS_ARG(0, conisr & 0x00ff);
 	zOS_ARG	0
