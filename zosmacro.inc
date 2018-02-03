@@ -559,11 +559,6 @@ decl
 	movlw	0		; w = zOS_ARG(2, 0); // no hardware interrupts
 	zOS_ARG	2
 	movlb	0		; // still in job "0": don't forget this!!!!
-#if 0
-	movlw	mi|fi		; w = zOS_ARG(3, mi/*malloc()*/ | fi/*free()*/);
-	zOS_ARG	3
-	zOS_LAU	FSR0
-#endif	
 	endm			;} // zOS_HEA()
 	
 ;;; simple output-only console job with circular buffer
