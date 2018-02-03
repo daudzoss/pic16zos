@@ -107,8 +107,14 @@ zOS_LAU	macro	stash		;inline void zOS_LAU(int8_t* stash) {
 	local retry
 retry
 	zOS_SWI	zOS_NEW
-	movf	WREG,w		; do {
-	btfsc	STATUS,Z	;  w = zOS_SWI(zOS_NEW);
+	bcf	INTCON,GIE	; do {  w = zOS_SWI(zOS_NEW);
+#ifdef CAUTIOUS
+	movf	BSR,f		;  INTCON &= ~(1<<GIE); // prevent deadlock
+	btfss	STATUS,Z	;  if (bsr)             // arising from an
+	bsf	INTCON,GIE	;   INTCON &= 1<<GIE;   // interrupt right now
+#endif
+	movf	WREG,w		;
+	btfsc	STATUS,Z	;
 	bra	retry		; } while (w == 0);
 	if (stash - WREG)
 	 movwf	stash		; *stash = w;
