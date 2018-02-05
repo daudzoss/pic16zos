@@ -168,8 +168,7 @@ num set (arg & 0x03)
 	endm
 
 zOS_RUN	macro	t0enable,t0flags
-	;; start a TMR0 interrupt since none found (most in INTCON, others PIE0)
-	local boot
+        ;; start a TMR0 interrupt since none found (most in INTCON, others PIE0)
 zOS_T0E	equ	t0enable
 zOS_T0F	equ	t0flags	
 	if (zOS_T0E)
@@ -929,7 +928,7 @@ inited
 	movlw	low rts		;  // wait for SWI to store char(s) in buf[]
 	movwf	FSR1L		;
 	btfss	INDF1,rtsflag	;  if (*(fsr1 = rts) & (1<<rtsflag) == 0) //full
-	bra	conloop		;   continue; // yield (still sending or no char)
+	bra	conloop		;   continue; //yield (still sending or no char)
 	lsrf	zOS_ME 		;
 	movwf	FSR1H		;  // READY TO SEND, AND...       
 	zOS_DIS	GIE,0
