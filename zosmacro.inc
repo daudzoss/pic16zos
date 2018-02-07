@@ -6,7 +6,7 @@
 ;;;  ~256 14-bit words if only zOS_CON() job is started to buffer console output
 ;;;  _??_ 14-bit words for full-featured monitor zOS_MON()
 ;;;  _??_ 14-bit words for job manager shell zOS_MAN()
-	
+
 #ifdef UCFG
 #define	zOS_ME BSR,w : xorlw 0x8; // advance zOS use past DPSRAM; FIXME:untested
 #else
@@ -2180,7 +2180,7 @@ jobinfo
 manname
 	movlw	' '		;
 	movwi	FSR1++		;
-	movlw	'"'		;
+	movlw	0x34 ;'"'	;
 	movwi	FSR1++		;
 	moviw	zOS_PCH[FSR0]	;
 	btfss	STATUS,Z	;
@@ -2236,7 +2236,7 @@ manloop
 	incfsz	char_io,f	;
 	bra	manloop		;   }
 crlf	
-	movlw	'"'		;
+	movlw	0x34 ;'"'	;
 	movwi	FSR1++		;
 	movlw	'\r'		;  }
 	movwi	FSR1++		; }
@@ -2355,7 +2355,7 @@ clcisr
 clctbl
 	retlw	' '
 	retlw   '!'
-	retlw	'"'
+	retlw	0x34
 	retlw	'#'
 	retlw	'$'
 	retlw	'%'
@@ -2363,12 +2363,12 @@ clctbl
 	retlw	"'"
 	retlw	'('
 	retlw	')'
-	retlw	0 ;zos_mac() not defined for '*'
+	retlw	'*';0 ;zos_mac() not defined for '*'
 	retlw	'+'
 	retlw	','
 	retlw	'-'
 	retlw	'.'
-	retlw	0 ;zos_div() not defined for '/'
+	retlw	'/';0 ;zos_div() not defined for '/'
 	retlw	'0'
 	retlw	'1'
 	retlw	'2'
