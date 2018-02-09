@@ -2180,7 +2180,7 @@ jobinfo
 manname
 	movlw	' '		;
 	movwi	FSR1++		;
-	movlw	0x34 ;'"'	;
+	movlw	0x22 ;'"'	;
 	movwi	FSR1++		;
 	moviw	zOS_PCH[FSR0]	;
 	btfss	STATUS,Z	;
@@ -2236,7 +2236,7 @@ manloop
 	incfsz	char_io,f	;
 	bra	manloop		;   }
 crlf	
-	movlw	0x34 ;'"'	;
+	movlw	0x22 ;'"'	;
 	movwi	FSR1++		;
 	movlw	'\r'		;  }
 	movwi	FSR1++		; }
@@ -2355,7 +2355,7 @@ clcisr
 clctbl
 	retlw	' '
 	retlw   '!'
-	retlw	0x34
+	retlw	0x22
 	retlw	'#'
 	retlw	'$'
 	retlw	'%'

@@ -604,9 +604,9 @@ zos_sw1
 zos_sw2
 	movf	BSR,w		;  case zOS_END:
 	banksel	PCLATH_SHAD	;
-	clrf	PCLATH_SHAD	;   PCLATH_SHAD = 0; // so it can't get restored
+	clrf	TOSH		;   TOSH = TOSH = 0; // so PC can't get restored
 	movwf	BSR		;
-	clrw			;   zOS_PCH[fsr1] = 0;
+	clrw			;   zOS_PCH[fsr1] = 0; // so scheduler won't see
 	movwi	zOS_PCH[FSR1]	;   zOS_RFS(zOS_JOB); // killing is so quick
 	zOS_RFS	zOS_JOB
 zos_sw3
