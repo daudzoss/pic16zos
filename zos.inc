@@ -602,7 +602,11 @@ zos_sw1
 	movwi	zOS_PCH[FSR1]	;   zOS_RFS(zOS_JOB);
 	zOS_RFS	zOS_JOB
 zos_sw2
-	clrw			;  case zOS_END: zOS_PCH[fsr1] = 0;
+	movf	BSR,w		;  case zOS_END:
+	banksel	PCLATH_SHAD	;
+	clrf	PCLATH_SHAD	;   PCLATH_SHAD = 0; // so it can't get restored
+	movwf	BSR		;
+	clrw			;   zOS_PCH[fsr1] = 0;
 	movwi	zOS_PCH[FSR1]	;   zOS_RFS(zOS_JOB); // killing is so quick
 	zOS_RFS	zOS_JOB
 zos_sw3
