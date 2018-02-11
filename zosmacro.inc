@@ -1340,13 +1340,19 @@ monloop
 	bra	monloop		; }
 	return			;} // monback() monloop()
 	
+monout
+	movf	wreg		;void monout(char w, char zOS_AR1) {
+	btfss	STATUS,Z	; if (w) monbufs(w);
+	bra	monbufs		; else
+	movf	zOS_AR1,w	;  monlsb(w = zOS_AR1);
+	bra	monlsb		;}
 monhex
-	movf	accumuh,w	;} // monhex()
+	movf	accumuh,w	;void monhex(void) { monlsb(,,w = accumuh); }
 monlsb
 	clrf	zOS_AR0		;void monlsb(uint3_t job, uint8_t ptr, char w) {
 	movwf	zOS_AR1		;
-	zOS_BUF	FSR1,max,p0	;
-	return			; return zOS_BUF(job,ptr,w); } // 0/1/2 printed
+	zOS_BUF	FSR1,max,p0	; return zOS_BUF(job,ptr,w); } // 0/1/2 printed
+	return			;} // monlsb
 	
 mon0
 	movlw	'0'		;void mon0(void) { zOS_AR0 = '0'; monbufs(ptr);
@@ -1359,16 +1365,6 @@ monx
 monspc
 	movlw	' '		;void monspc(void) { zOS_AR0 = ' '; monbufs(ptr);
 	bra	monbufs		;}
-#if 0
-moncrlf
-	movlw	'\r'		;void moncrlf(uint3_t job, uint8_t ptr, char w){
-	bra	monbufs		;
-	movwf	zOS_AR0		; zOS_AR0 = '\r';
-	zOS_BUF	FSR0,max,p0	; if (zOS_BUF(zos_job, ptr) < 1)
-	andlw	0x1		;  return 0;
-	btfss	STATUS,Z	;
-	return			; zOS_AR0 = '\n';
-#endif
 monlf
 	movlw	'\n'		; return zOS_BUF(zos_job, ptr, w);
 monbufs
@@ -1727,96 +1723,333 @@ endmon
 	zOS_INP	p,ra,rt,h,pi,monisr 
 	endm	
 
-zOS_DEC	macro	swinum,enc,link	;zOS_DEC accumul,zos_opr
-
-	movf	1+enc,w
-	andlw	0x3f
-	brw
-	bra	top00
-	bra	top01
-	bra	top02
-	bra	top03
-	bra	top04
-	bra	top05
-	bra	top06
-	bra	top07
-	bra	top08
-	bra	top09
-	bra	top0a
-	bra	top0b
-	bra	top0c
-	bra	top0d
-	bra	top0e
-	bra	top0f
-
-	bra	top1bcf
-	bra	top1bcf
-	bra	top1bcf
-	bra	top1bcf
-	bra	top1bsf
-	bra	top1bsf
-	bra	top1bsf
-	bra	top1bsf
-	bra	top1btc
-	bra	top1btc
-	bra	top1btc
-	bra	top1btc
-	bra	top1bts
-	bra	top1bts
-	bra	top1bts
-	bra	top1bts
-
-	bra	calllit	
-	bra	calllit	
-	bra	calllit	
-	bra	calllit	
-	bra	calllit	
-	bra	calllit	
-	bra	calllit	
-	bra	calllit	
-	bra	gotolit
-	bra	gotolit
-	bra	gotolit
-	bra	gotolit
-	bra	gotolit
-	bra	gotolit
-	bra	gotolit
-	bra	gotolit
-
-	bra	top30
-	bra	top31
-	bra	top32
-	bra	top33
-	bra	top34
-	bra	top35
-	bra	top36
-	bra	top37
-	bra	top38
-	bra	top39
-	bra	top3a
-	bra	top3b
-	bra	top3c
-	bra	top3d
-	bra	top3e
-	bra	top3f
-calllit
-	movlw	low 	
-	movwf	FSR0L
-	movlw	high
-	movwf	FSR0H
-	pagesel	print
-	call	print
-	bra	lit11
-gotolit
-	movlw	low 	
-	movwf	FSR0L
-	movlw	high
-	movwf	FSR0H
-	pagesel	print
-	call	print
-lit11
-
+zOS_DEC	macro	putch,enc,retadr;e.g. zOS_DEC monout,accumul,zos_opr
 	
+	local	puts,loop,done	; NOT zos_opc because my purpose is to define it
+	local	
+	local	top1bcf,top1bsf,top1btc,top1bts,calllit,gotolit
+	local	
+	local	
+	local	
+
+puts
+	banksel	zOS_ADL
+	movf	FSR0L,w		;void puts(char w) {
+	movwf	zOS_ADL		;
+	movf	FSR0H,w		;//FIXME: needs comments
+	movwf	zOS_ADH		;
+loop
+	zOS_RDF			;
+	rlf	zOS_RDL,w	;  zOS_RDF(); // read packed 14-bit contents
+	rlf	zOS_RDH,w	;
+	btfsc	STATUS,Z	;
+	bra	done		;  if ((w = (zOS_RDH<<1)|(zOS_RDL>>7)) != '\0'){
+	pagesel	putch
+	call	putch		;
+	
+	banksel	zOS_RDL
+	movf	zOS_RDL,w	;
+	andlw	0x7f		;
+	btfsc	STATUS,Z	;
+	bra	done		;
+	pagesel	putch
+	call	putch		;
+
+	banksel	zOS_ADL		;
+	incfsz	zOS_ADL,f	;
+	bra	loop		;
+	incf	zOS_ADH,f	;
+	bra	loop		;
+done
+	return			;} // puts()
+zos_opc	
+	movlw	0x3f		;void zos_opc(uint14_t enc) {
+	andwf	1+enc,w		; uint8_t w = (enc &= 0x3fff) >> 8;
+	movwf	1+enc		; /*00--nn=>00,01--nn=>01,10--nn=>10,11--nn=>00/
+	btfsc	1+enc,5		; if (enc & 0x0800 == enc & 0x0400)
+	btfsc	1+enc,4		;  enc &= 0x00ff; /*for literal/destreg offset*/
+	clrf	1+enc		; switch (w) { case 0: /*
+	brw			;movwf/callw/movlb/brw/retfie/return/clrwdt/nop/
+	bra	overld0		;option/reset/sleep/tris/mov[wi]*/ goto overld0;
+	bra	overld1		;/* 0x01nn=>clrf/clrw*/ case 1: goto overld1;
+	bra	destreg-0x12	;/* 0x02nn => subwf  */ case 2: goto destreg-18;
+	bra	destreg-0x11	;/* 0x03nn => decf   */ case 3: goto destreg-17;
+	bra	destreg-0x10	;/* 0x04nn => iorwf  */ case 4: goto destreg-16;
+	bra	destreg-0xf	;/* 0x05nn => andwf  */ case 5: goto destreg-15;
+	bra	destreg-0xe	;/* 0x06nn => xorwf  */ case 6: goto destreg-14;
+	bra	destreg-0xd	;/* 0x07nn => addwf  */ case 7: goto destreg-13;
+	bra	destreg-0xc	;/* 0x08nn => movf   */ case 8: goto destreg-12;
+	bra	destreg-0xb	;/* 0x09nn => comf   */ case 9: goto destreg-11;
+	bra	destreg-0xa	;/* 0x0ann => incf   */case 10: goto destreg-10;
+	bra	destreg-9	;/* 0x0bnn => decfsz */case 11: goto destreg-9;
+	bra	destreg-8	;/* 0x0cnn => rrf    */case 12: goto destreg-8;
+	bra	destreg-7	;/* 0x0dnn => rlf    */case 13: goto destreg-7;
+	bra	destreg-6	;/* 0x0enn => swapf  */case 14: goto destreg-6;
+	bra	destreg-5	;/* 0x0fnn => incfsz */case 15: goto destreg-5;
+
+	bra	top1bcf		;/*0x10nn to 0x13nn => bcf*/ case 16:
+	bra	top1bcf		;                           case 17:
+	bra	top1bcf		;                          case 18:
+	bra	top1bcf		;                         case 19: goto top1bcf;
+	bra	top1bsf		;/*0x14nn to 0x17nn => bsf*/ case 20:
+	bra	top1bsf		;                           case 21:
+	bra	top1bsf		;                          case 22:
+	bra	top1bsf		;                         case 23: goto top1bsf;
+	bra	top1btc		;/*0x18nn to 0x1bnn => btfsc*/case 24:
+	bra	top1btc		;                           case 25:
+	bra	top1btc		;                          case 26:
+	bra	top1btc		;                         case 27: goto top1btc;
+	bra	top1bts		;/*0x1cnn to 0x1fnn => btfss*/case 28:
+	bra	top1bts		;                           case 29:
+	bra	top1bts		;                          case 30:
+	bra	top1bts		;                         case 31: goto top1bts;
+
+	bra	calllit		;/* 0x20nn to 0x27nn => call */ case 32:
+	bra	calllit		;                              case 33:
+	bra	calllit		;                             case 34:
+	bra	calllit		;                            case 35:
+	bra	calllit		;                           case 36:
+	bra	calllit		;                          case 37:
+	bra	calllit		;                         case 38:
+	bra	calllit		;                        case 39: goto calllit;
+	bra	gotolit		;/* 0x28nn to 0x2fnn => goto */ case 40:
+	bra	gotolit		;                              case 41:
+	bra	gotolit		;                             case 42:
+	bra	gotolit		;                            case 43:
+	bra	gotolit		;                           case 44:
+	bra	gotolit		;                          case 45:
+	bra	gotolit		;                         case 46:
+	bra	gotolit		;                        c:ase 47: goto gotolit;
+
+	bra	literal-6	;/* 0x30nn => movlw */ case 48: goto literal-6;
+	bra	overld2		;/*0x31nn => movlp/addfsr*/case 49:goto overld2;
+	bra	brafwd		;/*0x32nn => bra(negative)*/case 50:goto brafwd;
+	bra	brarev		;/*0x33nn => bra(positive)*/case 51:goto brarev;
+	bra	literal-5	;/* 0x34nn => retlw */ case 52: goto literal-5;
+	bra	destreg-4	;/* 0x35nn => lslf  */ case 53: goto destreg-4;
+	bra	destreg-3	;/* 0x36nn => lsrf  */ case 54: goto destreg-3;
+	bra	destreg-2	;/* 0x37nn => asrf  */ case 55: goto destreg-2;
+	bra	literal-4	;/* 0x38nn => iorlw */ case 56: goto literal-4;
+	bra	literal-3	;/* 0x39nn => andlw */ case 57: goto literal-3;
+	bra	literal-2	;/* 0x3ann => xorlw */ case 58: goto literal-2;
+	bra	destreg-1	;/* 0x3bnn => subwfb*/ case 59: goto destreg-1;
+	bra	literal-1	;/* 0x3cnn => sublw */ case 60: goto literal-1;
+	bra	destreg-0	;/* 0x3dnn => addwfc*/ case 61: goto destreg-0;
+	bra	literal-0	;/* 0x3enn => addlw */ case 62: goto literal-0;
+	bra	ovrld3		;/* 0x3fnn => movwi(offset)/moviw(offset)
+	
+;;; FIXME
+top1bcf
+	movwf	1+enc
+top1bsf
+	movwf	1+enc
+top1btc
+	movwf	1+enc
+top1bts	
+	movwf	1+enc
+;;; FIXME
+	
+	incf	1+enc,f		; // opc_lit[6] = "movlw 0"
+	incf	1+enc,f		; // opc_lit[5] = "retlw 0"
+	incf	1+enc,f		; // opc_lit[4] = "iorlw 0"
+	incf	1+enc,f		; // opc_lit[3] = "andlw 0"
+	incf	1+enc,f		; // opc_lit[2] = "xorlw 0"
+	incf	1+enc,f		; // opc_lit[1] = "sublw 0"
+literal
+	lslf	1+enc,w		; // opc_lit[0] = "addlw 0"
+	lslf	WREG		;
+	addlw	low opc_lit	;
+	movwf	FSR0L		;
+	movlw	high opc_lit	;
+	movwf	FSR0H		;
+	clrw			;
+	addwfc	FSR0H,f		;
+	pagesel	print
+	call	print		; print(fsr0 = opc_lit[w]);
+	movf	enc,f		;
+	btfsc	STATUS,Z	;
+	bra	endopc		; if (enc) {
+	movlw	'x'		;
+	pagesel	putch
+	call	putch		;  putch('x');
+litbyte
+	movf	enc,w		;
+	movwf	zOS_AR1		;
+	clrw			;
+	pagesel	putch
+	call	putch		;
+	bra	endopc		;
+calllit
+	movwf	1+enc		;
+	zOS_ADR	opccall
+	pagesel	print
+	call	print		;
+	bra	lit11		;
+gotolit
+	movwf	1+enc		;
+	zOS_ADR	opcgoto
+	pagesel	print
+	call	print		;
+lit11
+	movf	1+enc,w		;
+	andlw	0x07		;
+	movwf	zOS_AR0		;
+	clrw			;
+	pagesel	putch
+	call	putch		;
+	bra	litbyte		;
+	
+
+	incf	1+enc,f		; // opc_reg[18] = "subwf  "
+	incf	1+enc,f		; // opc_reg[17] = "decf   "
+	incf	1+enc,f		; // opc_reg[16] = "iorwf  "
+	incf	1+enc,f		; // opc_reg[15] = "andwf  "
+	incf	1+enc,f		; // opc_reg[14] = "xorwf  "
+	incf	1+enc,f		; // opc_reg[13] = "addwf  "
+	incf	1+enc,f		; // opc_reg[12] = "movf   "
+	incf	1+enc,f		; // opc_reg[11] = "comf   "
+	incf	1+enc,f		; // opc_reg[10] = "incf   "
+	incf	1+enc,f		; // opc_reg[9] = "decfsz "
+	incf	1+enc,f		; // opc_reg[8] = "rrf    "
+	incf	1+enc,f		; // opc_reg[7] = "rlf    "
+	incf	1+enc,f		; // opc_reg[6] = "swapf  "
+	incf	1+enc,f		; // opc_reg[5] = "incfsz "
+	incf	1+enc,f		; // opc_reg[4] = "lslf   "
+	incf	1+enc,f		; // opc_reg[3] = "lsrf   "
+	incf	1+enc,f		; // opc_reg[2] = "asrf   "
+	incf	1+enc,f		; // opc_reg[1] = "subwfb "
+destreg
+	lslf	1+enc,w		; // opc_reg[0] = "addwfc "
+	lslf	WREG		;
+	addlw	low opc_reg	;
+	movwf	FSR0L		;
+	movlw	high opc_reg	;
+	movwf	FSR0H		;
+	clrw			;
+	addwfc	FSR0H,f		;
+	pagesel	print
+	call	print		;
+	movf	enc,w		;
+	andlw	0x7f		;
+	movwf	zOS_AR1		;
+	addlw	0-0x0c		;
+	btfsc	WREG,7		;
+	bra	namereg		;
+	clrw			;
+	pagesel	putch
+	call	putch		;
+	bra	flagreg		;
+namereg
+	movf	enc,w		;
+	callw			;
+	bra	putname		;
+	retlw	regnam1-regnam0	;
+	retlw	regnam2-regnam0	;
+	retlw	regnam3-regnam0	;
+	retlw	regnam4-regnam0	;
+	retlw	regnam5-regnam0	;
+	retlw	regnam6-regnam0	;
+	retlw	regnam7-regnam0	;
+	retlw	regnam8-regnam0	;
+	retlw	regnam9-regnam0	;
+	retlw	regnamA-regnam0	;
+	retlw	regnamB-regnam0	;
+putname
+	addlw	low regnam0	;
+	movwf	FSR0L		;
+	movlw	high regnam0	;
+	movwf	FSR0H		;
+	clrw			;
+	addwfc	FSR0H,f		;
+	pagesel	print
+	call	print		;
+flagreg
+	movlw	','		;
+	pagesel	putch
+	call	putch		;
+	movlw	'f'		;
+	btfss	enc,7		;
+	movlw	'w'		;
+	pagesel	putch
+	call	putch		;
+	bra	endopc		;
+overld0
+	pagesel	omnibus
+	goto	omnibus		;
+overld1
+	pagesel	clear
+	goto	clear		;
+overld2
+	pagesel	paging
+	goto	paging		;
+overld3
+	pagesel	moviwwi
+	goto	moviwwi		;
+	
+omnibus
+
+clr_reg
+	
+paging
+	
+moviwwi
+	
+opc_lit
+	da	"addlw 0"
+	da	"sublw 0"
+	da	"xorlw 0"
+	da	"andlw 0"
+	da	"iorlw 0"
+	da	"retlw 0"
+	da	"movlw 0"
+opc_reg
+	da	"addwfc "
+	da	"subwfb "
+	da	"asrf   "
+	da	"lsrf   "
+	da	"lslf   "
+	da	"incfsz "
+	da	"swapf  "
+	da	"rlf    "
+	da	"rrf    "
+	da	"decfsz "
+	da	"incf   "
+	da	"comf   "
+	da	"movf   "
+	da	"addwf  "
+	da	"xorwf  "
+	da	"andwf  "
+	da	"iorwf  "
+	da	"decf   "
+	da	"subwf  "
+opccall
+	da	"call 0x"
+opcgoto
+	da	"goto 0x"
+regnam
+	da	"INDF0"
+regnam1
+	da	"INDF1"
+regnam2
+	da	"PCL"
+regnam3
+	da	"STATUS"
+regnam4
+	da	"FSR0L"
+regnam5
+	da	"FSR0H"
+regnam6
+	da	"FSR1L"
+regnam7
+	da	"FSR1H"
+regnam8
+	da	"BSR"
+regnam9
+	da	"WREG"
+regnamA
+	da	"PCLATH"
+regnamB
+	da	"INTCON"
 	endm
 
 
