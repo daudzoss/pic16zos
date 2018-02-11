@@ -1727,6 +1727,99 @@ endmon
 	zOS_INP	p,ra,rt,h,pi,monisr 
 	endm	
 
+zOS_DEC	macro	swinum,enc,link	;zOS_DEC accumul,zos_opr
+
+	movf	1+enc,w
+	andlw	0x3f
+	brw
+	bra	top00
+	bra	top01
+	bra	top02
+	bra	top03
+	bra	top04
+	bra	top05
+	bra	top06
+	bra	top07
+	bra	top08
+	bra	top09
+	bra	top0a
+	bra	top0b
+	bra	top0c
+	bra	top0d
+	bra	top0e
+	bra	top0f
+
+	bra	top1bcf
+	bra	top1bcf
+	bra	top1bcf
+	bra	top1bcf
+	bra	top1bsf
+	bra	top1bsf
+	bra	top1bsf
+	bra	top1bsf
+	bra	top1btc
+	bra	top1btc
+	bra	top1btc
+	bra	top1btc
+	bra	top1bts
+	bra	top1bts
+	bra	top1bts
+	bra	top1bts
+
+	bra	calllit	
+	bra	calllit	
+	bra	calllit	
+	bra	calllit	
+	bra	calllit	
+	bra	calllit	
+	bra	calllit	
+	bra	calllit	
+	bra	gotolit
+	bra	gotolit
+	bra	gotolit
+	bra	gotolit
+	bra	gotolit
+	bra	gotolit
+	bra	gotolit
+	bra	gotolit
+
+	bra	top30
+	bra	top31
+	bra	top32
+	bra	top33
+	bra	top34
+	bra	top35
+	bra	top36
+	bra	top37
+	bra	top38
+	bra	top39
+	bra	top3a
+	bra	top3b
+	bra	top3c
+	bra	top3d
+	bra	top3e
+	bra	top3f
+calllit
+	movlw	low 	
+	movwf	FSR0L
+	movlw	high
+	movwf	FSR0H
+	pagesel	print
+	call	print
+	bra	lit11
+gotolit
+	movlw	low 	
+	movwf	FSR0L
+	movlw	high
+	movwf	FSR0H
+	pagesel	print
+	call	print
+lit11
+
+	
+	endm
+
+
 zOS_NAM	macro	str
 	local	start
 start
