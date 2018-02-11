@@ -1727,10 +1727,12 @@ zOS_DEC	macro	putch,enc,retadr;e.g. zOS_DEC monout,accumul,zos_opr
 	
 	local	puts,loop,done	; NOT zos_opc because my purpose is to define it
 	local	
-	local	top1bcf,top1bsf,top1btc,top1bts,calllit,gotolit
-	local	
-	local	
-	local	
+	local	top1bcf,top1bsf,top1btc,top1bts,calllit,gotolit,endopc
+	local	literal,litbyte,calllit,gotolit,lit11,opc_lit,opccall,opcgoto
+	local	destreg,namereg,putname,flagreg,opc_reg
+	local	regnam0,regnam1,regnam2,regnam3,regnam4,regnam5
+	local	regnam6,regnam7,regnam8,regnam9,regnamA,regnamB
+	local	overld0,omnibus,overld1,clr_reg,overld2,paging,overld3,moviwwi
 
 puts
 	banksel	zOS_ADL
@@ -1972,13 +1974,15 @@ flagreg
 	movlw	'w'		;
 	pagesel	putch
 	call	putch		;
-	bra	endopc		;
+endopc
+	pagesel	retadr
+	goto	retadr		;
 overld0
 	pagesel	omnibus
 	goto	omnibus		;
 overld1
-	pagesel	clear
-	goto	clear		;
+	pagesel	clr_reg
+	goto	clr_reg		;
 overld2
 	pagesel	paging
 	goto	paging		;
@@ -1993,7 +1997,75 @@ clr_reg
 paging
 	
 moviwwi
+;;; if we arrive from omnibus, must have enc already swapf'ed
+;;; FIXME: use some branching, don't need to always use carry flag to select < 3
+	clrw			;
+	btfsc	enc,7		;
+	movlw	opc_mwi-opc_miw	;
+	addlw	low opc_miw	;
+	movwf	FSR0L		;
+	movlw	high opc_miw	;
+	movwf	FSR0H		;
+	clrw			;
+	addwfc	FSR0H,f		;
+	pagesel	print
+	call	print		;
 	
+	btfsc	1+enc,0		;
+	bra	movoffs		;
+	btfsc	enc,5		;
+	bra	postinc
+	
+	
+
+	pagesel	retadr
+	goto	retadr		;
+	
+movoffs
+	movlw	'0'		;
+	pagesel	putch
+	call	putch		;
+	movlw	'x'		;
+	pagesel	putch
+	call	putch		;
+	movlw	0x3f		;
+	andwf	enc,w		;
+	btfsc	enc,5		;
+	bsf	enc,6		;
+	btfsc	enc,5		;
+	bsf	enc,7		;
+	movwf	zOS_AR0		;
+	clrw			;
+	pagesel	putch
+	call	putch		;
+	zOS_ADR	low offset0	;
+	movlw	0		;
+	btfsc	enc,6		;
+	movlw	offset1-offset0	;
+	addwf	FSR0L		;
+	movlw	0		;
+	addwfc	FSR0H		;
+	pagesel	print
+	call	print		;
+	pagesel	retadr
+	goto	retadr		;
+	
+offset0
+	da	"[FSR0]"
+offset1
+	da	"[FSR1]"
+minfsr	
+	da	"--FSR"
+minmin
+	da	"--"
+plufsr
+	da	"++FSR"
+pluplu
+	da	"++"
+opc_miw	
+	da	"moviw  "
+opc_mwi
+	da	"movwi  "
 opc_lit
 	da	"addlw 0"
 	da	"sublw 0"
@@ -2026,7 +2098,7 @@ opccall
 	da	"call 0x"
 opcgoto
 	da	"goto 0x"
-regnam
+regnam0
 	da	"INDF0"
 regnam1
 	da	"INDF1"
