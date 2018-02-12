@@ -1341,17 +1341,15 @@ monloop
 	return			;} // monback() monloop()
 	
 monout
-	movf	wreg		;void monout(char w, char zOS_AR1) {
-	btfss	STATUS,Z	; if (w) monbufs(w);
-	bra	monbufs		; else
-	movf	zOS_AR1,w	;  monlsb(w = zOS_AR1);
+	btfss	STATUS,C	;void monout(char w, uint1_t c) {
+	bra	monbufs		; if (c == 0) monbufs(w); else monlsb(w);
 	bra	monlsb		;}
 monhex
 	movf	accumuh,w	;void monhex(void) { monlsb(,,w = accumuh); }
 monlsb
 	clrf	zOS_AR0		;void monlsb(uint3_t job, uint8_t ptr, char w) {
 	movwf	zOS_AR1		;
-	zOS_BUF	FSR1,max,p0	; return zOS_BUF(job,ptr,w); } // 0/1/2 printed
+	zOS_BUF	FSR1,max,p0	; return zOS_BUF(&fsr,ptr,w); } // 0/1/2 printed
 	return			;} // monlsb
 	
 mon0
@@ -1747,6 +1745,7 @@ loop
 	btfsc	STATUS,Z	;
 	bra	done		;  if ((w = (zOS_RDH<<1)|(zOS_RDL>>7)) != '\0'){
 	pagesel	putch
+	bcf	STATUS,C	;
 	call	putch		;
 	
 	banksel	zOS_RDL
@@ -1755,6 +1754,7 @@ loop
 	btfsc	STATUS,Z	;
 	bra	done		;
 	pagesel	putch
+	bcf	STATUS,C	;
 	call	putch		;
 
 	banksel	zOS_ADL		;
@@ -1767,9 +1767,7 @@ done
 zos_opc	
 	movlw	0x3f		;void zos_opc(uint14_t enc) {
 	andwf	1+enc,w		; uint8_t w = (enc &= 0x3fff) >> 8;
-	movwf	1+enc		; /*00--nn=>00,01--nn=>01,10--nn=>10,11--nn=>00/
-	btfsc	1+enc,5		; if (enc & 0x0800 == enc & 0x0400)
-	btfsc	1+enc,4		;  enc &= 0x00ff; /*for literal/destreg offset*/
+				; enc &= 0x00ff; // builds string index in 1+enc
 	clrf	1+enc		; switch (w) { case 0: /*
 	brw			;movwf/callw/movlb/brw/retfie/return/clrwdt/nop/
 	bra	overld0		;option/reset/sleep/tris/mov[wi]*/ goto overld0;
@@ -1838,17 +1836,27 @@ zos_opc
 	bra	literal-1	;/* 0x3cnn => sublw */ case 60: goto literal-1;
 	bra	destreg-0	;/* 0x3dnn => addwfc*/ case 61: goto destreg-0;
 	bra	literal-0	;/* 0x3enn => addlw */ case 62: goto literal-0;
-	bra	ovrld3		;/* 0x3fnn => movwi(offset)/moviw(offset)
-	
-;;; FIXME
-top1bcf
-	movwf	1+enc
-top1bsf
-	movwf	1+enc
-top1btc
-	movwf	1+enc
-top1bts	
-	movwf	1+enc
+	bra	ovrld3		;/* 0x3fnn => movwi(offset)/moviw(offset) */
+
+bitops
+	andlw	0x0f		;//fortuitous that opcodes separated by 4 in enc
+	movwf	1+enc		;//as well as the opcode strings of 4 words!
+	addlw	low opc_bcf	;
+	movwf	FSR0L		;
+	movlw	high opc_bcf	;
+	movwf	FSR0H		;
+	clrw			;
+	addwfc	FSR0H,f		;
+	pagesel	print
+	call	print		; print(fsr0 = bit_lit[w]);
+	movlw	0x03		;
+	andwf	1+enc		; enc[1] &= 0x07; // bit number < 8
+	rlf	enc,w		; enc[1] <<= 1; // pull in bit 7 from low byte
+	rlf	1+enc,f		; enc[1] |= (w & 0x80) ? 1 : 0;  // bit number<8
+	lslf	1+enc,f		; enc[1] <<= 1; // bit number now in bits 3:1
+	bsf	1+enc,1		; enc[1] |= 1; // so that C is set for print
+	bra	nametst		;
+
 ;;; FIXME
 	
 	incf	1+enc,f		; // opc_lit[6] = "movlw 0"
@@ -1873,31 +1881,30 @@ literal
 	bra	endopc		; if (enc) {
 	movlw	'x'		;
 	pagesel	putch
+	bcf	STATUS,C	;
 	call	putch		;  putch('x');
 litbyte
 	movf	enc,w		;
-	movwf	zOS_AR1		;
-	clrw			;
 	pagesel	putch
+	bsf	STATUS,C	;
 	call	putch		;
 	bra	endopc		;
 calllit
 	movwf	1+enc		;
-	zOS_ADR	opccall
+	zOS_ADR	opccall,zOS_FLA
 	pagesel	print
 	call	print		;
 	bra	lit11		;
 gotolit
 	movwf	1+enc		;
-	zOS_ADR	opcgoto
+	zOS_ADR	opcgoto,zOS_FLA
 	pagesel	print
 	call	print		;
 lit11
 	movf	1+enc,w		;
 	andlw	0x07		;
-	movwf	zOS_AR0		;
-	clrw			;
 	pagesel	putch
+	bsf	STATUS,C	;
 	call	putch		;
 	bra	litbyte		;
 	
@@ -1922,6 +1929,7 @@ lit11
 	incf	1+enc,f		; // opc_reg[1] = "subwfb "
 destreg
 	lslf	1+enc,w		; // opc_reg[0] = "addwfc "
+	clrf	1+enc		; //so test between w and f will happen for wf's
 	lslf	WREG		;
 	addlw	low opc_reg	;
 	movwf	FSR0L		;
@@ -1931,14 +1939,18 @@ destreg
 	addwfc	FSR0H,f		;
 	pagesel	print
 	call	print		;
-	movf	enc,w		;
-	andlw	0x7f		;
-	movwf	zOS_AR1		;
+nametst	
+	movlw	0x7f		;
+	andwf	enc,f		;
 	addlw	0-0x0c		;
 	btfsc	WREG,7		;
 	bra	namereg		;
-	clrw			;
+	zOS_ADR	hexpref,zOS_FLA	;
+	pagesel	print
+	call	print		;
+	movf	enc,w		;
 	pagesel	putch
+	bsf	STATUS,C	;
 	call	putch		;
 	bra	flagreg		;
 namereg
@@ -1968,10 +1980,15 @@ putname
 flagreg
 	movlw	','		;
 	pagesel	putch
+	bcf	STATUS,C	;
 	call	putch		;
+	lsrf	1+enc,w		;
+	btfsc	STATUS,C	;
+	bra	regarg2		;
 	movlw	'f'		;
 	btfss	enc,7		;
 	movlw	'w'		;
+regarg2	
 	pagesel	putch
 	call	putch		;
 endopc
@@ -1989,6 +2006,16 @@ overld2
 overld3
 	pagesel	moviwwi
 	goto	moviwwi		;
+	
+bitops
+	andlw	0x07		;void bitops(uint8_t w, uint8_t* enc) {
+	movwf	1+enc		; enc[1] &= 0x07; // bit number < 8
+	rlf	enc,w		; enc[1] <<= 1; // pull in bit 7 from low byte
+	rlf	1+enc,f		; enc[1] |= (w & 0x80) ? 1 : 0;  // bit number<8
+	lslf	1+enc,f		; enc[1] <<= 1; // bit number now in bits 3:1
+	bsf	1+enc,1		; enc[1] |= 1; // so that C is set for print
+	movlw	0x7f		; enc[0] &= 0x7f; // register file number
+	andwf	enc,f		;}
 	
 omnibus
 
@@ -2038,7 +2065,7 @@ movoffs
 	clrw			;
 	pagesel	putch
 	call	putch		;
-	zOS_ADR	low offset0	;
+	zOS_ADR	offset0,zOS_FLA	;
 	movlw	0		;
 	btfsc	enc,6		;
 	movlw	offset1-offset0	;
@@ -2094,6 +2121,14 @@ opc_reg
 	da	"iorwf  "
 	da	"decf   "
 	da	"subwf  "
+opcbcf
+	da	"bcf    "
+opcbsf
+	da	"bsf    "
+opcbtc
+	da	"btfsc  "
+opcbts
+	da	"btfss  "
 opccall
 	da	"call 0x"
 opcgoto
