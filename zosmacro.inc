@@ -1344,6 +1344,7 @@ monout
 	btfss	STATUS,C	;void monout(char w, uint1_t c) {
 	bra	monbufs		; if (c == 0) monbufs(w); else monlsb(w);
 	bra	monlsb		;}
+	
 monhex
 	movf	accumuh,w	;void monhex(void) { monlsb(,,w = accumuh); }
 monlsb
@@ -1529,7 +1530,7 @@ mondest
 	movf	accumul,w	;
 	pagesel	monlsb	
 	call	monlsb		;    moncrlf(zos_job, p0);          //     \r\n
-#ifdef zos_opc
+#ifdef DISASM
 	pagesel	zos_opc
 	goto	zos_opc		;    zos_opc(); // disassemble accumu, jump back
 zos_opr
@@ -1717,7 +1718,10 @@ monzero
 monlast
 	clrf	char_io		;} // zOS_MON()
 	zOS_RFI
-endmon
+#ifdef DISASM
+	zOS_DEC	monout,accumul,zos_opr
+#endif
+endif
 	zOS_INP	p,ra,rt,h,pi,monisr 
 	endm	
 
@@ -1765,10 +1769,18 @@ loop
 done
 	return			;} // puts()
 zos_opc	
-	movlw	0x3f		;void zos_opc(uint14_t enc) {
-	andwf	1+enc,w		; uint8_t w = (enc &= 0x3fff) >> 8;
-				; enc &= 0x00ff; // builds string index in 1+enc
-	clrf	1+enc		; switch (w) { case 0: /*
+	movlw	0x1f		;void zos_opc(uint14_t enc) {
+	andwf	1+enc,w		; uint8_t w = (enc &= 0x1fff) >> 8;
+	btfss	1+enc,5		;
+	bra	ophi_0X		;
+	btfss	1+enc,4		;
+	bra	calllit		; if ((enc & 0x3000 == 0x3000) ||
+	bra	ophi_11		;     (enc & 0x3000 == 0)) { // not b_/call/goto
+ophi_0X
+	btfsc	1+enc,4		;
+	bra	bitops		;  enc = w; // builds string index in bits 8~12
+ophi_11
+	clrf	1+enc		;  switch (w) { case 0: /*
 	brw			;movwf/callw/movlb/brw/retfie/return/clrwdt/nop/
 	bra	overld0		;option/reset/sleep/tris/mov[wi]*/ goto overld0;
 	bra	overld1		;/* 0x01nn=>clrf/clrw*/ case 1: goto overld1;
@@ -1787,78 +1799,41 @@ zos_opc
 	bra	destreg-6	;/* 0x0enn => swapf  */case 14: goto destreg-6;
 	bra	destreg-5	;/* 0x0fnn => incfsz */case 15: goto destreg-5;
 
-	bra	top1bcf		;/*0x10nn to 0x13nn => bcf*/ case 16:
-	bra	top1bcf		;                           case 17:
-	bra	top1bcf		;                          case 18:
-	bra	top1bcf		;                         case 19: goto top1bcf;
-	bra	top1bsf		;/*0x14nn to 0x17nn => bsf*/ case 20:
-	bra	top1bsf		;                           case 21:
-	bra	top1bsf		;                          case 22:
-	bra	top1bsf		;                         case 23: goto top1bsf;
-	bra	top1btc		;/*0x18nn to 0x1bnn => btfsc*/case 24:
-	bra	top1btc		;                           case 25:
-	bra	top1btc		;                          case 26:
-	bra	top1btc		;                         case 27: goto top1btc;
-	bra	top1bts		;/*0x1cnn to 0x1fnn => btfss*/case 28:
-	bra	top1bts		;                           case 29:
-	bra	top1bts		;                          case 30:
-	bra	top1bts		;                         case 31: goto top1bts;
-
-	bra	calllit		;/* 0x20nn to 0x27nn => call */ case 32:
-	bra	calllit		;                              case 33:
-	bra	calllit		;                             case 34:
-	bra	calllit		;                            case 35:
-	bra	calllit		;                           case 36:
-	bra	calllit		;                          case 37:
-	bra	calllit		;                         case 38:
-	bra	calllit		;                        case 39: goto calllit;
-	bra	gotolit		;/* 0x28nn to 0x2fnn => goto */ case 40:
-	bra	gotolit		;                              case 41:
-	bra	gotolit		;                             case 42:
-	bra	gotolit		;                            case 43:
-	bra	gotolit		;                           case 44:
-	bra	gotolit		;                          case 45:
-	bra	gotolit		;                         case 46:
-	bra	gotolit		;                        c:ase 47: goto gotolit;
-
-	bra	literal-6	;/* 0x30nn => movlw */ case 48: goto literal-6;
-	bra	overld2		;/*0x31nn => movlp/addfsr*/case 49:goto overld2;
-	bra	brafwd		;/*0x32nn => bra(negative)*/case 50:goto brafwd;
-	bra	brarev		;/*0x33nn => bra(positive)*/case 51:goto brarev;
-	bra	literal-5	;/* 0x34nn => retlw */ case 52: goto literal-5;
-	bra	destreg-4	;/* 0x35nn => lslf  */ case 53: goto destreg-4;
-	bra	destreg-3	;/* 0x36nn => lsrf  */ case 54: goto destreg-3;
-	bra	destreg-2	;/* 0x37nn => asrf  */ case 55: goto destreg-2;
-	bra	literal-4	;/* 0x38nn => iorlw */ case 56: goto literal-4;
-	bra	literal-3	;/* 0x39nn => andlw */ case 57: goto literal-3;
-	bra	literal-2	;/* 0x3ann => xorlw */ case 58: goto literal-2;
-	bra	destreg-1	;/* 0x3bnn => subwfb*/ case 59: goto destreg-1;
-	bra	literal-1	;/* 0x3cnn => sublw */ case 60: goto literal-1;
-	bra	destreg-0	;/* 0x3dnn => addwfc*/ case 61: goto destreg-0;
-	bra	literal-0	;/* 0x3enn => addlw */ case 62: goto literal-0;
-	bra	ovrld3		;/* 0x3fnn => movwi(offset)/moviw(offset) */
+	bra	literal-6	;/* 0x30nn => movlw */ case 16: goto literal-6;
+	bra	overld2		;/* 0x31nn movlp/addfsr */case 17:goto overld2;
+	bra	brafwd		;/* 0x32nn => bra(pos) */case 18: goto brafwd;
+	bra	brarev		;/* 0x33nn => bra(nge) */case 19: goto brarev;
+	bra	literal-5	;/* 0x34nn => retlw */ case 20: goto literal-5;
+	bra	destreg-4	;/* 0x35nn => lslf  */ case 21: goto destreg-4;
+	bra	destreg-3	;/* 0x36nn => lsrf  */ case 22: goto destreg-3;
+	bra	destreg-2	;/* 0x37nn => asrf  */ case 23: goto destreg-2;
+	bra	literal-4	;/* 0x38nn => iorlw */ case 24: goto literal-4;
+	bra	literal-3	;/* 0x39nn => andlw */ case 25: goto literal-3;
+	bra	literal-2	;/* 0x3ann => xorlw */ case 26: goto literal-2;
+	bra	destreg-1	;/* 0x3bnn => subwfb*/ case 27: goto destreg-1;
+	bra	literal-1	;/* 0x3cnn => sublw */ case 28: goto literal-1;
+	bra	destreg-0	;/* 0x3dnn => addwfc*/ case 29: goto destreg-0;
+	bra	literal-0	;/* 0x3enn => addlw */ case 30: goto literal-0;
+	bra	ovrld3		;/* 0x3fnn movwi/iw []*/ case 31: goto overld3;
 
 bitops
-	andlw	0x0f		;//fortuitous that opcodes separated by 4 in enc
-	movwf	1+enc		;//as well as the opcode strings of 4 words!
-	addlw	low opc_bcf	;
-	movwf	FSR0L		;
-	movlw	high opc_bcf	;
+	andlw	0x0c		; } else if (enc & 0x3000 == 0x1000) { // bit op
+	addlw	low opc_bit	;// fortuitously, opcodes are separated by 4 in
+	movwf	FSR0L		;// enc as well as the opcode strings of 4 words
+	movlw	high opc_bit	;
 	movwf	FSR0H		;
 	clrw			;
 	addwfc	FSR0H,f		;
 	pagesel	print
-	call	print		; print(fsr0 = bit_lit[w]);
+	call	print		;  print(fsr0 = bit_lit[w /*0,4,8 or 12*/ >>2]);
 	movlw	0x03		;
-	andwf	1+enc		; enc[1] &= 0x07; // bit number < 8
-	rlf	enc,w		; enc[1] <<= 1; // pull in bit 7 from low byte
-	rlf	1+enc,f		; enc[1] |= (w & 0x80) ? 1 : 0;  // bit number<8
-	lslf	1+enc,f		; enc[1] <<= 1; // bit number now in bits 3:1
-	bsf	1+enc,1		; enc[1] |= 1; // so that C is set for print
-	bra	nametst		;
+	andwf	1+enc,f		;  enc[1] &= 0x03; // bit number < 8
+	rlf	enc,w		;  enc[1] <<= 1; // pull in bit 7 from low byte:
+	rlf	1+enc,f		;  enc[1] |= (w & 0x80) ? 1 : 0; // bit number<8
+	lslf	1+enc,f		;  enc[1] <<= 1; // bit number now in bits 3:1
+	bsf	1+enc,1		;  enc[1] |= 1; // and now C is set for print
+	bra	nametst		;  goto nametst; // handle known register names
 
-;;; FIXME
-	
 	incf	1+enc,f		; // opc_lit[6] = "movlw 0"
 	incf	1+enc,f		; // opc_lit[5] = "retlw 0"
 	incf	1+enc,f		; // opc_lit[4] = "iorlw 0"
@@ -1866,7 +1841,7 @@ bitops
 	incf	1+enc,f		; // opc_lit[2] = "xorlw 0"
 	incf	1+enc,f		; // opc_lit[1] = "sublw 0"
 literal
-	lslf	1+enc,w		; // opc_lit[0] = "addlw 0"
+	lslf	1+enc,w		; } literal: // opc_lit[0] = "addlw 0"
 	lslf	WREG		;
 	addlw	low opc_lit	;
 	movwf	FSR0L		;
@@ -1878,35 +1853,35 @@ literal
 	call	print		; print(fsr0 = opc_lit[w]);
 	movf	enc,f		;
 	btfsc	STATUS,Z	;
-	bra	endopc		; if (enc) {
+	bra	endopc		; if (enc & 0xff) { // nonzero literal
 	movlw	'x'		;
 	pagesel	putch
 	bcf	STATUS,C	;
-	call	putch		;  putch('x');
+	call	putch		;  putch('x', c = 0);
 litbyte
-	movf	enc,w		;
+	movf	enc,w		; litbyte:
 	pagesel	putch
-	bsf	STATUS,C	;
-	call	putch		;
-	bra	endopc		;
+	bsf	STATUS,C	;  putch(enc & 0xff, c = 1); // as hexadecimal
+	call	putch		;  return;
+	bra	endopc		; }
 calllit
-	movwf	1+enc		;
-	zOS_ADR	opccall,zOS_FLA
+	lsrf	1+enc,w		;
+	swapf	WREG		;
+	andlw	0x04		; w = (w & 0x80) /* 0=call, 0x80=goto */ >> 5;
+	addlw	low opccall	;
+	movwf	FSR0L		;
+	movlw	high opccall	;
+	movwf	FSR0H		;
+	clrw			;
+	addwfc	FSR0H,f		;
 	pagesel	print
-	call	print		;
-	bra	lit11		;
-gotolit
-	movwf	1+enc		;
-	zOS_ADR	opcgoto,zOS_FLA
-	pagesel	print
-	call	print		;
-lit11
+	call	print		; print(fsr0 = opccall[w /*0 or 4*/ >> 2];
 	movf	1+enc,w		;
 	andlw	0x07		;
 	pagesel	putch
 	bsf	STATUS,C	;
-	call	putch		;
-	bra	litbyte		;
+	call	putch		; putch((enc&0x700) >> 8,c=1); // as hexadecimal
+	bra	litbyte		; goto litbyte; // lsb above, to save space
 	
 
 	incf	1+enc,f		; // opc_reg[18] = "subwf  "
@@ -1940,8 +1915,8 @@ destreg
 	pagesel	print
 	call	print		;
 nametst	
-	movlw	0x7f		;
-	andwf	enc,f		;
+	movf	enc,w		;
+	andlw	0x7f		;
 	addlw	0-0x0c		;
 	btfsc	WREG,7		;
 	bra	namereg		;
@@ -1949,6 +1924,7 @@ nametst
 	pagesel	print
 	call	print		;
 	movf	enc,w		;
+	andlw	0x7f		;
 	pagesel	putch
 	bsf	STATUS,C	;
 	call	putch		;
@@ -2006,16 +1982,6 @@ overld2
 overld3
 	pagesel	moviwwi
 	goto	moviwwi		;
-	
-bitops
-	andlw	0x07		;void bitops(uint8_t w, uint8_t* enc) {
-	movwf	1+enc		; enc[1] &= 0x07; // bit number < 8
-	rlf	enc,w		; enc[1] <<= 1; // pull in bit 7 from low byte
-	rlf	1+enc,f		; enc[1] |= (w & 0x80) ? 1 : 0;  // bit number<8
-	lslf	1+enc,f		; enc[1] <<= 1; // bit number now in bits 3:1
-	bsf	1+enc,1		; enc[1] |= 1; // so that C is set for print
-	movlw	0x7f		; enc[0] &= 0x7f; // register file number
-	andwf	enc,f		;}
 	
 omnibus
 
@@ -2121,17 +2087,13 @@ opc_reg
 	da	"iorwf  "
 	da	"decf   "
 	da	"subwf  "
-opcbcf
+opc_bit
 	da	"bcf    "
-opcbsf
 	da	"bsf    "
-opcbtc
 	da	"btfsc  "
-opcbts
 	da	"btfss  "
-opccall
+opc_lit
 	da	"call 0x"
-opcgoto
 	da	"goto 0x"
 regnam0
 	da	"INDF0"
