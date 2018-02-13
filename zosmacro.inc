@@ -1738,7 +1738,7 @@ zOS_DEC	macro	putch,enc,retadr;e.g. zOS_DEC monout,accumul,zos_opr
 
 puts
 	banksel	zOS_ADL
-	movf	FSR0L,w		;void puts(char w) {
+	movf	FSR0L,w		;void puts(char w) { // banks; GIE must be clear
 	movwf	zOS_ADL		;
 	movf	FSR0H,w		;//FIXME: needs comments
 	movwf	zOS_ADH		;
@@ -1824,14 +1824,14 @@ bitops
 	movwf	FSR0H		;
 	clrw			;
 	addwfc	FSR0H,f		;
-	pagesel	print
-	call	print		;  print(fsr0 = bit_lit[w /*0,4,8 or 12*/ >>2]);
+	pagesel	puts
+	call	puts		;  puts(fsr0 = bit_lit[w /*0,4,8 or 12*/ >>2]);
 	movlw	0x03		;
 	andwf	1+enc,f		;  enc[1] &= 0x03; // bit number < 8
 	rlf	enc,w		;  enc[1] <<= 1; // pull in bit 7 from low byte:
 	rlf	1+enc,f		;  enc[1] |= (w & 0x80) ? 1 : 0; // bit number<8
 	lslf	1+enc,f		;  enc[1] <<= 1; // bit number now in bits 3:1
-	bsf	1+enc,1		;  enc[1] |= 1; // and now C is set for print
+	bsf	1+enc,1		;  enc[1] |= 1; // and now C is set for puts
 	bra	nametst		;  goto nametst; // handle known register names
 
 	incf	1+enc,f		; // opc_lit[6] = "movlw 0"
@@ -1848,10 +1848,13 @@ literal
 	movlw	high opc_lit	;
 	movwf	FSR0H		;
 	clrw			;
-	addwfc	FSR0H,f		;
-	pagesel	print
-	call	print		; print(fsr0 = opc_lit[w]);
-	movf	enc,f		;
+	addwfc	FSR0H,f		; fsr0 = opc_lit[w];
+	movlw	0xff		; w = 0xff;
+onelit
+	andwf	enc,f		;onelit:
+	pagesel	puts
+	call	puts		; enc &= w;
+	movf	enc,f		; puts(fsr0);
 	btfsc	STATUS,Z	;
 	bra	endopc		; if (enc & 0xff) { // nonzero literal
 	movlw	'x'		;
@@ -1874,8 +1877,8 @@ calllit
 	movwf	FSR0H		;
 	clrw			;
 	addwfc	FSR0H,f		;
-	pagesel	print
-	call	print		; print(fsr0 = opccall[w /*0 or 4*/ >> 2];
+	pagesel	puts
+	call	puts		; puts(fsr0 = opccall[w /*0 or 4*/ >> 2];
 	movf	1+enc,w		;
 	andlw	0x07		;
 	pagesel	putch
@@ -1913,8 +1916,8 @@ onedest
 	movwf	FSR0H		;
 	clrw			;
 	addwfc	FSR0H,f		;
-	pagesel	print
-	call	print		;
+	pagesel	puts
+	call	puts		;
 nametst	
 	movf	enc,w		;
 	andlw	0x7f		;
@@ -1922,8 +1925,8 @@ nametst
 	btfsc	WREG,7		;
 	bra	namereg		;
 	zOS_ADR	hexpref,zOS_FLA	;
-	pagesel	print
-	call	print		;
+	pagesel	puts
+	call	puts		;
 	movf	enc,w		;
 	andlw	0x7f		;
 	pagesel	putch
@@ -1952,8 +1955,8 @@ putname
 	movwf	FSR0H		;
 	clrw			;
 	addwfc	FSR0H,f		;
-	pagesel	print
-	call	print		;
+	pagesel	puts
+	call	puts		;
 flagreg
 	incf	1+enc,w		;
 	btfsc	STATUS,Z	; if (enc & 0xff00 == 0xff00)
@@ -1977,8 +1980,8 @@ endopc
 overld0
 	
 nodest
-	pagesel	print
-	call	print		;
+	pagesel	puts
+	call	puts		;
 	pagesel	retadr
 	goto	retadr		;
 overld1
@@ -1993,17 +1996,65 @@ overld1
 	bra	onedest		;
 	bra	nodest		;
 overld2
-	pagesel	paging
-	goto	paging		;
+	movlw	low opc_mlp	;
+	movwf	FSR0L		;
+	movlw	high opc_mlp	;
+	movwf	FSR0H		;'
+	movlw	0x7f		;
+	btfsc	enc,7		;
+	bra	onelit		;
+	movlw	0		;
+	btfsc	enc,6		;
+	movlw	opc_af1-opc_af0	;
+	addlw	low opc_af0	;
+	movwf	FSR0L		;
+	movlw	high opc_af0	;
+	movwf	FSR0H		;
+	clrw			;
+	addwfc	FSR0H,f		;
+	pagesel	puts
+	call	puts		;
+	bcf	enc,6		;
+	btfsc	enc,5		;
+	bsf	enc,6		; // bit 7 already established as clear
+	movlw	0x1f		;
+	btfss	enc,5		;
+	bra	onelit		;
+	movlw	0xc0		;
+	iorwf	enc,f		;
+	movlw	0xff		;
+	bra	onelit		;
+braneg
+	comf	enc,f		;
+	incf	enc,f		; enc = -enc;
+	movlw	opc_bng-opc_bpo	;
+	btfss	1+enc,0		; // known to be set, since we got here
+brapos
+	movlw	0		;
+	addlw	low opc_bpo	;
+	movwf	FSR0L		;
+	movlw	opc_bpo		;
+	movwf	FSR0H		;
+	clrw			;
+	addwfc	FSR0H,f		;
+	pagesel	puts
+	call	puts		;
+	movlw	0xff		;
+	bra	onelit		;
+	
 overld3
 	pagesel	moviwwi
 	goto	moviwwi		;
 	
 omnibus
+	movlw	low opc_mov	;
+	movwf	FSR0L		;
+	movlw	high opc_mov	;
+	bcf	STATUS,C	;
+	btfss	enc,7		;
+	bra	onedest		;
+ bra litbyte ; // FIXME: nop/reset/return/retfie/callw/brw/moviw/movwi/movlb/option/sleep/clrwdt/tris unimplemented
 
-clr_reg
-	
-paging
 	
 moviwwi
 ;;; if we arrive from omnibus, must have enc already swapf'ed
@@ -2017,8 +2068,8 @@ moviwwi
 	movwf	FSR0H		;
 	clrw			;
 	addwfc	FSR0H,f		;
-	pagesel	print
-	call	print		;
+	pagesel	puts
+	call	puts		;
 	
 	btfsc	1+enc,0		;
 	bra	movoffs		;
@@ -2054,8 +2105,8 @@ movoffs
 	addwf	FSR0L		;
 	movlw	0		;
 	addwfc	FSR0H		;
-	pagesel	print
-	call	print		;
+	pagesel	puts
+	call	puts		;
 	pagesel	retadr
 	goto	retadr		;
 	
@@ -2077,6 +2128,7 @@ opc_miw
 	da	"moviw  "
 opc_mwi
 	da	"movwi  "
+	
 opc_lit
 	da	"addlw 0"
 	da	"sublw 0"
@@ -2085,6 +2137,14 @@ opc_lit
 	da	"iorlw 0"
 	da	"retlw 0"
 	da	"movlw 0"
+opc_mlp
+	da	"movlp 0"
+	
+opc_af0
+	da	"addfsr FSR0,0x"
+opc_af1
+	da	"addfsr FSR1,0x"
+	
 opc_reg
 	da	"addwfc "
 	da	"subwfb "
@@ -2105,17 +2165,28 @@ opc_reg
 	da	"iorwf  "
 	da	"decf   "
 	da	"subwf  "
+opc_mov
+	da	"movwf  "
+
 opc_bit
 	da	"bcf    "
 	da	"bsf    "
 	da	"btfsc  "
 	da	"btfss  "
-opc_lit
+	
+opccall
 	da	"call 0x"
 	da	"goto 0x"
-opc_clrw
+	
+opcclrw
 	da	"clrw "
 	da	"clrf "
+
+opc_bpo
+	da	"bra +0x"
+opc_bng
+	da	"bra -0x"
+	
 regnam0
 	da	"INDF0"
 regnam1
