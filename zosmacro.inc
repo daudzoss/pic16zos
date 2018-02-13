@@ -1909,6 +1909,7 @@ destreg
 	addlw	low opc_reg	;
 	movwf	FSR0L		;
 	movlw	high opc_reg	;
+onedest
 	movwf	FSR0H		;
 	clrw			;
 	addwfc	FSR0H,f		;
@@ -1954,6 +1955,9 @@ putname
 	pagesel	print
 	call	print		;
 flagreg
+	incf	1+enc,w		;
+	btfsc	STATUS,Z	; if (enc & 0xff00 == 0xff00)
+	bra	endopc		;  return;
 	movlw	','		;
 	pagesel	putch
 	bcf	STATUS,C	;
@@ -1971,11 +1975,23 @@ endopc
 	pagesel	retadr
 	goto	retadr		;
 overld0
-	pagesel	omnibus
-	goto	omnibus		;
+	
+nodest
+	pagesel	print
+	call	print		;
+	pagesel	retadr
+	goto	retadr		;
 overld1
-	pagesel	clr_reg
-	goto	clr_reg		;
+	movlw	low opcclrw	;
+	btfsc	enc,7		;
+	addlw	3		;
+	movwf	FSR0L		;
+	movlw	0xff		;
+	movwf	1+enc		;
+	movlw	high opcclrw	;
+	btfsc	enc,7		;
+	bra	onedest		;
+	bra	nodest		;
 overld2
 	pagesel	paging
 	goto	paging		;
@@ -2043,6 +2059,8 @@ movoffs
 	pagesel	retadr
 	goto	retadr		;
 	
+hexpref
+	da	"0x",0
 offset0
 	da	"[FSR0]"
 offset1
@@ -2050,11 +2068,11 @@ offset1
 minfsr	
 	da	"--FSR"
 minmin
-	da	"--"
+	da	"--",0
 plufsr
 	da	"++FSR"
 pluplu
-	da	"++"
+	da	"++",0
 opc_miw	
 	da	"moviw  "
 opc_mwi
@@ -2095,6 +2113,9 @@ opc_bit
 opc_lit
 	da	"call 0x"
 	da	"goto 0x"
+opc_clrw
+	da	"clrw "
+	da	"clrf "
 regnam0
 	da	"INDF0"
 regnam1
