@@ -1340,10 +1340,12 @@ monloop
 	bra	monloop		; }
 	return			;} // monback() monloop()
 	
+#ifdef DISASM	
 monout
-	btfss	STATUS,C	;void monout(char w, uint1_t c) {
+	btfss	STATUS,C	;void monout(char w, uint1_t c) { // zOS_DEC arg
 	bra	monbufs		; if (c == 0) monbufs(w); else monlsb(w);
 	bra	monlsb		;}
+#endif
 	
 monhex
 	movf	accumuh,w	;void monhex(void) { monlsb(,,w = accumuh); }
@@ -1718,13 +1720,53 @@ monlast
 	zOS_RFI
 disasmb
 #ifdef DISASM
-	zOS_DEC	monout,accumul,disasmr
+	zOS_DEC	monout,monpack,accumul,disasmr
+monpack
+#ifdef CAUTIOUS
+	movf	BSR,w
+	movwf	zOS_JOB
+#endif
+	lsrf	zOS_JOB,w	;void puts(char w, uint14t* fsr0) {
+	movwf	FSR1H		; // zos_job = bsr;
+	movf	1+p0,w		;
+	movwf	FSR1L		; fsr1 = (zos_job<<7) | ptr[1];
+	banksel	zOS_ADL
+	movf	FSR0L,w		; // switches banks; GIE must be clear
+	movwf	zOS_ADL		; zOS_ADL = fsr0 & 0x00ff;
+	movf	FSR0H,w		; zOS_ADH = fsr0 >> 8;
+	movwf	zOS_ADH		; while (1) {
+loop
+	zOS_RDF
+	rlf	zOS_RDL,w	;  zOS_RDF(); // read packed 14-bit contents
+	movwf	FSR0L		;  //1st char:
+	rlf	zOS_RDH,w	;  fsr0h = (zOS_RDH<<1) | ((zOS_RDL&0x80)?1:0);
+	movwf	FSR0H		;  //2nd char:
+	lsrf	FSR0L,f		;  fsr0l = zOS_RDL & 0x7f;
+	movf	zOS_JOB,w	;
+	movwf	BSR		;  bsr = zos_job; // back in buffer's bank
+	
+	movf	FSR0H,w		;  if ((w = fsr0h) == 0)
+	btfsc	STATUS,Z	;   break; // null terminator in high byte
+	bra	done		;  zOS_PUT(&fsr1, max, ptr[0], w);
+	zOS_PUT	FSR1,max,2+p0,p0
+	
+	movf	FSR0L,w		;  if ((w = fsr0l) == 0)
+	btfsc	STATUS,Z	;   break; // null terminator in low byte
+	bra	done		;  zOS_PUT(&fsr1, max, ptr[0], w);
+	zOS_PUT	FSR1,max,2+p0,p0
+
+	banksel	zOS_ADL		;  bsr = zOS_ADL>>7; // back in flash-read bank
+	incfsz	zOS_ADL,f	;  if ((zOS_ADL = (zOS_ADL + 1) & 0x00ff) == 0)
+	bra	loop		;   zOS_ADH++;
+	incf	zOS_ADH,f	; }
+	bra	loop		;}
+done
 #endif
 endmon
 	zOS_INP	p,ra,rt,h,pi,monisr 
 	endm	
 
-zOS_DEC	macro	putch,enc,retadr;e.g. zOS_DEC monout,accumul,zos_opr
+zOS_DEC	macro	putch,puts,enc,retadr
 	
 	local	puts,loop,done	;
 	local	ophi_0X,ophi_11,bitops,literal,onelit,litbyte,calllit
@@ -1879,7 +1921,7 @@ destreg
 	lslf	WREG		;
 	addlw	low opc_reg	;
 	movwf	FSR0L		;
-	movlw	high opc_reg	;
+	movlw	high opc_reg	;//FIXME: needs comments
 onedest
 	movwf	FSR0H		;
 	clrw			;
@@ -2078,39 +2120,6 @@ movoffs
 	pagesel	retadr
 	goto	retadr		;
 #endif
-
-puts
-	banksel	zOS_ADL
-	movf	FSR0L,w		;void puts(char w) { // banks; GIE must be clear
-	movwf	zOS_ADL		;
-	movf	FSR0H,w		;//FIXME: needs comments
-	movwf	zOS_ADH		;
-loop
-	zOS_RDF			;
-	rlf	zOS_RDL,w	;  zOS_RDF(); // read packed 14-bit contents
-	rlf	zOS_RDH,w	;
-	btfsc	STATUS,Z	;
-	bra	done		;  if ((w = (zOS_RDH<<1)|(zOS_RDL>>7)) != '\0'){
-	pagesel	putch
-	bcf	STATUS,C	;
-	call	putch		;
-	
-	banksel	zOS_RDL
-	movf	zOS_RDL,w	;
-	andlw	0x7f		;
-	btfsc	STATUS,Z	;
-	bra	done		;
-	pagesel	putch
-	bcf	STATUS,C	;
-	call	putch		;
-
-	banksel	zOS_ADL		;
-	incfsz	zOS_ADL,f	;
-	bra	loop		;
-	incf	zOS_ADH,f	;
-	bra	loop		;
-done
-	return			;} // puts()
 
 offset0
 	da	"[FSR0]",0
