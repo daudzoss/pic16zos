@@ -1531,9 +1531,10 @@ mondest
 	pagesel	monlsb	
 	call	monlsb		;    moncrlf(zos_job, p0);          //     \r\n
 #ifdef DISASM
-	pagesel	zos_opc
-	goto	zos_opc		;    zos_opc(); // disassemble accumu, jump back
-zos_opr
+	local	disasmb,disasmr
+	pagesel	disasmb
+	goto	disasmb		;    goto disasmb; disasmr:
+disasmr
 #endif	
 	movlw	'\r'
 	pagesel	monbufs
@@ -1623,9 +1624,6 @@ monchr6
 	bra	$+3		;
 	movlw	0xf9		;
 	addwf	char_io,f	;     char_io -= 0x07;// 0x41->0x11->0x0a... so
-#if 0;seems unnec 18 Jan
-	movf	char_io,f	;                     // now in range 0x00-0x09,
-#endif
 	btfss	STATUS,Z	;                     // or :=0x0a,...,?=0x0f,
 	bra	monchr7		;                     // or A=0x2a,B=0x2b,...
 	movf	accumul,w	;                     // G=0x30,...,Z=0x43
@@ -1718,9 +1716,9 @@ monzero
 monlast
 	clrf	char_io		;} // zOS_MON()
 	zOS_RFI
-zos_opc
+disasmb
 #ifdef DISASM
-	zOS_DEC	monout,accumul,zos_opr
+	zOS_DEC	monout,accumul,disasmr
 #endif
 endmon
 	zOS_INP	p,ra,rt,h,pi,monisr 
@@ -1739,40 +1737,7 @@ zOS_DEC	macro	putch,enc,retadr;e.g. zOS_DEC monout,accumul,zos_opr
 	local	regnam0,regnam1,regnam2,regnam3,regnam4,regnam5
 	local	regnam6,regnam7,regnam8,regnam9,regnamA,regnamB
 
-puts
-	banksel	zOS_ADL
-	movf	FSR0L,w		;void puts(char w) { // banks; GIE must be clear
-	movwf	zOS_ADL		;
-	movf	FSR0H,w		;//FIXME: needs comments
-	movwf	zOS_ADH		;
-loop
-	zOS_RDF			;
-	rlf	zOS_RDL,w	;  zOS_RDF(); // read packed 14-bit contents
-	rlf	zOS_RDH,w	;
-	btfsc	STATUS,Z	;
-	bra	done		;  if ((w = (zOS_RDH<<1)|(zOS_RDL>>7)) != '\0'){
-	pagesel	putch
-	bcf	STATUS,C	;
-	call	putch		;
-	
-	banksel	zOS_RDL
-	movf	zOS_RDL,w	;
-	andlw	0x7f		;
-	btfsc	STATUS,Z	;
-	bra	done		;
-	pagesel	putch
-	bcf	STATUS,C	;
-	call	putch		;
-
-	banksel	zOS_ADL		;
-	incfsz	zOS_ADL,f	;
-	bra	loop		;
-	incf	zOS_ADH,f	;
-	bra	loop		;
-done
-	return			;} // puts()
-
-	movlw	0x1f		;void zos_opc(uint14_t enc) {
+	movlw	0x1f		;void zOS_DEC(uint14_t enc) {
 	andwf	1+enc,w		; uint8_t w = (enc &= 0x1fff) >> 8;
 	btfss	1+enc,5		;
 	bra	ophi_0X		;
@@ -1804,8 +1769,8 @@ ophi_11
 
 	bra	literal-6	;/* 0x30nn => movlw */ case 16: goto literal-6;
 	bra	overld2		;/* 0x31nn movlp/addfsr */case 17:goto overld2;
-	bra	brafwd		;/* 0x32nn => bra(pos) */case 18: goto brafwd;
-	bra	brarev		;/* 0x33nn => bra(nge) */case 19: goto brarev;
+	bra	brapos		;/* 0x32nn => bra(fwd) */case 18: goto brapos;
+	bra	braneg		;/* 0x33nn => bra(rev) */case 19: goto braneg;
 	bra	literal-5	;/* 0x34nn => retlw */ case 20: goto literal-5;
 	bra	destreg-4	;/* 0x35nn => lslf  */ case 21: goto destreg-4;
 	bra	destreg-3	;/* 0x36nn => lsrf  */ case 22: goto destreg-3;
@@ -1817,7 +1782,7 @@ ophi_11
 	bra	literal-1	;/* 0x3cnn => sublw */ case 28: goto literal-1;
 	bra	destreg-0	;/* 0x3dnn => addwfc*/ case 29: goto destreg-0;
 	bra	literal-0	;/* 0x3enn => addlw */ case 30: goto literal-0;
-	bra	ovrld3		;/* 0x3fnn movwi/iw []*/ case 31: goto overld3;
+	bra	overld3		;/* 0x3fnn movwi/iw []*/ case 31: goto overld3;
 
 bitops
 	andlw	0x0c		; } else if (enc & 0x3000 == 0x1000) { // bit op
@@ -2056,9 +2021,9 @@ omnibus
 	bcf	STATUS,C	;
 	btfss	enc,7		;
 	bra	onedest		;
+#if 1
  bra litbyte ; // FIXME: nop/reset/return/retfie/callw/brw/moviw/movwi/movlb/option/sleep/clrwdt/tris unimplemented
-
-	
+#else
 moviwwi
 ;;; if we arrive from omnibus, must have enc already swapf'ed
 ;;; FIXME: use some branching, don't need to always use carry flag to select < 3
@@ -2112,11 +2077,45 @@ movoffs
 	call	puts		;
 	pagesel	retadr
 	goto	retadr		;
+#endif
+
+puts
+	banksel	zOS_ADL
+	movf	FSR0L,w		;void puts(char w) { // banks; GIE must be clear
+	movwf	zOS_ADL		;
+	movf	FSR0H,w		;//FIXME: needs comments
+	movwf	zOS_ADH		;
+loop
+	zOS_RDF			;
+	rlf	zOS_RDL,w	;  zOS_RDF(); // read packed 14-bit contents
+	rlf	zOS_RDH,w	;
+	btfsc	STATUS,Z	;
+	bra	done		;  if ((w = (zOS_RDH<<1)|(zOS_RDL>>7)) != '\0'){
+	pagesel	putch
+	bcf	STATUS,C	;
+	call	putch		;
 	
+	banksel	zOS_RDL
+	movf	zOS_RDL,w	;
+	andlw	0x7f		;
+	btfsc	STATUS,Z	;
+	bra	done		;
+	pagesel	putch
+	bcf	STATUS,C	;
+	call	putch		;
+
+	banksel	zOS_ADL		;
+	incfsz	zOS_ADL,f	;
+	bra	loop		;
+	incf	zOS_ADH,f	;
+	bra	loop		;
+done
+	return			;} // puts()
+
 offset0
-	da	"[FSR0]"
+	da	"[FSR0]",0
 offset1
-	da	"[FSR1]"
+	da	"[FSR1]",0
 minfsr	
 	da	"--FSR"
 minmin
@@ -2197,7 +2196,7 @@ regnam1
 regnam2
 	da	"PCL"
 regnam3
-	da	"STATUS"
+	da	"STATUS",0
 regnam4
 	da	"FSR0L"
 regnam5
@@ -2209,11 +2208,11 @@ regnam7
 regnam8
 	da	"BSR"
 regnam9
-	da	"WREG"
+	da	"WREG",0
 regnamA
-	da	"PCLATH"
+	da	"PCLATH",0
 regnamB
-	da	"INTCON"
+	da	"INTCON",0
 	endm
 
 
