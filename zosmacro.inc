@@ -1718,6 +1718,7 @@ monzero
 monlast
 	clrf	char_io		;} // zOS_MON()
 	zOS_RFI
+zos_opc
 #ifdef DISASM
 	zOS_DEC	monout,accumul,zos_opr
 #endif
@@ -1727,14 +1728,16 @@ endmon
 
 zOS_DEC	macro	putch,enc,retadr;e.g. zOS_DEC monout,accumul,zos_opr
 	
-	local	puts,loop,done	; NOT zos_opc because my purpose is to define it
-	local	
-	local	top1bcf,top1bsf,top1btc,top1bts,calllit,gotolit,endopc
-	local	literal,litbyte,calllit,gotolit,lit11,opc_lit,opccall,opcgoto
-	local	destreg,namereg,putname,flagreg,opc_reg
+	local	puts,loop,done	;
+	local	ophi_0X,ophi_11,bitops,literal,onelit,litbyte,calllit
+	local	destreg,onedest,nametst,namereg,putname,flagreg,regarg2,endopc
+	local	overld0,nodest,overld1,overld2,braneg,brapos,overld3,omnibus
+	local	moviwwi,movoffs
+	local	offset0,offset1,minfsr,minmin,plufsr,pluplu,opc_miw,opc_mwi
+	local	opc_lit,opc_mlp,opc_af0,opc_af1,opc_reg,opc_mov,opc_bit,opccall
+	local	opcclrw,opc_bpo,opc_bng,hexpref
 	local	regnam0,regnam1,regnam2,regnam3,regnam4,regnam5
 	local	regnam6,regnam7,regnam8,regnam9,regnamA,regnamB
-	local	overld0,omnibus,overld1,clr_reg,overld2,paging,overld3,moviwwi
 
 puts
 	banksel	zOS_ADL
@@ -1768,7 +1771,7 @@ loop
 	bra	loop		;
 done
 	return			;} // puts()
-zos_opc	
+
 	movlw	0x1f		;void zos_opc(uint14_t enc) {
 	andwf	1+enc,w		; uint8_t w = (enc &= 0x1fff) >> 8;
 	btfss	1+enc,5		;
@@ -2110,8 +2113,6 @@ movoffs
 	pagesel	retadr
 	goto	retadr		;
 	
-hexpref
-	da	"0x",0
 offset0
 	da	"[FSR0]"
 offset1
@@ -2187,6 +2188,8 @@ opc_bpo
 opc_bng
 	da	"bra -0x"
 	
+hexpref
+	da	"0x",0
 regnam0
 	da	"INDF0"
 regnam1
