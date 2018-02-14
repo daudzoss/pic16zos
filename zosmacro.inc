@@ -1721,7 +1721,7 @@ monlast
 #ifdef DISASM
 	zOS_DEC	monout,accumul,zos_opr
 #endif
-endif
+endmon
 	zOS_INP	p,ra,rt,h,pi,monisr 
 	endm	
 
