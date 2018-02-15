@@ -1267,7 +1267,6 @@ zOS_PCT	macro	reg
 	
 zOS_DEC	macro	putch,puts,enc,retadr
 	
-	local	puts,loop,done	;
 	local	ophi_0X,ophi_11,bitops,literal,onelit,litbyte,calllit
 	local	destreg,onedest,nametst,namereg,putname,flagreg,regarg2,endopc
 	local	overld0,nodest,overld1,overld2,braneg,brapos,overld3,omnibus
@@ -1725,13 +1724,13 @@ regnamB
 
 
 zOS_MON	macro	p,ra,rt,h,pi,isr;inline void zOS_MON(int8_t p, int8_t ra, int8_t
-	local	monisr,monchr1,monchr2,monchr3,mondump,mondest,monram,monchr4
-	local	monchr5,monchr6,monchr7,monchr8,monchr9,monprmp,monlast,monpctg
 	local	endmon
-	
 	pagesel	endmon		;      rt, int8_t* h, int8_t pi, void(*isr)()) {
 	goto	endmon		; zOS_INP(p,ra,rt,h,pi,monisr); }// isr may be 0
 
+	local	monisr,monchr1,monchr2,monchr3,mondump,mondest,monram,monchr4
+	local	monchr5,monchr6,monchr7,monchr8,monchr9,monprmp,monlast,monpctg
+	
 	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,optadrl
 	local	optadrh,accumul,accumuh,numbase,destreg,destreh,char_io,buf,max
 
@@ -1766,13 +1765,12 @@ max	set	0x70
 #ifdef DISASM
 	local	monout,loop,done,disasmb,disasmr,monpack
 	
-#if 0
 monpack
+#ifdef CAUTIOUS
 	movf	BSR,w
 	movwf	zOS_JOB
 #endif
-monpack
-	lsrf	zOS_JOB,w	;void puts(char w, uint14t* fsr0) {
+	lsrf	zOS_JOB,w	;void monpack(char w, uint14t* fsr0) {
 	movwf	FSR1H		; // zos_job = bsr;
 	movf	1+p0,w		;
 	movwf	FSR1L		; fsr1 = (zos_job<<7) | ptr[1];
