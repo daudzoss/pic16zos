@@ -1793,11 +1793,19 @@ loop
 	btfsc	STATUS,Z	;   break; // null terminator in high byte
 	bra	done		;  zOS_PUT(&fsr1, max, ptr[0], w);
 	zOS_PUT	FSR1,max,2+p0,p0
+	btfsc	STATUS,Z	;//FIXME: pasted from zOS_BUF(), needs comments
+	bra	done		;"
+	xorwf	p0,w		;"
+	movwf	1+p0		;"
 	
 	movf	FSR0L,w		;  if ((w = fsr0l) == 0)
 	btfsc	STATUS,Z	;   break; // null terminator in low byte
 	bra	done		;  zOS_PUT(&fsr1, max, ptr[0], w);
 	zOS_PUT	FSR1,max,2+p0,p0
+	btfsc	STATUS,Z	;//FIXME: pasted from zOS_BUF(), needs comments
+	bra	done		;"
+	xorwf	p0,w		;"
+	movwf	1+p0		;"
 
 	banksel	zOS_ADL
 	incfsz	zOS_ADL,f	;  bsr = zOS_ADL>>7; // back in flash-read bank
@@ -2041,6 +2049,9 @@ mondest
 	call	monlsb		;    moncrlf(zos_job, p0);          //     \r\n
 #ifdef DISASM
 	local	disasmb,disasmr
+	movlw	' '		;
+	pagesel	monbufs
+	call	monbufs		;
 	pagesel	disasmb
 	goto	disasmb		;    goto disasmb; disasmr:
 disasmr
