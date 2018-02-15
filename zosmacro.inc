@@ -1270,7 +1270,7 @@ zOS_DEC	macro	putch,puts,enc,retadr
 	local	ophi_0X,ophi_11,bitops,literal,onelit,litbyte,calllit
 	local	destreg,onedest,nametst,namereg,putname,flagreg,regarg2,endopc
 	local	overld0,nodest,overld1,overld2,braneg,brapos,overld3,omnibus
-	local	noargs,newbank,moviwwi,movoffs
+	local	noargs,newbank,moviwwi,movoffs,nameoff
 	local	offset0,offset1,minfsr,minmin,plufsr,pluplu,opc_miw,opc_mwi
 	local	opc_lit,opc_mlp,opc_af0,opc_af1,opc_reg,opc_mov,opc_bit,opccall
 	local	opcclrw,opc_bpo,opc_bng,opcomni,opc_mlb,hexpref
@@ -1443,20 +1443,10 @@ nametst
 	bra	flagreg		;
 namereg
 	movf	enc,w		;
-	callw			;
-	bra	putname		;
-	retlw	regnam1-regnam0	;
-	retlw	regnam2-regnam0	;
-	retlw	regnam3-regnam0	;
-	retlw	regnam4-regnam0	;
-	retlw	regnam5-regnam0	;
-	retlw	regnam6-regnam0	;
-	retlw	regnam7-regnam0	;
-	retlw	regnam8-regnam0	;
-	retlw	regnam9-regnam0	;
-	retlw	regnamA-regnam0	;
-	retlw	regnamB-regnam0	;
+	andlw	0x0f		;
 putname
+	pagesel	nameoff
+	call	nameoff		;
 	addlw	low regnam0	;
 	movwf	FSR0L		;
 	movlw	high regnam0	;
@@ -1486,6 +1476,8 @@ endopc
 	pagesel	retadr
 	goto	retadr		;
 overld0
+	movlw	0xff		;
+	movwf	1+enc		; enc |= 0xff00; // special, allows: bra onedest
 	movlw	low opc_mov	;
 	movwf	FSR0L		;
 	movlw	high opc_mov	;
@@ -1501,7 +1493,7 @@ nodest
 overld1
 	movlw	low opcclrw	;
 	btfsc	enc,7		;
-	addlw	3		;
+	addlw	4		;
 	movwf	FSR0L		;
 	movlw	0xff		;
 	movwf	1+enc		;
@@ -1714,8 +1706,8 @@ opccall
 	da	"goto 0x"
 	
 opcclrw
-	da	"clrw "
-	da	"clrf "
+	da	"clrw   "
+	da	"clrf   "
 
 opc_bpo
 	da	"bra +0x"
@@ -1766,6 +1758,20 @@ regnamA
 	da	"PCLATH",0
 regnamB
 	da	"INTCON",0
+nameoff
+	brw			;
+	retlw	regnam0-regnam0	;
+	retlw	regnam1-regnam0	;
+	retlw	regnam2-regnam0	;
+	retlw	regnam3-regnam0	;
+	retlw	regnam4-regnam0	;
+	retlw	regnam5-regnam0	;
+	retlw	regnam6-regnam0	;
+	retlw	regnam7-regnam0	;
+	retlw	regnam8-regnam0	;
+	retlw	regnam9-regnam0	;
+	retlw	regnamA-regnam0	;
+	retlw	regnamB-regnam0	;
 	endm
 
 
@@ -1808,7 +1814,8 @@ max	set	0x70
 ;zOS_MON()-derived macros referring to these local variables wouldn't open it
 ;until expansion and would throw an undefined-var error during the processing
 
-#ifdef DISASM
+#ifdef zOS_MIN
+#else	
 	local	monout,loop,done,disasmb,disasmr,monpack
 	
 monpack
@@ -2096,7 +2103,8 @@ mondest
 	movf	accumul,w	;
 	pagesel	monlsb	
 	call	monlsb		;    moncrlf(zos_job, p0);          //     \r\n
-#ifdef DISASM
+#ifdef zOS_MIN
+#else
 	local	disasmb,disasmr
 	pagesel	disasmb
 	goto	disasmb		;    goto disasmb; disasmr:
