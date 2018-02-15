@@ -1823,6 +1823,9 @@ monout
 	goto	monlsb		;}
 	
 disasmb
+	movlw	' '		;
+	pagesel	monbufs
+	call	monbufs		;
 	zOS_DEC	monout,monpack,accumul,disasmr
 #endif
 	
@@ -2049,9 +2052,6 @@ mondest
 	call	monlsb		;    moncrlf(zos_job, p0);          //     \r\n
 #ifdef DISASM
 	local	disasmb,disasmr
-	movlw	' '		;
-	pagesel	monbufs
-	call	monbufs		;
 	pagesel	disasmb
 	goto	disasmb		;    goto disasmb; disasmr:
 disasmr
