@@ -1270,10 +1270,10 @@ zOS_DEC	macro	putch,puts,enc,retadr
 	local	ophi_0X,ophi_11,bitops,literal,onelit,litbyte,calllit
 	local	destreg,onedest,nametst,namereg,putname,flagreg,regarg2,endopc
 	local	overld0,nodest,overld1,overld2,braneg,brapos,overld3,omnibus
-	local	moviwwi,movoffs
+	local	noargs,newbank,moviwwi,movoffs
 	local	offset0,offset1,minfsr,minmin,plufsr,pluplu,opc_miw,opc_mwi
 	local	opc_lit,opc_mlp,opc_af0,opc_af1,opc_reg,opc_mov,opc_bit,opccall
-	local	opcclrw,opc_bpo,opc_bng,hexpref
+	local	opcclrw,opc_bpo,opc_bng,opcomni,opc_mlb,hexpref
 	local	regnam0,regnam1,regnam2,regnam3,regnam4,regnam5
 	local	regnam6,regnam7,regnam8,regnam9,regnamA,regnamB
 
@@ -1486,7 +1486,13 @@ endopc
 	pagesel	retadr
 	goto	retadr		;
 overld0
-	
+	movlw	low opc_mov	;
+	movwf	FSR0L		;
+	movlw	high opc_mov	;
+	bcf	STATUS,C	;
+	btfsc	enc,7		;
+	bra	onedest		;
+	bra	omnibus		;
 nodest
 	pagesel	puts
 	call	puts		;
@@ -1555,16 +1561,37 @@ overld3
 	goto	moviwwi		;
 	
 omnibus
-	movlw	low opc_mov	;
+	btfsc	enc,6		; // we know bit 7 (movwf) is clear
+	bra	noargs		;
+	movlw	0xf0		;
+	andwf	enc,w		;
+	btfsc	STATUS,Z	;
+	bra	noargs		; // 0x0_ and 0x6_ are arg-less
+	btfss	enc,5		;
+	bra	moviwwi		;
+	bra	newbank		;
+noargs
+	lslf	enc,w		;
+	lslf	WREG		;
+	andlw	0x3c		; w = (enc & 0x0f) * 4; // uniform string length
+	addlw	low opcomni	;
 	movwf	FSR0L		;
-	movlw	high opc_mov	;
-	bcf	STATUS,C	;
-	btfss	enc,7		;
-	bra	onedest		;
+	movlw	high opcomni	;
+	movwf	FSR0H		;
+	clrw			;
+	addwfc	FSR0H,f		;
+	bra	nodest		;
+newbank
+	movlw	low opc_mlb	;
+	movwf	FSR0L		;
+	movlw	high opc_mlb	;
+	movwf	FSR0H		;
+	movlw	0x1f		;
+	bra	onelit		;
+moviwwi
 #if 1
  bra litbyte ; // FIXME: nop/reset/return/retfie/callw/brw/moviw/movwi/movlb/option/sleep/clrwdt/tris unimplemented
 #else
-moviwwi
 ;;; if we arrive from omnibus, must have enc already swapf'ed
 ;;; FIXME: use some branching, don't need to always use carry flag to select < 3
 	clrw			;
@@ -1644,9 +1671,10 @@ opc_lit
 	da	"iorlw 0"
 	da	"retlw 0"
 	da	"movlw 0"
+opc_mlb
+	da	"movlb 0"
 opc_mlp
 	da	"movlp 0"
-	
 opc_af0
 	da	"addfsr FSR0,0x"
 opc_af1
@@ -1693,6 +1721,24 @@ opc_bpo
 	da	"bra +0x"
 opc_bng
 	da	"bra -0x"
+	
+opcomni
+	da	"nop    "
+	da	"reset  "
+	da	"option "
+	da	"sleep  "
+	da	"clrwdt "
+	da	"tris A "
+	da	"tris B "
+	da	"tris C "
+	da	"return "
+	da	"retfie "
+	da	"callw  "
+	da	"brw    "
+	da	"invalid"
+	da	"invalid"
+	da	"invalid"
+	da	"invalid"
 	
 hexpref
 	da	"0x",0
