@@ -1267,7 +1267,7 @@ zOS_PCT	macro	reg
 	
 zOS_DEC	macro	putch,puts,enc,retadr
 	
-	local	ophi_0X,ophi_11,bitops,literal,onelit,litbyte,calllit
+	local	ophi_0X,ophi_11,bitops,literal,onelit,litbyte,calllit,bradest
 	local	destreg,onedest,nametst,namereg,flagreg,regarg2,endopc
 	local	overld0,nodest,overld1,overld2,braneg,brapos,overld3,omnibus
 	local	noargs,newbank,moviwwi,movoffs,nameoff
@@ -1339,7 +1339,7 @@ bitops
 	rlf	enc,w		;  enc[1] <<= 1; // pull in bit 7 from low byte:
 	rlf	1+enc,f		;  enc[1] |= (w & 0x80) ? 1 : 0; // bit number<8
 	lslf	1+enc,f		;  enc[1] <<= 1; // bit number now in bits 3:1
-	bsf	1+enc,1		;  enc[1] |= 1; // and now C is set for puts
+	bsf	1+enc,0		;  enc[1] |= 1; // and now C is set for puts
 	bra	nametst		;  goto nametst; // handle known register names
 
 	incf	1+enc,f		; // opc_lit[6] = "movlw 0"
@@ -1374,6 +1374,7 @@ litbyte
 	bra	endopc		; }
 calllit
 	movlw	low opccall	;
+	bcf	STATUS,C	;
 	btfsc	1+enc,3		;
 	addlw	opcgoto-opccall	;
 	movwf	FSR0L		;
@@ -1383,13 +1384,13 @@ calllit
 	addwfc	FSR0H,f		;
 	pagesel	puts
 	call	puts		; puts(fsr0 = opccall[w /*0 or 4*/ >> 2];
-	movf	1+enc,w		;
-	andlw	0x07		;
+	movlw	0x07		;
+bradest
+	andwf	1+enc,w		;
 	pagesel	putch
 	bsf	STATUS,C	;
 	call	putch		; putch((enc&0x700) >> 8,c=1); // as hexadecimal
 	bra	litbyte		; goto litbyte; // lsb above, to save space
-	
 
 	incf	1+enc,f		; // opc_reg[18] = "subwf  "
 	incf	1+enc,f		; // opc_reg[17] = "decf   "
@@ -1481,12 +1482,16 @@ overld0
 	bra	onedest		;
 	bra	omnibus		;
 nodest
+	movwf	FSR0H		;
+	clrw			;
+	addwfc	FSR0H,f		;
 	pagesel	puts
 	call	puts		;
 	pagesel	retadr
 	goto	retadr		;
 overld1
 	movlw	low opcclrw	;
+	bcf	STATUS,C	;
 	btfsc	enc,7		;
 	addlw	4		; // carry handled in onedest
 	movwf	FSR0L		;
@@ -1513,11 +1518,6 @@ overld2
 	movwf	FSR0H		;
 	clrw			;
 	addwfc	FSR0H,f		;
-	pagesel	puts
-	call	puts		;
-	bcf	enc,6		;
-	btfsc	enc,5		;
-	bsf	enc,6		; // bit 7 already established as clear
 	movlw	0x1f		;
 	btfss	enc,5		;
 	bra	onelit		;
@@ -1525,24 +1525,46 @@ overld2
 	iorwf	enc,f		;
 	movlw	0xff		;
 	bra	onelit		;
+#if 0
 braneg
 	comf	enc,f		;
 	incf	enc,f		; enc = -enc;
 	movlw	opc_bng-opc_bpo	;
-	btfss	1+enc,0		; // known to be set, since we got here
+	bra	brapos+1	;
 brapos
 	movlw	0		;
 	addlw	low opc_bpo	;
 	movwf	FSR0L		;
-	movlw	opc_bpo		;
+	movlw	high opc_bpo	;
 	movwf	FSR0H		;
 	clrw			;
 	addwfc	FSR0H,f		;
-	pagesel	puts
-	call	puts		;
 	movlw	0xff		;
 	bra	onelit		;
-	
+opc_bpo
+	da	"bra   +"
+opc_bng
+	da	"bra   -"
+#else
+braneg
+	movlw	0xff		;
+	movwf	1+enc		;
+brapos
+	movf	3+enc,w		;
+	addwf	enc,f		; // the caller already updated
+	movf	4+enc,w		;
+	addwfc	1+enc,f		;
+	movlw	low opc_bra	;
+	movwf	FSR0L		;
+	movlw	high opc_bra	;
+	movwf	FSR0H		;
+	pagesel	puts
+	call	puts		;
+	movlw	0x7f		;
+	bra	bradest		;
+opc_bra
+	da	"bra    0x"
+#endif	
 overld3
 	pagesel	moviwwi
 	goto	moviwwi		;
@@ -1564,9 +1586,6 @@ noargs
 	addlw	low opcomni	;
 	movwf	FSR0L		;
 	movlw	high opcomni	;
-	movwf	FSR0H		;
-	clrw			;
-	addwfc	FSR0H,f		;
 	bra	nodest		;
 newbank
 	movlw	low opc_mlb	;
@@ -1663,9 +1682,9 @@ opc_mlb
 opc_mlp
 	da	"movlp  "
 opc_af0
-	da	"addfsr FSR0,0x",0
+	da	"addfsr FSR0,",0
 opc_af1
-	da	"addfsr FSR1,0x",0
+	da	"addfsr FSR1,",0
 	
 opc_reg
 	da	"addwfc "
@@ -1705,11 +1724,6 @@ opcclrw
 	da	"clrw   "
 	da	"clrf   "
 
-opc_bpo
-	da	"bra   +0x"
-opc_bng
-	da	"bra   -0x"
-	
 opcomni
 	da	"nop    "
 	da	"reset  "
