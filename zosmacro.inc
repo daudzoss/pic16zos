@@ -1268,12 +1268,12 @@ zOS_PCT	macro	reg
 zOS_DEC	macro	putch,puts,enc,retadr
 	
 	local	ophi_0X,ophi_11,bitops,literal,onelit,litbyte,calllit
-	local	destreg,onedest,nametst,namereg,putname,flagreg,regarg2,endopc
+	local	destreg,onedest,nametst,namereg,flagreg,regarg2,endopc
 	local	overld0,nodest,overld1,overld2,braneg,brapos,overld3,omnibus
 	local	noargs,newbank,moviwwi,movoffs,nameoff
 	local	offset0,offset1,minfsr,minmin,plufsr,pluplu,opc_miw,opc_mwi
 	local	opc_lit,opc_mlp,opc_af0,opc_af1,opc_reg,opc_mov,opc_bit,opccall
-	local	opcclrw,opc_bpo,opc_bng,opcomni,opc_mlb,hexpref
+	local	opcgoto,opcclrw,opc_bpo,opc_bng,opcomni,opc_mlb,hexpref
 	local	regnam0,regnam1,regnam2,regnam3,regnam4,regnam5
 	local	regnam6,regnam7,regnam8,regnam9,regnamA,regnamB
 
@@ -1363,12 +1363,9 @@ onelit
 	pagesel	puts
 	call	puts		; enc &= w;
 	movf	enc,f		; puts(fsr0);
-	btfsc	STATUS,Z	;
-	bra	endopc		; if (enc & 0xff) { // nonzero literal
-	movlw	'x'		;
-	pagesel	putch
-	bcf	STATUS,C	;
-	call	putch		;  putch('x', c = 0);
+	zOS_ADR	hexpref,zOS_FLA
+	pagesel	puts
+	call	puts		;  puts("0x");
 litbyte
 	movf	enc,w		; litbyte:
 	pagesel	putch
@@ -1376,10 +1373,9 @@ litbyte
 	call	putch		;  return;
 	bra	endopc		; }
 calllit
-	lsrf	1+enc,w		;
-	swapf	WREG		;
-	andlw	0x04		; w = (w & 0x80) /* 0=call, 0x80=goto */ >> 5;
-	addlw	low opccall	;
+	movlw	low opccall	;
+	btfsc	1+enc,3		;
+	addlw	opcgoto-opccall	;
 	movwf	FSR0L		;
 	movlw	high opccall	;
 	movwf	FSR0H		;
@@ -1423,7 +1419,7 @@ destreg
 onedest
 	movwf	FSR0H		;
 	clrw			;
-	addwfc	FSR0H,f		;
+	addwfc	FSR0H,f		; // carry set by jumper!!
 	pagesel	puts
 	call	puts		;
 nametst	
@@ -1443,8 +1439,29 @@ nametst
 	bra	flagreg		;
 namereg
 	movf	enc,w		;
+<<<<<<< .mine
+	andlw	0x0f		;
+	pagesel	nameoff
+	call	nameoff		;
+||||||| .r385
+	callw			;
+	bra	putname		;
+	retlw	regnam1-regnam0	;
+	retlw	regnam2-regnam0	;
+	retlw	regnam3-regnam0	;
+	retlw	regnam4-regnam0	;
+	retlw	regnam5-regnam0	;
+	retlw	regnam6-regnam0	;
+	retlw	regnam7-regnam0	;
+	retlw	regnam8-regnam0	;
+	retlw	regnam9-regnam0	;
+	retlw	regnamA-regnam0	;
+	retlw	regnamB-regnam0	;
+putname
+=======
 	andlw	0x0f		;
 putname
+>>>>>>> .r386
 	pagesel	nameoff
 	call	nameoff		;
 	addlw	low regnam0	;
@@ -1493,7 +1510,13 @@ nodest
 overld1
 	movlw	low opcclrw	;
 	btfsc	enc,7		;
+<<<<<<< .mine
+	addlw	4		; // carry handled in onedest
+||||||| .r385
+	addlw	3		;
+=======
 	addlw	4		;
+>>>>>>> .r386
 	movwf	FSR0L		;
 	movlw	0xff		;
 	movwf	1+enc		;
@@ -1656,21 +1679,21 @@ opc_mwi
 	da	"movwi  "
 	
 opc_lit
-	da	"addlw 0"
-	da	"sublw 0"
-	da	"xorlw 0"
-	da	"andlw 0"
-	da	"iorlw 0"
-	da	"retlw 0"
-	da	"movlw 0"
+	da	"addlw  "
+	da	"sublw  "
+	da	"xorlw  "
+	da	"andlw  "
+	da	"iorlw  "
+	da	"retlw  "
+	da	"movlw  "
 opc_mlb
-	da	"movlb 0"
+	da	"movlb  "
 opc_mlp
-	da	"movlp 0"
+	da	"movlp  "
 opc_af0
-	da	"addfsr FSR0,0x"
+	da	"addfsr FSR0,0x",0
 opc_af1
-	da	"addfsr FSR1,0x"
+	da	"addfsr FSR1,0x",0
 	
 opc_reg
 	da	"addwfc "
@@ -1702,17 +1725,18 @@ opc_bit
 	da	"btfss  "
 	
 opccall
-	da	"call 0x"
-	da	"goto 0x"
+	da	"call   0x"
+opcgoto
+	da	"goto   0x"
 	
 opcclrw
 	da	"clrw   "
 	da	"clrf   "
 
 opc_bpo
-	da	"bra +0x"
+	da	"bra   +0x"
 opc_bng
-	da	"bra -0x"
+	da	"bra   -0x"
 	
 opcomni
 	da	"nop    "
