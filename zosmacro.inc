@@ -1439,29 +1439,7 @@ nametst
 	bra	flagreg		;
 namereg
 	movf	enc,w		;
-<<<<<<< .mine
 	andlw	0x0f		;
-	pagesel	nameoff
-	call	nameoff		;
-||||||| .r385
-	callw			;
-	bra	putname		;
-	retlw	regnam1-regnam0	;
-	retlw	regnam2-regnam0	;
-	retlw	regnam3-regnam0	;
-	retlw	regnam4-regnam0	;
-	retlw	regnam5-regnam0	;
-	retlw	regnam6-regnam0	;
-	retlw	regnam7-regnam0	;
-	retlw	regnam8-regnam0	;
-	retlw	regnam9-regnam0	;
-	retlw	regnamA-regnam0	;
-	retlw	regnamB-regnam0	;
-putname
-=======
-	andlw	0x0f		;
-putname
->>>>>>> .r386
 	pagesel	nameoff
 	call	nameoff		;
 	addlw	low regnam0	;
@@ -1510,13 +1488,7 @@ nodest
 overld1
 	movlw	low opcclrw	;
 	btfsc	enc,7		;
-<<<<<<< .mine
 	addlw	4		; // carry handled in onedest
-||||||| .r385
-	addlw	3		;
-=======
-	addlw	4		;
->>>>>>> .r386
 	movwf	FSR0L		;
 	movlw	0xff		;
 	movwf	1+enc		;
