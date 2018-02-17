@@ -87,10 +87,12 @@ main
 	zOS_INT	0,0
 	zOS_ADR	dummy,zOS_UNP
 	zOS_LAU	WREG
+	zOS_ACT	FSR0
 
 	zOS_INT	0,0
 	zOS_ADR	dummy2,zOS_UNP
 	zOS_LAU	WREG
+	zOS_ACT	FSR0
 
 	zOS_RUN	INTCON,INTCON	; zOS_RUN(/*T0IE in*/INTCON, /*T0IF in*/INTCON);
 	

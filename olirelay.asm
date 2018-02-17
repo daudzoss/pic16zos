@@ -331,6 +331,7 @@ use_hwi
 use_swi
 	zOS_ADR	relay,zOS_UNP
 	zOS_LAU	WREG
+	zOS_ACT	FSR0
 	btfss	WREG,2		;  fsr0 = &relay 0x7fff; // relay() unpriv'ed
 	bra	create		; }
 	
@@ -364,5 +365,6 @@ OUTCHAR	equ	zOS_SI3
 	zOS_NUL	1<<T0IF
 #endif
 	zOS_LAU	WREG		; zOS_LAU(&w);
+	zOS_ACT	FSR0
 	zOS_RUN	INTCON,INTCON	; zOS_RUN(/*T0IE in*/INTCON, /*T0IF in*/INTCON);
 	end			;}

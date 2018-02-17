@@ -19,11 +19,13 @@ HEAP2	equ	zOS_FRE+HEAPSML
 	movlw	SMALLOC|SFREE
 	zOS_ARG	3
 	zOS_LAU	WREG
+	zOS_ACT	FSR0
 
 	zOS_HEA	HEAP2,HEAPLRG,LMALLOC,LFREE
 	movlw	LMALLOC|LFREE
 	zOS_ARG	3
 	zOS_LAU	WREG
+	zOS_ACT	FSR0
 
 #else
 #ifdef SMALLOC
@@ -31,6 +33,7 @@ HEAP2	equ	zOS_FRE+HEAPSML
 	movlw	SMALLOC|SFREE
 	zOS_ARG	3
 	zOS_LAU	WREG
+	zOS_ACT	FSR0
 	
 #else
  error "must define SMALLOC and SFREE software interrupt masks (and optionally LMALLOC and LFREE) before including this file"

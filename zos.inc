@@ -616,7 +616,11 @@ zos_sw3
 	moviw	zOS_HDL[FSR1]	;  case zOS_RST: zos_sw3:
 	movwi	zOS_PCL[FSR1]	;   // retain HDL MSB (which indicate privilege)
 	moviw	zOS_HDH[FSR1]	;   zOS_PCL[fsr1] = zOS_HDL[fsr1];
+#ifdef zOS_AUT
 	andlw	0x7f		;   // clear PC MSB (which indicates sleepiness)
+#else
+	iorlw	0x80		;   // set PC MSB (so must explicitly activate)
+#endif
 	movwi	zOS_PCH[FSR1]	;   zOS_PCH[fsr1] = zOS_HDH[fsr1] & 0x7f;
 	movlw	zOS_BOS		;   zOS_SSP[fsr1] = zOS_BOS;
 	movwi	zOS_SSP[FSR1]	;

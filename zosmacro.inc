@@ -121,6 +121,32 @@ retry
 	endif
 	endm			;} // zOS_LAU()
 
+zOS_ACT	macro	fsrnum
+#if 1
+	local	proceed,endact
+	if (fsrnum & 3)
+fsrn	 set 1
+	else
+fsrn	 set 0
+	endif
+	andlw	0x07		;inline int zOS_ACT(uint8_t** fsrn, uint8_t w) {
+	btfsc	STATUS,Z	; if (w &= 0x07) { // activate valid job launch
+	bra	endact		;
+	btfsc	WREG,2		;  if (w < 6) { // prevent stomp on globals/SFRs
+	btfss	WREG,1		;   *fsrn = (w + 1) << 4; // structure for job w
+	bra	proceed		;   (*fsrn)[zOS_PCH] &= 0x7f; // allowed to run
+	bra	endact		;  } // else w was > 5
+proceed
+	zOS_MEM	FSR#v(fsrn),WREG,zOS_PCH
+	movlw	0x7f		; } // else w was < 1
+	andwf	INDF#v(fsrn),f	;
+	swapf	FSR#v(fsrn)L,w	;
+	andlw	0x07		; return w;
+	addlw	0xff		;}
+endact
+#endif
+	endm
+	
 zOS_INI	macro	fsrnum,val0,val1
 	if (fsrnum & 3)
 fsrn	 set 1
@@ -1201,8 +1227,9 @@ chio	set	char_io-vars
 
 rxdecl
 	zOS_CON	p,ra,rt,h,pi
-	zOS_LAU	FSR1H
-	zOS_LOC	FSR1L,FSR1H,vars
+	zOS_LAU	RTOSJOB
+	zOS_ACT	FSR1
+	zOS_LOC	FSR1L,RTOSJOB,vars
 	movf	zOS_AR0,w	;rxdecl:
 	movwi	arg0[FSR1]	; zOS_CON(p,rat,rts,hb,pin);// extend zOS_CON()
 	movf	zOS_AR1,w	; zOS_LAU(&fsr1);// by rewriting after launch
