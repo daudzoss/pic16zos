@@ -1292,6 +1292,19 @@ zOS_PCT	macro	reg
 	rrf	reg,f		; reg = ((w&1)*256 + reg)/2; // 0 <= reg <= 250
 	endm
 	
+zOS_SEL	macro	adr0,adr1,file,b
+	addlw	low adr0	;inline int zOS_SEL(char* adr0, char* adr1,
+	clrf	FSR0L		;                   uint8_t file, uint3_t b,
+	addwfc	FSR0L,f		;                   uint8_t w, char** fsr0) {
+	movlw	adr1 - adr0	;
+	btfsc	file,b		;
+	addwfc	FSR0L,f		;
+	movlw	high adr0	;
+	movwf	FSR0H		; fsr0 = w + ((file & (1<<b)) ? adr1 : adr0);
+	clrw			; return 0;
+	addwfc	FSR0H,f		;}
+	endm
+
 zOS_DEC	macro	putch,puts,enc,retadr
 	
 	local	ophi_0X,ophi_11,bitops,literal,onelit,litbyte,calllit,bradest
@@ -1592,10 +1605,49 @@ brapos
 opc_bra
 	da	"bra    0x"
 #endif	
-overld3
-	pagesel	moviwwi
-	goto	moviwwi		;
 	
+overld3
+	swapf	enc,w		;  w = enc >> 4;
+	pagesel	putmovi
+	call	putmovi		;  putmovi(w); // bit3 0/1  => moviw/movwi
+	zOS_ADR	zero,zOS_FLA
+	movf	enc,w		;  fsr0 = "0";
+	andlw	0x3f		;
+	movwf	1+enc		;  enc[1] = enc[0] & 0x3f; // enc keeps FSRn's n
+	btfsc	STATUS,Z	;
+	bra	printfn		;  if (enc[1] != 0) {
+	zOS_ADR	hexpref,zOS_FLA
+	btfss	enc,5		;   fsr0 = "0x";
+	bra	printof		;   if ((int6_t)(enc[1]) < 0) {
+	movlw	0xc0		;
+	iorwf	1+enc,f		;    enc[1] = (int6_t)(enc[1]); // sign-extend
+	comf	1+enc,f		;
+	incf	1+enc,f		;    enc[1] = -(enc[1]);
+	movlw	2		;
+	addwf	FSR0L,f		;
+	clrw			;    fsr0 = "-0x";
+	addwfc	FSR0H,f		;   }
+printof
+	pagesel	puts
+	call	puts		;   puts(fsr0);
+	pagesel	putch
+	movf	1+enc,w		;
+	bsf	STATUS,C	;
+	call	putch		;   putch(enc[1], c = 1); // hexadecimal value
+printfn
+	swapf	enc,w		;  }
+	andlw	0x04		;
+	addlw	low offset0	;
+	movwf	FSR0L		;
+	movlw	high offset0	;
+	movwf	FSR0H		;
+	clrw			;
+	addwfc	FSR0H,f		;  fsr0 = (enc & 0x40) ? "[FSR1]" : "[FSR0]";
+	pagesel	puts
+	call	puts		; puts(fsr0);
+	pagesel	retadr		; return;
+	call	retadr		;}
+
 omnibus
 	btfsc	enc,6		; // we know bit 7 (movwf) is clear
 	bra	noargs		;
@@ -1603,9 +1655,72 @@ omnibus
 	andwf	enc,w		;
 	btfsc	STATUS,Z	;
 	bra	noargs		; // 0x0_ and 0x6_ are arg-less
-	btfss	enc,5		;
-	bra	moviwwi		;
+	btfsc	enc,5		;
 	bra	newbank		;
+
+	movf	enc,w		; // movwi/iw with auto pre/post incr/decrement
+	pagesel	putmovi
+	call	putmovi		;  putmovi(enc); // bit3 0/1  => moviw/movwi
+	movlw	0x04		;
+	andwf	enc,w		;  w = enc & 0x04; // 0 for FSR0, 4 for FSR1
+	btfsc	enc,1		;
+	bra	post		; if (enc & (1<<1) == 0) // pre incr/decrement
+	zOS_SEL	fsrprei,fsrpred,enc,0
+	pagesel	puts
+	call	puts		;  puts(fsr0);
+	pagesel	retadr
+	goto	retadr		; else
+
+
+	movlw	low plufsr	;
+	movwf	FSR0L		;
+	movlw	high plufsr	;
+	movwf	FSR0H		;
+	movlw	0
+	btfsc	enc,0		;
+	movlw	minfsr - plufsr	;
+	addwf	FSR0L,f		;
+	
+	addwfc	FSR0H,f		; // FIXME: needs macros!
+	movwf	FSR0L		;
+	movlw	high plufsr	;
+	movwf	FSR0H		;
+	clrw			;
+	addwfc	FSR0H,f		;  fsr0 = ((enc & (1<<0)) ? "--FSR" : "++FSR");
+	pagesel	puts
+	call	puts		;  puts(fsr0);
+	pagesel	put01
+	call	put01		;  put01(enc & (1<<2));
+	pagesel	retadr
+	goto	retadr		;  return;
+post
+	zOS_ADR	justfs0,zOS_FLA	; } else {
+	pagesel	puts
+	call	puts		;  puts(fsr0 = "FSR");
+	pagesel	put01
+	call	put01		;  put01(enc & (1<<2));
+
+	call	puts		;  puts(fsr0);
+
+putmovi
+	lsrf	WREG		;void putmovi(uint4_t w) {
+	andlw	0x04		;
+	addlw	low opc_miw	;
+	movwf	FSR0L		;
+	movlw	high  opc_miw	;
+	movwf	FSR0H		;
+	clrw			; // moviw/wi distinction always at nybble top
+	addwfc	FSR0H,f		; puts((w & (1<<4)) ? "movwi  " : "moviw  ");
+	pagesel	puts
+	goto	puts		;}
+put01
+	movlw	'0'		;
+	btfsc	enc,2		;
+	movlw	'1'		;
+	bcf	STATUS,C	;
+	pagesel	putch
+	goto	putch		;  putch((enc & (1<<2)) ? '1' : '0',c = 0);
+	
 noargs
 	lslf	enc,w		;
 	lslf	WREG		;
@@ -1621,10 +1736,14 @@ newbank
 	movwf	FSR0H		;
 	movlw	0x1f		;
 	bra	onelit		;
+	
+
+
+	
+#if 0;1
 moviwwi
-#if 1
- bra litbyte ; // FIXME: nop/reset/return/retfie/callw/brw/moviw/movwi/movlb/option/sleep/clrwdt/tris unimplemented
-#else
+	bra litbyte ; // FIXME: nop/reset/return/retfie/callw/brw/moviw/movwi/movlb/option/sleep/clrwdt/tris unimplemented
+;#else
 ;;; if we arrive from omnibus, must have enc already swapf'ed
 ;;; FIXME: use some branching, don't need to always use carry flag to select < 3
 	clrw			;
@@ -1679,23 +1798,29 @@ movoffs
 	goto	retadr		;
 #endif
 
+zero
+	da	"0"
 offset0
 	da	"[FSR0]",0
 offset1
 	da	"[FSR1]",0
-minfsr	
-	da	"--FSR"
-minmin
-	da	"--",0
-plufsr
-	da	"++FSR"
-pluplu
-	da	"++",0
+fsrprei
+	da	"++FSR0",0
+	da	"++FSR1",0
+fsrpred
+	da	"--FSR0",0
+	da	"--FSR1",0
+	
+fsrposi
+	da	"FSR0++",0
+	da	"FSR1++",0
+fsrposd
+	da	"FSR0--",0
+	da	"FSR1--",0
 opc_miw	
 	da	"moviw  "
 opc_mwi
 	da	"movwi  "
-	
 opc_lit
 	da	"addlw  "
 	da	"sublw  "
@@ -1771,6 +1896,8 @@ opcomni
 	
 hexpref
 	da	"0x",0
+hex_neg
+	da	"-0x"
 regnam0
 	da	"INDF0"
 regnam1
