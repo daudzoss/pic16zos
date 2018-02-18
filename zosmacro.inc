@@ -1227,9 +1227,9 @@ chio	set	char_io-vars
 
 rxdecl
 	zOS_CON	p,ra,rt,h,pi
-	zOS_LAU	RTOSJOB
+	zOS_LAU	zOS_JOB
 	zOS_ACT	FSR1
-	zOS_LOC	FSR1L,RTOSJOB,vars
+	zOS_LOC	FSR1L,zOS_JOB,vars
 	movf	zOS_AR0,w	;rxdecl:
 	movwi	arg0[FSR1]	; zOS_CON(p,rat,rts,hb,pin);// extend zOS_CON()
 	movf	zOS_AR1,w	; zOS_LAU(&fsr1);// by rewriting after launch
@@ -1646,8 +1646,16 @@ printfn
 	pagesel	puts
 	call	puts		; puts(fsr0);
 	pagesel	retadr		; return;
-	call	retadr		;}
+	goto	retadr		;}
 
+newbank
+	movlw	low opc_mlb	;
+	movwf	FSR0L		;
+	movlw	high opc_mlb	;
+	movwf	FSR0H		;
+	movlw	0x1f		;
+	bra	onelit		;
+	
 omnibus
 	btfsc	enc,6		; // we know bit 7 (movwf) is clear
 	bra	noargs		;
@@ -1669,39 +1677,23 @@ omnibus
 	pagesel	puts
 	call	puts		;  puts(fsr0);
 	pagesel	retadr
-	goto	retadr		; else
-
-
-	movlw	low plufsr	;
-	movwf	FSR0L		;
-	movlw	high plufsr	;
-	movwf	FSR0H		;
-	movlw	0
-	btfsc	enc,0		;
-	movlw	minfsr - plufsr	;
-	addwf	FSR0L,f		;
-	
-	addwfc	FSR0H,f		; // FIXME: needs macros!
-	movwf	FSR0L		;
-	movlw	high plufsr	;
-	movwf	FSR0H		;
-	clrw			;
-	addwfc	FSR0H,f		;  fsr0 = ((enc & (1<<0)) ? "--FSR" : "++FSR");
-	pagesel	puts
-	call	puts		;  puts(fsr0);
-	pagesel	put01
-	call	put01		;  put01(enc & (1<<2));
-	pagesel	retadr
-	goto	retadr		;  return;
+	goto	retadr		; else // post incr/decrement
 post
-	zOS_ADR	justfs0,zOS_FLA	; } else {
+	zOS_SEL	fsrposi,fsrposd,enc,0
 	pagesel	puts
-	call	puts		;  puts(fsr0 = "FSR");
-	pagesel	put01
-	call	put01		;  put01(enc & (1<<2));
-
 	call	puts		;  puts(fsr0);
+	pagesel	retadr
+	goto	retadr		; }
 
+noargs
+	lslf	enc,w		;
+	lslf	WREG		;
+	andlw	0x3c		; w = (enc & 0x0f) * 4; // uniform string length
+	addlw	low opcomni	;
+	movwf	FSR0L		;
+	movlw	high opcomni	;
+	bra	nodest		;
+	
 putmovi
 	lsrf	WREG		;void putmovi(uint4_t w) {
 	andlw	0x04		;
@@ -1713,91 +1705,7 @@ putmovi
 	addwfc	FSR0H,f		; puts((w & (1<<4)) ? "movwi  " : "moviw  ");
 	pagesel	puts
 	goto	puts		;}
-put01
-	movlw	'0'		;
-	btfsc	enc,2		;
-	movlw	'1'		;
-	bcf	STATUS,C	;
-	pagesel	putch
-	goto	putch		;  putch((enc & (1<<2)) ? '1' : '0',c = 0);
 	
-noargs
-	lslf	enc,w		;
-	lslf	WREG		;
-	andlw	0x3c		; w = (enc & 0x0f) * 4; // uniform string length
-	addlw	low opcomni	;
-	movwf	FSR0L		;
-	movlw	high opcomni	;
-	bra	nodest		;
-newbank
-	movlw	low opc_mlb	;
-	movwf	FSR0L		;
-	movlw	high opc_mlb	;
-	movwf	FSR0H		;
-	movlw	0x1f		;
-	bra	onelit		;
-	
-
-
-	
-#if 0;1
-moviwwi
-	bra litbyte ; // FIXME: nop/reset/return/retfie/callw/brw/moviw/movwi/movlb/option/sleep/clrwdt/tris unimplemented
-;#else
-;;; if we arrive from omnibus, must have enc already swapf'ed
-;;; FIXME: use some branching, don't need to always use carry flag to select < 3
-	clrw			;
-	btfsc	enc,7		;
-	movlw	opc_mwi-opc_miw	;
-	addlw	low opc_miw	;
-	movwf	FSR0L		;
-	movlw	high opc_miw	;
-	movwf	FSR0H		;
-	clrw			;
-	addwfc	FSR0H,f		;
-	pagesel	puts
-	call	puts		;
-	
-	btfsc	1+enc,0		;
-	bra	movoffs		;
-	btfsc	enc,5		;
-	bra	postinc
-	
-	
-
-	pagesel	retadr
-	goto	retadr		;
-	
-movoffs
-	movlw	'0'		;
-	pagesel	putch
-	call	putch		;
-	movlw	'x'		;
-	pagesel	putch
-	call	putch		;
-	movlw	0x3f		;
-	andwf	enc,w		;
-	btfsc	enc,5		;
-	bsf	enc,6		;
-	btfsc	enc,5		;
-	bsf	enc,7		;
-	movwf	zOS_AR0		;
-	clrw			;
-	pagesel	putch
-	call	putch		;
-	zOS_ADR	offset0,zOS_FLA	;
-	movlw	0		;
-	btfsc	enc,6		;
-	movlw	offset1-offset0	;
-	addwf	FSR0L		;
-	movlw	0		;
-	addwfc	FSR0H		;
-	pagesel	puts
-	call	puts		;
-	pagesel	retadr
-	goto	retadr		;
-#endif
-
 zero
 	da	"0"
 offset0

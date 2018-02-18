@@ -297,7 +297,6 @@ main
 	zOS_INT	0,0
 	zOS_ADR	myprog,zOS_UNP
 	zOS_LAU	WREG
-	zOS_ACT	FSR0
 	
 	zOS_RUN	INTCON,INTCON
 
