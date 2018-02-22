@@ -2085,9 +2085,8 @@ monchr2
 	movlw	'\r'		;
 	pagesel	monbufs		;
 	call	monbufs		;
-	movlw	'\n'		;
-	pagesel	monbufs		;
-	call	monbufs		;
+	pagesel	monlf		;
+	call	monlf		;
 	
 	movf	destreg,w	;   // repeat \r's can set a whole range of
 	movwf	FSR0L		;   // addresses to zero???
