@@ -4,10 +4,11 @@
 	include	p16f1847.inc
 
 #ifdef __DEBUG
-	__CONFIG _CONFIG1,_FOSC_INTOSC & _WDTE_OFF & _PWRTE_OFF & _MCLRE_ON & _CP_OFF & _CPD_OFF & _BOREN_ON & _CLKOUTEN_OFF & _IESO_ON & _FCMEN_ON
+	__CONFIG _CONFIG1,_FOSC_INTOSC & _WDTE_OFF & _PWRTE_OFF & _MCLRE_ON & _CP_OFF & _CPD_OFF & _BOREN_ON & _CLKOUTEN_ON & _IESO_ON & _FCMEN_ON
 #else
 	__CONFIG _CONFIG1,_FOSC_HS & _WDTE_ON & _PWRTE_OFF & _MCLRE_ON & _CP_OFF & _CPD_OFF & _BOREN_ON & _CLKOUTEN_OFF & _IESO_ON & _FCMEN_ON
 #endif
+	__CONFIG _CONFIG2,_WRT_ALL & _PLLEN_OFF & _STVREN_ON & _BORV_LO & _LVP_ON
 	
 ;;; example program to control the Olimex PIC-IO relay/optoisolator board loaded
 ;;; with a PIC16F1847 microcontroller, the schematic for which may be found at
@@ -41,6 +42,7 @@ PORT3	equ	PORTB<<3
 OPTO3	equ	RB3	
 PORT4	equ	PORTB<<3
 OPTO4	equ	RB4
+HBEAT	equ	RB5	
 	
 #ifdef LATA
 RPORT	equ	LATA<<3
@@ -51,7 +53,7 @@ RELAY1	equ	RA3
 RELAY2	equ	RA2
 RELAY3	equ	RA1
 RELAY4	equ	RA0
-	
+		
 ;;; this board uses an 18-pin PIC with an external crystal to watch four opto-
 ;;; isolators and drive four relays; running this example zOS application each
 ;;; input/output pair (numbered 1 to 4, coinciding with its job) runs in its own
@@ -112,9 +114,7 @@ w2bit	macro	file
 	andlw	0x07		;inline uint8_t w2bit(uint8_t* file,
 	bsf	STATUS,C	;                     uint8_t w) {
 	clrf	file		;
-	xorlw	0x07		;
 	brw			;
-	rrf	file,f		;
 	rrf	file,f		;
 	rrf	file,f		;
 	rrf	file,f		;
@@ -122,7 +122,7 @@ w2bit	macro	file
 	rrf	file,f		;
 	rrf	file,f		; *file = 1 << (w &= 0x07);
 	rrf	file,f		; return w;
-	xorlw	0x07		;}
+	rrf	file,f		;}
 	endm
 
 myopto1
@@ -180,7 +180,7 @@ optordy
 	movwf	BSR		; bsr = zos_job; // make sure we see our own var
 	movf	RELAYP,w	; uint8_t fsr1 = (relayp == PORTA & 0xff) ?
 	movwf	FSR1L		;                               &PORTA : &PORTB;
-	movlw	RELAYH,w	;                //  0xff & (this input & mask)
+	movf	RELAYH,w	;                //  0xff & (this input & mask)
 	movwf	FSR1H		;
 	movf	zOS_MSK,f	;  if (zOS_MSK == 0) {
 	btfss	STATUS,Z	;   if (INTCON & 1<<IOCIF == 0)
@@ -220,7 +220,7 @@ optoclr
 optodon
 	zOS_RET
 
-	zOS_NAM	"I/O channel"
+	zOS_NAM	"opto+relay pair"
 relay
 	decf	zOS_ME		;void relay(void) { // 1<= bsr (job#) <= 4
 	pagesel	myrelay	
@@ -331,7 +331,7 @@ use_hwi
 use_swi
 	zOS_ADR	relay,zOS_UNP
 	zOS_LAU	WREG
-	zOS_ACT	FSR0
+;	zOS_ACT	FSR0
 	btfss	WREG,2		;  fsr0 = &relay 0x7fff; // relay() unpriv'ed
 	bra	create		; }
 	
@@ -339,27 +339,46 @@ use_swi
 	btfsc	WREG,7		; if (w == zOS_NUM)// no job remains for zOS_MON
 	reset			;  reset();
 
+#if 1
+	zOS_MAN	0,.020000000/.000009600,PIR1,PORTB,RB5,0
+	movlw	OUTCHAR		; zOS_MON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
+	movwi	0[FSR0]		; zOS_ARG(3, OUTCHAR/*only 1 SWI*/);
+#else
+	zOS_CON	0,.020000000/.000009600,PIR1,PORTB,RB5,0
+
 	banksel	IOCBP
 	movf	ALL_IOC,w	;
 	movwf	IOCBP		; IOCBP = all_ioc; // IOCIF senses rising optos
 	movwf	IOCBN		; IOCBN = all_ioc; // IOCIF senses falling optos
 	bsf	INTCON,IOCIE	; INTCON |= 1<<IOCIE; // enable edge sensing HWI
 	clrf	ALL_IOC		; ALL_IOC = 0; // will go nonzero once zOS_CON()
+#endif
 
-	banksel	ANSELB
-	bcf	ANSELB,RB5	; ANSELB &= ~(1<<RB5); // allow digital function
-	banksel	TRISB
-	bcf	TRISB,RB5	; TRISB &= ~(1<<RB5); // allow output heartbeat
-	
+	banksel	TRISA
+	bsf	TRISA,RA7	; TRISA = 0xb0;
+	bcf	TRISA,RA6	; // xtal <--------startup error? race cond'n?
+	bsf	TRISA,RA5	; // MCLR
+	bsf	TRISA,OPTO1	; // RA4 is I1
+	bcf	TRISA,RELAY1	; // RA3 is O1
+	bcf	TRISA,RELAY2	; // RA2 is O2
+	bcf	TRISA,RELAY3	; // RA1 is O3
+	bcf	TRISA,RELAY4	; // RA0 is O4
+	bsf	TRISB,RB7	; TRISB = 0xdb;
+	bsf	TRISB,RB6	; // ICSP
+	bcf	TRISB,HBEAT	; // RB5 is HBEAT
+	bsf	TRISB,OPTO4	; // RB4 is I4
+	bsf	TRISB,OPTO3	; // RB3 is I3
+	bcf	TRISB,RB2	; // RB2 is TXD
+	bsf	TRISB,RB1	; // RB1 is RXD
+	bsf	TRISB,OPTO2	; // RB0 is I2
+
+	banksel	ANSELA
+	clrf	ANSELA		; ANSELA = 0x00; // no analog
+	clrf	ANSELB		; ANSELB = 0x00; // no analog
+
 	banksel	OPTION_REG
 	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
 	bcf	OPTION_REG,PSA	; OPTION_REG &= ~(1<<PSA);// using max prescaler
 	
-	zOS_MAN	0,.020000000/.000009600,PIR1,PORTB,RB5,0
-	movlw	OUTCHAR		; zOS_MON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
-	movwi	0[FSR0]		; zOS_ARG(3, OUTCHAR/*only 1 SWI*/);
-
-	zOS_LAU	WREG		; zOS_LAU(&w);
-	zOS_ACT	FSR0
 	zOS_RUN	INTCON,INTCON	; zOS_RUN(/*T0IE in*/INTCON, /*T0IF in*/INTCON);
 	end			;}

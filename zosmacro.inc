@@ -122,7 +122,6 @@ retry
 	endm			;} // zOS_LAU()
 
 zOS_ACT	macro	fsrnum
-#if 1
 	local	proceed,endact
 	if (fsrnum & 3)
 fsrn	 set 1
@@ -144,7 +143,6 @@ proceed
 	andlw	0x07		; return w;
 	addlw	0xff		;}
 endact
-#endif
 	endm
 	
 zOS_INI	macro	fsrnum,val0,val1
