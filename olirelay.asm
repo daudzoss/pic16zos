@@ -111,7 +111,8 @@ w2port	macro
 w2bit	macro	file
 	andlw	0x07		;inline uint8_t w2bit(uint8_t* file,
 	bsf	STATUS,C	;                     uint8_t w) {
-	clrf	file		; *file = 1 << (w &= 0x07);
+	clrf	file		;
+	xorlw	0x07		;
 	brw			;
 	rrf	file,f		;
 	rrf	file,f		;
@@ -119,8 +120,9 @@ w2bit	macro	file
 	rrf	file,f		;
 	rrf	file,f		;
 	rrf	file,f		;
+	rrf	file,f		; *file = 1 << (w &= 0x07);
 	rrf	file,f		; return w;
-	rrf	file,f		;}
+	xorlw	0x07		;}
 	endm
 
 myopto1
@@ -156,39 +158,40 @@ mychan
 
 RELAYID	equ	0x20
 OPTOID	equ	0x21
-RELAYP	equ	0x22
-OPTOP	equ	0x23
-RELAYB	equ	0x24
-OPTOB	equ	0x25
-OPTOCUR	equ	0x26
-OPTOLST	equ	0x27
-MYMASK	equ	0x28
-SAID_HI	equ	0x29
-TMP_LST	equ	0x2a
+RELAYP	equ	0x22		; == low RPORT
+RELAYH	equ	0x23
+OPTOP	equ	0x24
+RELAYB	equ	0x25
+OPTOB	equ	0x26		; 128/64/32/16/8/4/2/1 to mask with the input
+OPTOCUR	equ	0x27
+OPTOLST	equ	0x28
+MYMASK	equ	0x29
+SAID_HI	equ	0x2a
+TMP_LST	equ	0x2b
 	
 optoisr
-	movf	zOS_JOB,w	;__isr void optoisr(uint8_t zos_job) {
-	movwf	BSR		; bsr = zos_job; // make sure we see our own var
 	zOS_MY2	FSR0
-	movf	RELAYP,w	;
-	movwf	FSR1L		; uint8_t *fsr0; // commanded state of output,
-	movlw	high RELAYP	; uint8_t *fsr1; //  0xff & (this input & mask)
-	movwf	FSR1H		;
-	moviw	1[FSR0]		; fsr0 = 0x70 | (bsr<<1);
-	btfss	STATUS,Z	; fsr1 = (relayp==PORTA&0xff) ? &PORTA : &PORTB;
+	moviw	1[FSR0]		;__isr void optoisr(uint8_t zos_job) {
+	btfss	STATUS,Z	; uint8_t* fsr0 = 0x70 | (bsr<<1); // output var
 	bra	optordy		; if (1[fsr0]) { // initialization has completed
 	zOS_RET
 optordy
-	movf	OPTOB,w		;  w = OPTOB;// our job's single bit of interest
+	movf	zOS_JOB,w	;
+	movwf	BSR		; bsr = zos_job; // make sure we see our own var
+	movf	RELAYP,w	; uint8_t fsr1 = (relayp == PORTA & 0xff) ?
+	movwf	FSR1L		;                               &PORTA : &PORTB;
+	movlw	RELAYH,w	;                //  0xff & (this input & mask)
+	movwf	FSR1H		;
 	movf	zOS_MSK,f	;  if (zOS_MSK == 0) {
 	btfss	STATUS,Z	;   if (INTCON & 1<<IOCIF == 0)
-	bra	optoswi		;    zOS_RET(); // not an IOC, maybe timer0 ovf.
+	bra	optoswi		;    zOS_RFI(); // not an IOC, maybe timer0 ovf.
 	btfsc	INTCON,IOCIF	;
 	bra	optohwi		;   bsr = &IOCBF >> 7;
 	zOS_RET
 optohwi
+	movf	OPTOB,w		;   w = OPTOB;// our job's single bit of interest
 	banksel	IOCBF
-	andwf	IOCBF,w		;   w = OPTOB & IOCBF; // mask for the port bits
+	andwf	IOCBF,w		;   w &= IOCBF; // mask for the port bits
 	btfss	STATUS,Z	;   if (w) { // our opto is (at least 1) trigger
 	bra	optoioc		;    zOS_MSK = w; // use as scratch var for zero
 	zOS_RET
@@ -216,12 +219,12 @@ optoclr
 	zOS_TAI	OUTCHAR
 optodon
 	zOS_RET
-greet
-	da	"\r\nActivated relay ",0
+
+	zOS_NAM	"I/O channel"
 relay
 	decf	zOS_ME		;void relay(void) { // 1<= bsr (job#) <= 4
 	pagesel	myrelay	
-	call	myrelay		; const char* greet = "\r\nActivated relay ";
+	call	myrelay		;
 	movwf	RELAYID		;
 
 	w2port
@@ -266,9 +269,6 @@ relayhi
 	bra	relayrd		;
 	movlw	relayrd-relayhi	;   zOS_ADR(fsr0 = &greet);
 	movwf	SAID_HI		;   zOS_STR(OUTCHAR); // "\r\nActivated relay "
-	zOS_ADR	greet,zOS_FLA
-	zOS_STR	OUTCHAR		
-relaynm
 	clrw			;   zOS_ARG(0,0);
 	zOS_ARG	0
 	movf	zOS_ME		;   zOS_ARG(1,bsr);
@@ -355,15 +355,10 @@ use_swi
 	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
 	bcf	OPTION_REG,PSA	; OPTION_REG &= ~(1<<PSA);// using max prescaler
 	
-#if 0
-OUTCHAR	equ	zOS_SI3
-;	zOS_MAN	0,20000000/9600,PIR1,PORTB,RB5
-	zOS_CON	0,20000000/9600,PIR1,PORTB,RB5
+	zOS_MAN	0,.020000000/.000009600,PIR1,PORTB,RB5,0
 	movlw	OUTCHAR		; zOS_MON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
-	zOS_ARG	3		; zOS_ARG(3, OUTCHAR/*only 1 SWI*/);
-#else	
-	zOS_NUL	1<<T0IF
-#endif
+	movwi	0[FSR0]		; zOS_ARG(3, OUTCHAR/*only 1 SWI*/);
+
 	zOS_LAU	WREG		; zOS_LAU(&w);
 	zOS_ACT	FSR0
 	zOS_RUN	INTCON,INTCON	; zOS_RUN(/*T0IE in*/INTCON, /*T0IF in*/INTCON);
