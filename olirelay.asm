@@ -339,13 +339,25 @@ use_swi
 	btfsc	WREG,7		; if (w == zOS_NUM)// no job remains for zOS_MON
 	reset			;  reset();
 
-#if 1
-	zOS_MAN	0,.020000000/.000009600,PIR1,PORTB,RB5,0
+#ifdef __DEBUG
+	banksel	OSCCON
+	bsf	OSCCON,IRCF3	; // change from 0.5MHz default to 16MHz
+	movlb	0		;
+
+CLKRAT	equ	.016000000/.000009600
+#else
+CLKRAT	equ	.020000000/.000009600
+#endif
+	
+#ifdef zOS_MIN
+	zOS_CON	0,CLKRAT,PIR1,PORTB,RB5,0
+#else
+	zOS_MAN	0,CLKRAT,PIR1,PORTB,RB5,0
 	movlw	OUTCHAR		; zOS_MON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
 	movwi	0[FSR0]		; zOS_ARG(3, OUTCHAR/*only 1 SWI*/);
-#else
-	zOS_CON	0,.020000000/.000009600,PIR1,PORTB,RB5,0
+#endif
 
+#if 0
 	banksel	IOCBP
 	movf	ALL_IOC,w	;
 	movwf	IOCBP		; IOCBP = all_ioc; // IOCIF senses rising optos
