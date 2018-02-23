@@ -168,7 +168,6 @@ OPTOCUR	equ	0x26
 OPTOLST	equ	0x27
 MYMASK	equ	0x28
 SAID_HI	equ	0x29
-TMP_LST	equ	0x2a
 	
 optoisr
 	zOS_MY2	FSR0
@@ -179,13 +178,14 @@ optoisr
 optordy
 	movf	zOS_JOB,w	;
 	movwf	BSR		; bsr = zos_job; // make sure we see our own var
-	movf	RELAYP,w	; uint8_t fsr1 = (relayp == PORTA & 0xff) ?
+	movf	OPTOP,w		; uint8_t fsr1 = (relayp == PORTA & 0xff) ?
 	movwf	FSR1L		;                               &PORTA : &PORTB;
 	movlw	RHIGH		;                //  0xff & (this input & mask)
 	movwf	FSR1H		;
+	movf	zOS_AR0,w	;  w = zOS_AR0; // in case of a software interrupt
 	movf	zOS_MSK,f	;  if (zOS_MSK == 0) {
 	btfss	STATUS,Z	;   if (INTCON & 1<<IOCIF == 0)
-	bra	optoswi		;    zOS_RFI(); // not an IOC, maybe timer0 ovf.
+	bra	optoswi		;    zOS_RET(); // not an IOC, maybe timer0 ovf.
 	btfsc	INTCON,IOCIF	;
 	bra	optohwi		;   bsr = &IOCBF >> 7;
 	zOS_RET
@@ -242,8 +242,8 @@ relay
 	movwf	OPTOP		; static uint8_t optop = w2port(optoid);
 	movf	OPTOID,w	; static uint8_t optob = w2bit(optoid);
 	w2bit	OPTOB
-	movf	OPTOB,w		;
-	movwf	OPTOLST		; static uint8_t optolst = optob;// used for RA4
+	movlw	0xff		; // force an initial mismatch
+	movwf	OPTOLST		; static uint8_t optolst = 0xff;// used for RA4
 
 	pagesel	mychan
 	decf	zOS_ME		;
@@ -261,8 +261,7 @@ relayin
 	movlw	0xff		;
 	movwi	1[FSR0]		; 1[fsr0] = 0xff; // bits nonzero indicates init
 relaylp
-	clrwdt			; do {
-	movf	SAID_HI,w	;  clrwdt(); // avoid WDT bite watching non-IOC
+	movf	SAID_HI,w	; do {
 	brw			;  if (!said_hi && // haven't announced self yet
 relayhi
 	movf	ALL_IOC,f	;      all_ioc) { // and job 5 running zOS_CON()
@@ -299,21 +298,25 @@ relay0
 	andwf	INDF1,f		;   *fsr1 &= ~relayb;// commanded to 0 by global
 relayop
 #endif
-
-	movf	OPTOP,w		;  if (OPTOP == PORTA) { // watch in tight loop
-	xorlw	low PORTA	;   if (OPTOLST != PORTA & OPTOB) { // changed!
+	movf	OPTOP,w		;
+	xorlw	low PORTA	;
 	btfss	STATUS,Z	;
-	bra	relayld		;
-	zOS_R	PORTA,zOS_JOB,0
-	andwf	OPTOB,w		;
-	movwf	TMP_LST		;
-	xorwf	OPTOLST,w	;    OPTOLST = PORTA & OPTOB; // save new value
-	btfsc	STATUS,Z	;    zOS_SWI(NON_IOC); // and tell ISR to look
-	bra	relaylp		;   } // or zOS_SWI(0xff); to invoke our own SWI
-	movf	TMP_LST,w	;  } else
-	movwf	OPTOLST		;   zOS_SWI(zOS_YLD);//let next job run (no ARG)
+	bra	relayld		;  if (OPTOP == PORTA) { // watch in tight loop
+;	clrwdt			;   clrwdt(); // shouldn't need to do this
+	movlw	low PORTA	;
+	movwf	FSR1L		;
+	movlw	high PORTA	;
+	movwf	FSR1H		;   fsr1 = PORTA;
+	movf	INDF1,w		;   if ((OPTOCUR = *fsr1 & OPTOB) != OPTOLST) {   
+	andwf	OPTOB,w		;    OPTOLST = OPTOCUR;
+	movwf	OPTOCUR		;    zOS_SWI(NON_IOC /* or equivalently 0xff */);
+	xorwf	OPTOLST,w	;   }
+	btfsc	STATUS,Z	;   fsr1 = (relayp==LATA&0xff) ? &LATA : &LATB;
+	bra	relayin		;  } else
+	xorwf	OPTOLST,f	;   zOS_SWI(zOS_YLD); // PORTA task never yields
 	zOS_SWI	NON_IOC
-	bra	relaylp		; } while (1);
+	bra	relayin		; } while (1);
+	
 relayld
 	zOS_SWI	zOS_YLD
 	bra	relaylp		;}

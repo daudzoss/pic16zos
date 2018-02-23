@@ -1084,33 +1084,6 @@ brgvall	set	low brgvalm
 	movlb	0		; // still in job "0": don't forget this!!!!
 	endm			;} // zOS_CON()
 
-#if 0
-	;; remnants of an early experiment to allow bank changing outside ISR
-	;; to read SFR's is now deprecated, only known use is in olirelay.asm
-zOS_R	macro	file,bankf,prsrv;inline int8_t zOS_R(const int8_t* file, int8_t bank, int8_t prsrv) {
-	if (prsrv)
-	 movf	INTCON,w
-	 bcf	INTCON,GIE
-	 movwf	zOS_AR1
-	else
-	 bcf	INTCON,GIE
-	endif
-	if file & 0x60
-	 error "tried to access disallowed RAM range (global or another job's)"
-	endif
-	banksel	file	   	; INTCON &= ~(1<<GIE); // access zOS_AR* globals
-	movf	file,w		; bsr = file >> 7;
-	movwf	zOS_AR0		; zOS_AR0 = *file; // any 0-0x1f SFR in any bank
-	movf	bankf,w		; bsr = bankf;
-	movwf	BSR		; w = zOS_AR0;
-	movf	zOS_AR0,w	; if (prsrv && (zOS_AR1 & (1<<GIE)))
-	if prsrv
-	 btfss	zOS_AR1,GIE	;  INTCON |= 1<<GIE; // restore interrupt state
-	endif
-	bsf	INTCON,GIE	; return w;
-	endm			;} // zOS_R()
-#endif
-	
 ;;; like zOS_CON, but also accepts console input for command-line interaction
 zOS_INP	macro	p,ra,rt,h,pi,isr;inline void zOS_INP(int8_t p, int8_t ra, int8_t
 	local	rxtask,no_opt,rxisr,rxdecl
