@@ -1084,8 +1084,9 @@ brgvall	set	low brgvalm
 	movlb	0		; // still in job "0": don't forget this!!!!
 	endm			;} // zOS_CON()
 
+#if 0
 	;; remnants of an early experiment to allow bank changing outside ISR
-	;; to read SFR's is now deprectated, only known use is in olirelay.asm
+	;; to read SFR's is now deprecated, only known use is in olirelay.asm
 zOS_R	macro	file,bankf,prsrv;inline int8_t zOS_R(const int8_t* file, int8_t bank, int8_t prsrv) {
 	if (prsrv)
 	 movf	INTCON,w
@@ -1108,6 +1109,7 @@ zOS_R	macro	file,bankf,prsrv;inline int8_t zOS_R(const int8_t* file, int8_t bank
 	endif
 	bsf	INTCON,GIE	; return w;
 	endm			;} // zOS_R()
+#endif
 	
 ;;; like zOS_CON, but also accepts console input for command-line interaction
 zOS_INP	macro	p,ra,rt,h,pi,isr;inline void zOS_INP(int8_t p, int8_t ra, int8_t
