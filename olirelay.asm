@@ -46,8 +46,10 @@ HBEAT	equ	RB5
 	
 #ifdef LATA
 RPORT	equ	LATA<<3
+RHIGH	equ	LATA>>8
 #else
 RPORT	equ	PORTA<<3
+RHIGH	equ	PORTA>>8
 #endif
 RELAY1	equ	RA3
 RELAY2	equ	RA2
@@ -156,18 +158,17 @@ mychan
 	retlw	0x01		;}
 	
 
-RELAYID	equ	0x20
-OPTOID	equ	0x21
-RELAYP	equ	0x22		; == low RPORT
-RELAYH	equ	0x23
-OPTOP	equ	0x24
-RELAYB	equ	0x25
-OPTOB	equ	0x26		; 128/64/32/16/8/4/2/1 to mask with the input
-OPTOCUR	equ	0x27
-OPTOLST	equ	0x28
-MYMASK	equ	0x29
-SAID_HI	equ	0x2a
-TMP_LST	equ	0x2b
+RELAYID	equ	0x20		; PORTA/PORTB/LATA/LATB
+OPTOID	equ	0x21		; PORTA/PORTB << 3, 0-7
+RELAYP	equ	0x22		; == low LATA/LATB/PORTA/PORTB
+OPTOP	equ	0x23		; == low PORTA/PORTB
+RELAYB	equ	0x24		; 128/64/32/16/8/4/2/1 to mask with the input
+OPTOB	equ	0x25		; 128/64/32/16/8/4/2/1 to mask with the output
+OPTOCUR	equ	0x26
+OPTOLST	equ	0x27
+MYMASK	equ	0x28
+SAID_HI	equ	0x29
+TMP_LST	equ	0x2a
 	
 optoisr
 	zOS_MY2	FSR0
@@ -180,7 +181,7 @@ optordy
 	movwf	BSR		; bsr = zos_job; // make sure we see our own var
 	movf	RELAYP,w	; uint8_t fsr1 = (relayp == PORTA & 0xff) ?
 	movwf	FSR1L		;                               &PORTA : &PORTB;
-	movf	RELAYH,w	;                //  0xff & (this input & mask)
+	movlw	RHIGH		;                //  0xff & (this input & mask)
 	movwf	FSR1H		;
 	movf	zOS_MSK,f	;  if (zOS_MSK == 0) {
 	btfss	STATUS,Z	;   if (INTCON & 1<<IOCIF == 0)
@@ -249,16 +250,16 @@ relay
 	call	mychan		; static uint8_t mymask = mychan1(bsr);
 	movwf	MYMASK		;
 	zOS_SWI	zOS_YLD		; zOS_SWI(zOS_YLD); // encourage others to init
+	clrf	SAID_HI		; said_hi = 0;
 relayin
 	zOS_MY2	FSR0
 	movf	RELAYP,w	; relayin: uint8_t* fsr0 = 0x70 | (bsr << 1);
 	movwf	FSR1L		; uint8_t* fsr1;
-	movlw	high PORTA	;
-	movwf	FSR1H		; fsr1 = (relayp==PORTA&0xff) ? &PORTA : &PORTB;
+	movlw	RHIGH		;
+	movwf	FSR1H		; fsr1 = (relayp==LATA&0xff) ? &LATA : &LATB;
 	
 	movlw	0xff		;
 	movwi	1[FSR0]		; 1[fsr0] = 0xff; // bits nonzero indicates init
-	clrf	SAID_HI		; said_hi = 0;
 relaylp
 	clrwdt			; do {
 	movf	SAID_HI,w	;  clrwdt(); // avoid WDT bite watching non-IOC
@@ -266,28 +267,38 @@ relaylp
 relayhi
 	movf	ALL_IOC,f	;      all_ioc) { // and job 5 running zOS_CON()
 	btfsc	STATUS,Z	;   said_hi = !said_hi;
-	bra	relayrd		;
-	movlw	relayrd-relayhi	;   zOS_ADR(fsr0 = &greet);
-	movwf	SAID_HI		;   zOS_STR(OUTCHAR); // "\r\nActivated relay "
-	clrw			;   zOS_ARG(0,0);
+	bra	relayrd		;   zOS_ADR(fsr0 = &greet);
+	movlw	relayrd-relayhi	;   zOS_STR(OUTCHAR);
+	movwf	SAID_HI		;   zOS_ARG(0,0);
+	clrw			;   zOS_ARG(1,bsr);
 	zOS_ARG	0
-	movf	zOS_ME		;   zOS_ARG(1,bsr);
+	movf	zOS_ME		;   zOS_SWI(OUTCHAR);// "01", "02", "03" or "04"
 	zOS_ARG	1
 	zOS_SWI	OUTCHAR
-	bra	relayin		;   zOS_SWI(OUTCHAR);// "01", "02", "03" or "04"
+;	bra	relayin		;   goto relayin; // to restore FSRs after print
 relayrd
-	movf	MYMASK,w	;   goto relayin; // to restore FSRs after print
+	movf	MYMASK,w	;
 	andwf	INDF0,w		;  }
 	btfsc	STATUS,Z	;
 	bra	relay0		;
 	movf	RELAYB,w	;  if (*fsr0 & mymask)
+	
+#ifdef CAUTIOUS
 	iorwf	INDF1,w	   	;   *fsr1 |= relayb; // commanded to 1 by global
 	bra	relayop	   	;
 relay0
 	comf	RELAYB,w	;  else
 	andwf	INDF1,w		;   *fsr1 &= ~relayb;// commanded to 0 by global
 relayop
-	movwf	INDF1		;
+	movwf	INDF1		;  // avoid R-M-W issues
+#else
+	iorwf	INDF1,f	   	;   *fsr1 |= relayb; // commanded to 1 by global
+	bra	relayop	   	;
+relay0
+	comf	RELAYB,w	;  else
+	andwf	INDF1,f		;   *fsr1 &= ~relayb;// commanded to 0 by global
+relayop
+#endif
 
 	movf	OPTOP,w		;  if (OPTOP == PORTA) { // watch in tight loop
 	xorlw	low PORTA	;   if (OPTOLST != PORTA & OPTOB) { // changed!
@@ -298,7 +309,7 @@ relayop
 	movwf	TMP_LST		;
 	xorwf	OPTOLST,w	;    OPTOLST = PORTA & OPTOB; // save new value
 	btfsc	STATUS,Z	;    zOS_SWI(NON_IOC); // and tell ISR to look
-	bra	relaylp		;   }
+	bra	relaylp		;   } // or zOS_SWI(0xff); to invoke our own SWI
 	movf	TMP_LST,w	;  } else
 	movwf	OPTOLST		;   zOS_SWI(zOS_YLD);//let next job run (no ARG)
 	zOS_SWI	NON_IOC
@@ -331,7 +342,8 @@ use_hwi
 use_swi
 	zOS_ADR	relay,zOS_UNP
 	zOS_LAU	WREG
-;	zOS_ACT	FSR0
+	zOS_ACT	FSR0
+
 	btfss	WREG,2		;  fsr0 = &relay 0x7fff; // relay() unpriv'ed
 	bra	create		; }
 	
