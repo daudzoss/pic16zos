@@ -590,7 +590,8 @@ zos_sw0
 	movf	zOS_AR0,w	;
 	movwi	zOS_ISR[FSR1]	;   zOS_ISR[fsr1] = zOS_AR0;
 	movf	zOS_AR1,w	;
-	movwi	zOS_ISH[FSR1]	;   zOS_ISH[fsr1] = zOS_AR1;
+	andlw	0x7f		;
+	movwi	zOS_ISH[FSR1]	;   zOS_ISH[fsr1] = zOS_AR1 & 0x7f;
 	movf	zOS_AR2,w	;
 	movwi	zOS_HIM[FSR1]	;   zOS_HIM[fsr1] = zOS_AR2;
 	movf	zOS_AR3,w	;
