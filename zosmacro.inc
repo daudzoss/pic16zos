@@ -2634,6 +2634,7 @@ manchr7
 	clrf	char_io		;   break;
 	
 manchr8
+#if 0;has never worked
 	movf	char_io,w	;  }
 	xorlw	'S'		;
 	btfss	STATUS,Z	;
@@ -2654,7 +2655,8 @@ manchr8
 	goto	stkinfo		;  zOS_ENA(); // re-enable interrupts if p0!=p1
 	zOS_ENA
 	retlw	0		;  return 0;//try again after caller advances p0
-
+#endif
+	
 manchr9
 	movf	char_io,w	;
 	xorlw	'Z'		;
@@ -2673,6 +2675,7 @@ manchr9
 mannone
 	retlw	0		; } return 0; //naught to do }
 
+#if 0;has never worked	
 	;guaranteed to arrive with p0=p1, interrupts off and in the correct bank
 stkinfo
 	movf	wrap,f		;int8_t stkinfo(void) {
@@ -2719,7 +2722,7 @@ stkloop
 	clrf	char_io		; return w;
 	zOS_ENA
 	return			;} // stkinfo()
-	
+#endif
 	;guaranteed to arrive with p0=p1, interrupts off and in the correct bank
 jobinfo
 	movf	wrap,w		;int8_t jobinfo(void) {
