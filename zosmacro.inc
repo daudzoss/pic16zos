@@ -3142,22 +3142,19 @@ clcchr6
 	clrf	zOS_AR1		;  //  input arg zOS_AR1:zOS_AR0 (accumulator)
 	movf	accumul,f	;  //                    zOS_AR2 (factor 1)
 	btfsc	STATUS,Z	;  //                    zOS_AR3 (factor 2)
-	bra	clcexp1		;  //  output arg zOS_AR1:zOS_AR0 (product)
-	decfsz	accumul,f	;
-	bra	clcexp1		;
+	bra	clcfac1		;  //  output arg zOS_AR1:zOS_AR0 (product)
 clcfac0
 	clrf	zOS_AR0		;  zOS_AR1 = 0;
 	clrf	zOS_AR1		;  for (uint8_t w = 1; accumul-->1; accumul--) {
 	movwf	zOS_AR2		;   zOS_AR0 = (uint16_t) 0;
-	movf	destreg,w	;   zOS_AR2 = w;
-	decf	destreg,f	;   zOS_AR3 = destreg-- & 0x00ff;
+	movf	accumul,w	;   zOS_AR2 = w; zOS_AR3 = destreg-- & 0x00ff;
 	movwf	zOS_AR3		;   fsr0 = &char_io; // temp register (as INDF0)
 	zOS_LOC	FSR0,zOS_JOB,char_io
 	pagesel	zos_mac
 	call	zos_mac		;   zos_mac(&zOS_AR0 /* += */,
 	movf	zOS_AR0,w	;           &zOS_AR2 /* * */, &zOS_AR3, fsr0);
 	decfsz	accumul,f	;   w = zOS_AR0;
-	bra	clcexp0		;  }
+	bra	clcfac0		;  }
 clcfac1
 	movwf	destreg		;  destreg = ((uint16_t) zOS_AR1) << 8) | w;
 	clrf	1+destreg	;  // 1 <= destreg <= 720
