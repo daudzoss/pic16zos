@@ -433,14 +433,14 @@ mcandid
 	btfsc	STATUS,Z	;    if (w == 0)
 	bra	invalid		;     goto invalid; // past the highest address
 
-	bsf	STATUS,C	;    // temp is now the address of this candidate
-	comf	temp,f		;    // w is now the next address past candidate
+	bsf	STATUS,C	;   // temp is now the address of this candidate
+	comf	temp,f		;   // w is now the next address past candidate
 	addwfc	temp,w		;
 	movwf	temp		;
 	subwf	zOS_AR0,w	;    else if ((w = zOS_AR0 - (temp = w-temp))>0)
 	btfsc	STATUS,Z	;
-	bra	mexact		;    // -w now holds extra space beyond requested
-	btfss	WREG,7		;    // temp now holds total available at alloced
+	bra	mexact		;   // -w now holds extra space beyond requested
+	btfss	WREG,7		;   // temp now holds total available at alloced
 	bra	mloop		;
 	bra	mnotall		;     continue; // not enough allocatable here
 
@@ -457,7 +457,7 @@ mnotall
 	movf	zOS_AR0,w	; // w == addr to insert, temp == size to insert
 	movwi	-1[FSR1]	;    -1[fsr1] = zOS_AR0; // record it as granted
 	clrf	temp		;    temp = 0;
-	addwf	alloced,w	;    for (w = -1[fsr0] + temp; *fsr0; fsr0++,fsr1++) {
+	addwf	alloced,w	;    for (w=-1[fsr0]+temp;*fsr0;fsr0++,fsr1++) {
 groloop		
 	xorwf	INDF0,f		;   // w  == contents for inserted cell for fsr0
 	xorwf	INDF0,w		;   // *fsr0 == contents to overwrite in fsr0
@@ -929,14 +929,14 @@ contask
 	bra	inited		;  if (1[fsr0] == 0) { // not initialized yet
 	zOS_DIS	GIE,0
 	movlw	0xff		;  zOS_DIS(&fsr0, zOS_JOB); // interrupts off!
-	movwi	t0div[FSR0]	;  0[fsr0] = 0xff;// live TMR0 postscaler divider
+	movwi	t0div[FSR0]	;  0[fsr0] = 0xff;//live TMR0 postscaler divider
 	movlw	0x00		;
 	movwi	t0rst[FSR0]	;  1[fsr0] = 0x00; // live reset value for TMR0
 	rrf	zOS_ME		;
 	clrw			;  const char* max = 0x70;
-	rrf	WREG		;  static char *p0, *p1, buf[]; //p0:task, p1:ISR
+	rrf	WREG		;  static char *p0, *p1, buf[]; //p0:task,p1:ISR
 	iorlw	buf		;  const char* wrap = ((bsr&1)<<7) | buf;
-	movwf	wrap		;  p0 = p1 = wrap; // reset value if they max out
+	movwf	wrap		;  p0 = p1 = wrap; //reset value if they max out
 	movwf	p0		;  zOS_ENA(); // interrupts on after init done
 	movwf	p1		;  puts("\r\nWelcome to zOS\r\n");
 	zOS_ENA	;//FIXME: superfluous due to subsequent SWI
@@ -2318,7 +2318,7 @@ monsave
 monprmp
 	movf	1+destreg,w	;monprmp:
 	movwf	accumuh		; accumuh = destreg>>8;
-	iorwf	destreg,w	; if (destreg) { // prompt with destreg if nonzero
+	iorwf	destreg,w	; if (destreg) { // prompt with destreg if non-0
 	pagesel	monhex
 	btfsc	STATUS,Z	;  monhex(zos_job, p0);
 	bra	$+6		;  accumuh = destreg & 0xff;
@@ -2458,7 +2458,7 @@ manchr0
 	call	0x02		;   zOS_ARG(1, w);
 	zOS_ARG	0		;   zOS_ARG(0, 0);
 #if 0
-	clrf	zOS_AR1		;   zOS_BUF(zos_job, p0); // print hex SWI result
+	clrf	zOS_AR1		;   zOS_BUF(zos_job, p0); //print hex SWI result
 	xorwf	zOS_AR1,f	;   zOS_ENA();
 	xorwf	zOS_AR0,f	;   goto caseJ;
 	zOS_BUF	FSR0,max,p0
@@ -2891,7 +2891,7 @@ manh	set	optadrh-vars
 ;;;  First a jump over the clcisr code ends the macro expansion
 ;;;  zOS_MAN is invoked with all the zOS_CON arguments and its clcisr address:
 ;;;   zOS_MON is invoked with all the zOS_CON arguments (and the clcisr address)
-;;;    First a jump over zOS_MON's monisr and all its support functions (no task)
+;;;    First a jump over zOS_MON's monisr and all its support functions(no task)
 ;;;    zOS_INP is invoked with all the zOS_CON arguments (and monisr's address)
 ;;;     Immediately a near branch to rxdecl over the rxtask and rxisr code:
 ;;;     When run, rxtask first calls any code at nonzero optadrh:optadrl address
@@ -3092,7 +3092,7 @@ clcchr4
 	andlw	0x7f		;  //  output arg zOS_AR1:zOS_AR0 (quotient/exc)
 	movwf	zOS_AR1		;  zOS_AR0 = (uint16_t) destreg & 0x7fff;
 	movf	accumul,w	;  zOS_AR2 = accumul & 0xff;
-	movwf	zOS_AR2		;  fsr0 = &char_io; // temp register (as INDF0)  
+	movwf	zOS_AR2		;  fsr0 = &char_io; // temp register (as INDF0)
 	zOS_LOC	FSR0,zOS_JOB,char_io
 	pagesel	zos_div
 	call	zos_div		;  zos_div(&zOS_AR0 /* /= */
@@ -3147,7 +3147,7 @@ clcchr6
 	bra	clcexp1		;
 clcfac0
 	clrf	zOS_AR0		;  zOS_AR1 = 0;
-	clrf	zOS_AR1		;  for (uint8_t w = 1; accumul-- > 1; accumul--) {
+	clrf	zOS_AR1		;  for (uint8_t w = 1; accumul-->1; accumul--) {
 	movwf	zOS_AR2		;   zOS_AR0 = (uint16_t) 0;
 	movf	destreg,w	;   zOS_AR2 = w;
 	decf	destreg,f	;   zOS_AR3 = destreg-- & 0x00ff;
