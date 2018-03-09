@@ -2316,21 +2316,22 @@ monsave
 
 ;;; 
 monprmp
-	pagesel	mon0
-	call	mon0		;
-	pagesel	monx
-	call	monx		;
 	movf	1+destreg,w	;monprmp:
 	movwf	accumuh		; accumuh = destreg>>8;
 	iorwf	destreg,w	; if (destreg) { // prompt with destreg if non-0
-	pagesel	monhex
+	pagesel	mon0
 	btfsc	STATUS,Z	;  monhex(zos_job, p0);
-	bra	$+6		;  accumuh = destreg & 0xff;
+	bra	monzero		;  accumuh = destreg & 0xff;
+	call	mon0		;
+	pagesel	monx
+	call	monx		;
+	pagesel	monhex
 	call	monhex		;  monlsb(zos_job, p0);
 	movf	destreg,w	; }
 	movwf	accumuh		;monlast: zOS_ACC(&accumul,&numbase); zOS_RFI();
 	pagesel	monlsb
 	call	monlsb		;         char_io = 0;
+monempty
 	pagesel	monspc
 	call	monspc		;    putchar(' ');
 monzero
