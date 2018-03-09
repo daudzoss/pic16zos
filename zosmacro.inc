@@ -3165,6 +3165,26 @@ clcfac1
 #endif
 	bra	clcprmp		; break;
 clcchr7
+	movf	char_io,w	;
+	xorlw	'$'		;
+	btfss	STATUS,Z	;  case '$': // store at highest job's globals
+	bra	clcchr8		;
+	movlw	zOS_NUM+1	;
+	movwf	zOS_JOB		; zOS_JOB = zOS_NUM+1;// search from high to low
+	zOS_MEM	FSR0,zOS_JOB,0	; fsr0 = 0x10 * (1 + zOS_JOB);
+	zOS_LIV	FSR0,zOS_JOB,0,clcchr8
+	zOS_GLO	FSR0,zOS_JOB
+	movf	accumul,w	;
+	movwi	1[FSR0]		;
+	movf	destreg,w	;
+	movwi	0[FSR0]		;
+	moviw	0[FSR0]		;
+	movwf	1+destreg	;
+	moviw	1[FSR0]		;
+	movwf	destreg		;
+	bra	clcprmp		;
+	
+clcchr8
 	movf	accumul,w	; default: zOS_AR1 = accumul; if (isr) goto isr;
 	movwf	zOS_AR1		; }// caller may use zOS_AR1 or accumuh:accumul
 	pagesel	isr		;
