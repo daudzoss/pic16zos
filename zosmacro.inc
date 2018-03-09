@@ -2316,6 +2316,10 @@ monsave
 
 ;;; 
 monprmp
+	pagesel	mon0
+	call	mon0		;
+	pagesel	monx
+	call	monx		;
 	movf	1+destreg,w	;monprmp:
 	movwf	accumuh		; accumuh = destreg>>8;
 	iorwf	destreg,w	; if (destreg) { // prompt with destreg if non-0
@@ -3175,6 +3179,12 @@ clcprmp
 	pagesel	monbufs
 	call	monbufs		;
 	movlw	'\n'		;
+	pagesel	monbufs
+	call	monbufs		;
+	movlw	'0'
+	pagesel	monbufs
+	call	monbufs		;
+	movlw	'x'
 	pagesel	monbufs
 	call	monbufs		;clcprmp:
 	movf	1+destreg,w	; moncrlf(zos_job, p0);
