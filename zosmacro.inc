@@ -3224,22 +3224,25 @@ clcfac1
 clcchr7
 	movf	char_io,w	;
 	xorlw	0x3b		;
-	btfss	STATUS,Z	;  case ';': // store at highest job's globals
+	btfss	STATUS,Z	;  case ';': // store highest priv job's globals
 	bra	clcchr8		;
 	movlw	zOS_NUM+1	;
-	movwf	zOS_JOB		; zOS_JOB = zOS_NUM+1;// search from high to low
+	movwf	zOS_JOB		; zos_job = zOS_NUM+1;// search from high to low
 	zOS_MEM	FSR0,zOS_JOB,0	; fsr0 = 0x10 * (1 + zOS_JOB);
+clcrtry
 	zOS_LIV	FSR0,zOS_JOB,0,clcchr8
+	moviw	zOS_HDH[FSR0]	; do {
+	btfss	WREG,zOS_PRB	;  zOS_LIV(fsr0, zos_job, 0, clcchr8); // found!
+	bra	clcrtry		; } while (zOS_HDH[fsr0] & (1<<zOS_PRB) == 0);
 	zOS_GLO	FSR0,zOS_JOB
-	movf	accumul,w	;
-	movwi	1[FSR0]		;
+	movf	accumul,w	; fsr0 = 0x70 + 2*zos_job; // found! privileged!
+	movwi	1[FSR0]		; 1[fsr0] = accumul & 0x00ff;
 	movf	destreg,w	;
-	movwi	0[FSR0]		;
-	moviw	0[FSR0]		;
-	movwf	1+destreg	;
+	movwi	0[FSR0]		; 0[fsr0] = destreg & 0x00ff;
+	movwf	1+destreg	; destreg <<= 8;
 	moviw	1[FSR0]		;
-	movwf	destreg		;
-	bra	clcprmp		;
+	movwf	destreg		; destreg |= accumul & 0x00ff;
+	bra	clcprmp		; clcchr8:
 	
 clcchr8
 	movf	accumul,w	; default: zOS_AR1 = accumul; if (isr) goto isr;
