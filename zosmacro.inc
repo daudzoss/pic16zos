@@ -738,6 +738,62 @@ zOS_RDH	equ	NVMDATH
 #endif
 	endm			;} // zOS_RDF()
 	
+zOS_RWF	macro
+	local	nextcol,start_w
+	banksel	PMCON1
+	movf	FSR1L,w		;inline void zOS_RWF(uint8_t* *fsr0, // RAM addr
+	andlw	0xe0		;   uint8_t* *fsr1) {// flash addr (4:0 ignored)
+	movwf	PMADRL		; // "ReWrite Flash" row, caller must clear GIE
+	movf	FSR1H,w		; // 32 flash locations at a time, loop for more
+	movwf	PMADRH		; PMADR = fsr1 & 0x7fe0;
+	bcf	PMCON1,CFGS	; PMCON1 &= ~(1<<CFGS); // "Not configuration"
+	bsf	PMCON1,FREE	; PMCON1 |= 1<<FREE; // "Specify an erase oper"
+	bsf	PMCON1,WREN	; PMCON1 |= 1<<WREN; // "Enable writes"
+	movlw	0x55		;
+	movwf	PMCON2		; PMCON2 = 0x55; // "required sequence..."
+	movlw	0xaa		;
+	movwf	PMCON2		; PMCON2 = 0xaa; // "...to initiate erase"
+	bsf	PMCON1,WR	; PMCON1 |= 1<<WR; // "begin erase"
+	nop			; // "the processor stalls until...erase process
+	nop			; // is complete", meanwhile WR bit gets cleared
+;	bcf	PMCON1,WREN
+;	bcf	PMCON1,CFGS
+;	bsf	PMCON1,WREN
+	bsf	PMCON1,LWLO	; for (PMCON1 |= 1<<LWLO; PMADR&0x1f; PMADR++){
+nextcol	
+	moviw	FSR0++		;  // "Load Write Latches Only"
+	movwf	PMDATL		;  PMDATL = *(*fsr0)++; // little-endian 
+	movi	FSR0++		;
+	movwf	PMDATH		;  PMDATH = *(*fsr0)++; // will advance by 64
+	movf	PMADRL,w	;
+	xorlw	0x1f		;
+	andlw	0x1f		;
+	btfsc	STATUS,Z	;
+	bra	start_w		;
+	movlw	0x55		;
+	movwf	PMCON2		;  PMCON2 = 0x55; // "required sequence..."
+	movlw	0xaa		;
+	movwf	PMCON2		;  PMCON2 = 0xaa; // "...to load write latches"
+	bsf	PMCON1,WR	;  PMCON1 |= 1<<WR; // "begin write"
+	nop			;
+	nop			;
+	incf	PMADRL,f	;
+	bra	nextcol		; } // PMADRL is now at a multiple of 0x0020
+start_w
+	bcf	PMCON1,LWLO	; PMCON1 &= ~(1<<LWLO); // "actually start"
+	movlw	0x55		; PMCON2 = 0x55; // "required sequence..."
+	movwf	PMCON2		;
+	movlw	0xaa		;
+	movwf	PMCON2		; PMCON2 = 0xaa; // "...to write using latches"
+	bsf	PMCON1,WR	; PMCON1 |= 1<<WR; // "set WR bit to begin"
+	nop			;
+	nop			;
+	movlw	0x20		;
+	addwf	FSR1L,f		;
+	clrw			; fsr1 += 0x0020; // advanced by 32 *words*
+	addwfc	FSR1H,f		;} // zOS_RWF()
+	endm
+	
 zOS_STR	macro	swinum
 	local loop,done
 	bcf	INTCON,GIE	;inline void zOS_STR(const char* fsr0,
