@@ -3028,22 +3028,22 @@ clcisr
 	movf	zOS_AR0,w	; switch (char_io = zOS_AR0) {
 	zOS_T63			;
 clctbl
-	retlw	' '
-	retlw   '!'
+	retlw	' '		; 0 to disable just about any RPN functionality
+	retlw   '!'		; 0 to disable command-line zos_mac() factorial
 	retlw	0x22
 	retlw	'#'
 	retlw	'$'
-	retlw	'%'
+	retlw	'%'		; 0 to disable 2.5x shortcut
 	retlw	'&'
 	retlw	"'"
 	retlw	'('
 	retlw	')'
-	retlw	'*';0 ;zos_mac() not defined for '*'
-	retlw	'+'
-	retlw	','
-	retlw	'-'
-	retlw	'.'
-	retlw	'/';0 ;zos_div() not defined for '/'
+	retlw	'*'		; 0 to disable zos_mac() access on command line
+	retlw	'+'		; 0 to disable addition on command line
+	retlw	','		; 0 to disable just about any RPN functionality
+	retlw	'-'		; 0 to disable subtraction on command line
+	retlw	'.'		; 0 to disable memory view/disassembly
+	retlw	'/'		; 0 to disable zos_div() access on command line
 	retlw	'0'
 	retlw	'1'
 	retlw	'2'
@@ -3052,45 +3052,45 @@ clctbl
 	retlw	'5'
 	retlw	'6'
 	retlw	'7'
-	retlw	'8'
-	retlw	'9'
+	retlw	'8'		; 0 to disable entry of decimal constants
+	retlw	'9'		; 0 to disable entry of decimal constants
 	retlw	':'
-	retlw	0x3b
+	retlw	0x3b		; 0 to disable shortcut access to top job global
 	retlw	'<'
-	retlw	'='
+	retlw	'='		; 0 to disable direct memory poking
 	retlw	'>'
 	retlw	'?'
 	retlw	'@'
-	retlw	'A'
-	retlw	'B'
-	retlw	'C'
-	retlw	'D'
-	retlw	'E'
-	retlw	'F'
-	retlw	'G'
-	retlw	'H'
-	retlw	'I'
-	retlw	'J'
-	retlw	'K'
-	retlw	'L'
+	retlw	'A'		; 0 to disable entry of hexadecimal constants
+	retlw	'B'		; 0 to disable entry of hexadecimal constants
+	retlw	'C'		; 0 to disable entry of hexadecimal constants
+	retlw	'D'		; 0 to disable entry of hexadecimal constants
+	retlw	'E'		; 0 to disable entry of hexadecimal constants
+	retlw	'F'		; 0 to disable entry of hexadecimal constants
+	retlw	'G'		; 0 to disable job Generation similar to fork()
+	retlw	'H'		; 0 to disable job Hunting by handle address
+	retlw	'I'		; 0 to disable command-line software Interrupts
+	retlw	'J'		; 0 to disable listing running Jobs
+	retlw	'K'		; 0 to disable Killing jobs on command-line
+	retlw	'L'		; 0 to disable job Launching similar to fork()
 	retlw	'M'
-	retlw	'N'
+	retlw	'N'		; 0 to be able to New jobs by address that crash
 	retlw	'O'
-	retlw	'P'
-	retlw	'Q'
-	retlw	'R'
+	retlw	'P'		; 0 to disable Pausing running jobs
+	retlw	'Q'		; 0 to disable permanently Quitting
+	retlw	'R'		; 0 to disable Resuming jobs (and Full Reboot)
 	retlw	'S'
 	retlw	'T'
 	retlw	'U'
 	retlw	'V'
 	retlw	'W'
-	retlw	'X'
+	retlw	'X'		; 0 to disable entry of hexadecimal constants
 	retlw	'Y'
-	retlw	'Z'
+	retlw	'Z'		; 0 to disable entry into low-power sleep mode
 	retlw	'[' ; '{'	;
 	retlw	'\\' ; '|'	;
 	retlw	']' ; '}'	;
-	retlw	'^' ; '~'	;
+	retlw	'^' ; '~'	; 0 to disable command-line zos_mac() exponents
 clcsize	equ	$-clctbl
 	if clcsize-0x3f
 	 error "bad size: ASCII translation table expected to span 0x20 to 0x5e"
@@ -3223,8 +3223,8 @@ clcfac1
 	bra	clcprmp		; break;
 clcchr7
 	movf	char_io,w	;
-	xorlw	'$'		;
-	btfss	STATUS,Z	;  case '$': // store at highest job's globals
+	xorlw	0x3b		;
+	btfss	STATUS,Z	;  case ';': // store at highest job's globals
 	bra	clcchr8		;
 	movlw	zOS_NUM+1	;
 	movwf	zOS_JOB		; zOS_JOB = zOS_NUM+1;// search from high to low
