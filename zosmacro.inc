@@ -1883,6 +1883,7 @@ zOS_MON	macro	p,ra,rt,h,pi,isr;inline void zOS_MON(int8_t p, int8_t ra, int8_t
 
 	local	monisr,monchr1,monchr2,monchr3,mondump,mondest,monram,monchr4
 	local	monchr5,monchr6,monchr7,monchr8,monchr9,monprmp,monlast,monpctg
+	local	monrtry,mondflt
 	
 	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,optadrl
 	local	optadrh,accumul,accumuh,numbase,destreg,destreh,char_io,buf,max
@@ -2098,7 +2099,8 @@ monchr1
 	movlw	'\r'		;
 	pagesel	monbufs
 	call	monbufs		;   monbuf(zos_job, p0, '\r');
-	bra	monprmp		;   goto monprmp;
+	pagesel	monprmp
+	goto	monprmp		;   goto monprmp;
 	
 monchr2
 	movf	char_io,w	;
@@ -2122,8 +2124,9 @@ monchr2
 	movf	1+destreg,w	;
 	movwf	FSR0H		;   fsr0 = destreg;
 	iorwf	FSR0L,w		;
+	pagesel	monprmp
 	btfsc	STATUS,Z	;
-	bra	monprmp		;   if (fsr0) { // destreg was set by ' ' or =
+	goto	monprmp		;   if (fsr0) { // destreg was set by ' ' or =
 	movf	accumul,w	;    if (fsr0 & 0x8000 == 0)
 	btfss	FSR0H,7		;
 	movwi	FSR0++		;     *fsr0 = accumul & 0x00ff; // not in flash
@@ -2131,7 +2134,8 @@ monchr2
 	movwf	destreg		;
 	movf	FSR0H,w		;    destreg++; // advances for next access
 	movwf	1+destreg	;   }
-	bra	monprmp		;   goto monprmp;
+	pagesel	monprmp
+	goto	monprmp		;   goto monprmp;
 
 monchr3
 	movf	char_io,w	;
@@ -2163,8 +2167,9 @@ mondump
 	movwf	1+destreg	;    destreg = accumul; // otherwise no clobber
 	movf	char_io,w	;   if (char_io == ' ') {
 	xorlw	' '		;    char_io = 0; // all we do is a destreg xfer
+	pagesel	monzero
 	btfsc	STATUS,Z	;    break;
-	bra	monzero		;   }
+	goto	monzero		;   }
 mondest
 	btfss	1+destreg,7	;   if (destreg & 0x8000) { // flash, not RAM
 	bra	monram		;
@@ -2215,7 +2220,8 @@ disasmr
 	call	monbufs
 	pagesel	monlf
 	call	monlf		;    goto monprmp;
-	bra	monprmp		;   }
+	pagesel	monprmp
+	goto	monprmp		;   }
 	
 monram
 	pagesel	mon0
@@ -2244,7 +2250,8 @@ monram
 	call	monbufs		;    monbufs('\n');
 	pagesel	monlf
 	call	monlf		;    goto monprmp;
-	bra	monprmp		;   }
+	pagesel	monprmp
+	goto	monprmp		;   }
 monramd
 	movf	char_io,w	;   // or follow by 3 backspaces in the '=' case
 	xorlw	'.'		;   // to show that \r will result in a 0 write
@@ -2288,6 +2295,30 @@ monpctg
 	zOS_RFI
 	
 monchr6
+	movf	char_io,w	;
+	xorlw	0x3b		;
+	btfss	STATUS,Z	;  case ';': // store highest priv job's globals
+	bra	mondflt		;
+	movlw	zOS_NUM+1	;
+	movwf	zOS_JOB		; zos_job = zOS_NUM+1;// search from high to low
+	zOS_MEM	FSR0,zOS_JOB,0	; fsr0 = 0x10 * (1 + zOS_JOB);
+monrtry
+	zOS_LIV	FSR0,zOS_JOB,0,mondflt
+	moviw	zOS_HDH[FSR0]	; do {
+	btfss	WREG,zOS_PRB	;  zOS_LIV(fsr0, zos_job, 0, clcchr8); // found!
+	bra	monrtry		; } while (zOS_HDH[fsr0] & (1<<zOS_PRB) == 0);
+	zOS_GLO	FSR0,zOS_JOB
+	movf	accumul,w	; fsr0 = 0x70 + 2*zos_job; // found! privileged!
+	movwi	1[FSR0]		; 1[fsr0] = accumul & 0x00ff;
+	movf	destreg,w	;
+	movwi	0[FSR0]		; 0[fsr0] = destreg & 0x00ff;
+	movwf	1+destreg	; destreg <<= 8;
+	moviw	1[FSR0]		;
+	movwf	destreg		; destreg |= accumul & 0x00ff;
+	pagesel	monprmp
+	goto	monprmp		; clcchr8:
+	
+mondflt
 	movlw	0-0x30		;  default:
 	addwf	char_io,f	;
 	btfsc	char_io,7	;
@@ -3222,29 +3253,6 @@ clcfac1
 #endif
 	bra	clcprmp		; break;
 clcchr7
-	movf	char_io,w	;
-	xorlw	0x3b		;
-	btfss	STATUS,Z	;  case ';': // store highest priv job's globals
-	bra	clcchr8		;
-	movlw	zOS_NUM+1	;
-	movwf	zOS_JOB		; zos_job = zOS_NUM+1;// search from high to low
-	zOS_MEM	FSR0,zOS_JOB,0	; fsr0 = 0x10 * (1 + zOS_JOB);
-clcrtry
-	zOS_LIV	FSR0,zOS_JOB,0,clcchr8
-	moviw	zOS_HDH[FSR0]	; do {
-	btfss	WREG,zOS_PRB	;  zOS_LIV(fsr0, zos_job, 0, clcchr8); // found!
-	bra	clcrtry		; } while (zOS_HDH[fsr0] & (1<<zOS_PRB) == 0);
-	zOS_GLO	FSR0,zOS_JOB
-	movf	accumul,w	; fsr0 = 0x70 + 2*zos_job; // found! privileged!
-	movwi	1[FSR0]		; 1[fsr0] = accumul & 0x00ff;
-	movf	destreg,w	;
-	movwi	0[FSR0]		; 0[fsr0] = destreg & 0x00ff;
-	movwf	1+destreg	; destreg <<= 8;
-	moviw	1[FSR0]		;
-	movwf	destreg		; destreg |= accumul & 0x00ff;
-	bra	clcprmp		; clcchr8:
-	
-clcchr8
 	movf	accumul,w	; default: zOS_AR1 = accumul; if (isr) goto isr;
 	movwf	zOS_AR1		; }// caller may use zOS_AR1 or accumuh:accumul
 	pagesel	isr		;
