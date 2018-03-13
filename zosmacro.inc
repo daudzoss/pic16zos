@@ -1883,7 +1883,7 @@ zOS_MON	macro	p,ra,rt,h,pi,isr;inline void zOS_MON(int8_t p, int8_t ra, int8_t
 
 	local	monisr,monchr1,monchr2,monchr3,mondump,mondest,monram,monchr4
 	local	monchr5,monchr6,monchr7,monchr8,monchr9,monprmp,monlast,monpctg
-	local	monrtry,mondflt
+	local	monwrit,monrtry,mondflt
 	
 	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,optadrl
 	local	optadrh,accumul,accumuh,numbase,destreg,destreh,char_io,buf,max
@@ -2295,6 +2295,15 @@ monpctg
 	zOS_RFI
 	
 monchr6
+	movf	char_io,w	;
+	xorlw	'?'		;
+	btfss	STATUS,Z	; case '?':
+	bra	monwrit		;
+	movlw	0-1		;
+	movwf	destreg		;  destreg = -1;
+	movlw	0x3b		;
+	movwf	char_io		;  // fall through with "-1,accumul" to readback
+monwrit
 	movf	char_io,w	;
 	xorlw	0x3b		;
 	btfss	STATUS,Z	;  case ';': // store highest priv job's globals
