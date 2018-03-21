@@ -141,7 +141,7 @@ proceed
 	andwf	INDF#v(fsrn),f	;
 	swapf	FSR#v(fsrn)L,w	;
 	andlw	0x07		; return w;
-	addlw	0xff		;}
+	addlw	0xff		;} // zOS_ACT()
 endact
 	endm
 	
@@ -161,7 +161,7 @@ fsrn	 set 0
 	movlw	val1		;
 	movwi	FSR#v(fsrn)--	; fsrnum[1] = val1;
 	lsrf	FSR#v(fsrn),w	; fsrnum = (fsrnum >> 1) & 0x07; // unchanged
-	andlw	0x07		;}
+	andlw	0x07		;} // zOS_INI()
 	endm
 
 
@@ -763,7 +763,7 @@ zOS_RWF	macro
 nextcol	
 	moviw	FSR0++		;  // "Load Write Latches Only"
 	movwf	PMDATL		;  PMDATL = *(*fsr0)++; // little-endian 
-	movi	FSR0++		;
+	moviw	FSR0++		;
 	movwf	PMDATH		;  PMDATH = *(*fsr0)++; // will advance by 64
 	movf	PMADRL,w	;
 	xorlw	0x1f		;
@@ -1331,7 +1331,7 @@ zOS_SEL	macro	adr0,adr1,file,b
 	movlw	high adr0	;
 	movwf	FSR0H		; fsr0 = w + ((file & (1<<b)) ? adr1 : adr0);
 	clrw			; return 0;
-	addwfc	FSR0H,f		;}
+	addwfc	FSR0H,f		;} // zOS_SEL()
 	endm
 
 zOS_DEC	macro	putch,puts,enc,retadr
@@ -1675,7 +1675,7 @@ printfn
 	pagesel	puts
 	call	puts		; puts(fsr0);
 	pagesel	retadr		; return;
-	goto	retadr		;}
+	goto	retadr		;} // zOS_DEC()
 
 newbank
 	movlw	low opc_mlb	;
@@ -1733,7 +1733,7 @@ putmovi
 	clrw			; // moviw/wi distinction always at nybble top
 	addwfc	FSR0H,f		; puts((w & (1<<4)) ? "movwi  " : "moviw  ");
 	pagesel	puts
-	goto	puts		;}
+	goto	puts		;} // putmovi()
 	
 zero
 	da	"0"
@@ -1968,14 +1968,14 @@ loop
 	incf	zOS_ADH,f	;   zOS_ADH++;
 	bra	loop		; }
 done
-	return			;}
+	return			;} // monpack()
 	
 monout
 	pagesel	monbufs
 	btfss	STATUS,C	;void monout(char w, uint1_t c) { // zOS_DEC arg
 	goto	monbufs		; if (c == 0) monbufs(w); else monlsb(w);
 	pagesel	monlsb
-	goto	monlsb		;}
+	goto	monlsb		;} // monout()
 	
 disasmb
 	movlw	' '		;
@@ -2030,15 +2030,15 @@ monlsb
 	
 mon0
 	movlw	'0'		;void mon0(void) { zOS_AR0 = '0'; monbufs(ptr);
-	bra	monbufs		;}
+	bra	monbufs		;} // mon0()
 
 monx
 	movlw	'x'		;void monx(void) { zOS_AR0 = '0'; monbufs(ptr);
-	bra	monbufs		;}
+	bra	monbufs		;} // monx()
 
 monspc
 	movlw	' '		;void monspc(void) { zOS_AR0 = ' '; monbufs(ptr);
-	bra	monbufs		;}
+	bra	monbufs		;} // monscp()
 monlf
 	movlw	'\n'		; return zOS_BUF(zos_job, ptr, w);
 monbufs
@@ -2046,7 +2046,7 @@ monbufs
 monbufd
 	movlw	1		;void monbufs(uint8_t ptr, char w) {
 	movwf	zOS_AR1		; goto monloop();
-	bra	monloop		;} //FIXME: these comments above are useless
+	bra	monloop		;} // monbufs() FIXME:comments above are useless
 	
 monisr
 	movf	zOS_JOB,w	;void monisr(void) {
