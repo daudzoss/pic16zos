@@ -318,9 +318,9 @@ zos_nhw
 	andwf	zOS_PIE,w	;   if (zOS_HIM[fsr0] == 0)
 	btfss	STATUS,Z	;    continue; // non-HWI job, no match possible
 	bra	zos_cmp		;  //match enabled interrupts against HIM fields
+	banksel	PIE1
 #ifdef PIE1
 	moviw	zOS_HIM[FSR0]	;   if ((w = zOS_HIM[fsr0] & zOS_PIE))
-	banksel	PIE1
 	andwf	PIE1,w		;    break;
 	btfss	STATUS,Z	;   if ((w = zOS_HIM[fsr0] & zOS_PIE1))
 	bra	zos_cmp		;    break;
