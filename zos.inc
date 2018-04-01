@@ -313,8 +313,10 @@ zos_nhw
 	clrwdt			; do { // until serviceable by running ISR since
 	banksel	zOS_PIE
 	moviw	zOS_HIM[FSR0]	;  int8_t w = 0;  // no runnable job schedulable
-	andwf	zOS_PIE,w	;  clrwdt();
-	btfss	STATUS,Z	;  while (zOS_LIV(&fsr0, &zOS_JOB, 0)) {
+	btfsc	STATUS,Z	;  while (zOS_LIV(&fsr0, &zOS_JOB, 0)) {
+	bra	zos_nhw		;   clrwdt();
+	andwf	zOS_PIE,w	;   if (zOS_HIM[fsr0] == 0)
+	btfss	STATUS,Z	;    continue; // non-HWI job, no match possible
 	bra	zos_cmp		;  //match enabled interrupts against HIM fields
 #ifdef PIE1
 	moviw	zOS_HIM[FSR0]	;   if ((w = zOS_HIM[fsr0] & zOS_PIE))
