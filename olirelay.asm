@@ -372,15 +372,6 @@ CLKRAT	equ	.020000000/.000009600
 	movwi	0[FSR0]		; zOS_ARG(3, OUTCHAR/*only 1 SWI*/);
 #endif
 
-#if 0
-	banksel	IOCBP
-	movf	ALL_IOC,w	;
-	movwf	IOCBP		; IOCBP = all_ioc; // IOCIF senses rising optos
-	movwf	IOCBN		; IOCBN = all_ioc; // IOCIF senses falling optos
-	bsf	INTCON,IOCIE	; INTCON |= 1<<IOCIE; // enable edge sensing HWI
-	clrf	ALL_IOC		; ALL_IOC = 0; // will go nonzero once zOS_CON()
-#endif
-
 	banksel	TRISA
 	bsf	TRISA,RA7	; TRISA = 0xb0;
 	bcf	TRISA,RA6	; // xtal <--------startup error? race cond'n?
@@ -406,6 +397,15 @@ CLKRAT	equ	.020000000/.000009600
 	banksel	OPTION_REG
 	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
 	bcf	OPTION_REG,PSA	; OPTION_REG &= ~(1<<PSA);// using max prescaler
+	
+	banksel	IOCBP
+	movf	ALL_IOC,w	;
+	movwf	IOCBP		; IOCBP = all_ioc; // IOCIF senses rising optos
+	movwf	IOCBN		; IOCBN = all_ioc; // IOCIF senses falling optos
+	
+	movlb	0		; // this has to happen at end after all zOS_LAU
+	bsf	INTCON,IOCIE	; INTCON |= 1<<IOCIE; // enable edge sensing HWI
+	clrf	ALL_IOC		; ALL_IOC = 0; // will go nonzero once zOS_CON()
 	
 	zOS_RUN	INTCON,INTCON	; zOS_RUN(/*T0IE in*/INTCON, /*T0IF in*/INTCON);
 	end			;}
