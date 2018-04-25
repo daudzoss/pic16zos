@@ -285,11 +285,11 @@ FSR1	 equ	FSR1L
 	;; user jobs are responsible for processing their own interrupts
 	;; with an interrupt handler registered at the time of creation
 
-	org	0x0000
+;	org	0x0000
 	pagesel	zos_ini
 	goto	zos_ini		;<--zos_ini is run upon reset to bootstrap zOS
 
-	org	0x0002
+;	org	0x0002
 	pagesel	zos_swj
 	goto	zos_swj		;<--zOS_SWI is call to 0x0002, a jump to zos_swj
 
@@ -297,7 +297,7 @@ FSR1	 equ	FSR1L
 	;; (and we're not still in the bank-0 initialization before interrupts),
 	;; after clearing the interrupt flag...else zOS_RET() back up to zos_nhw
 
-	org	0x0004
+;	org	0x0004
 	;; find first willing handler for an enabled interrupt matching _xIM bit
 #ifdef PIE0
 zOS_PIE	 equ	PIE0
