@@ -2325,8 +2325,8 @@ monrtry
 	movwf	1+destreg	; destreg <<= 8;
 	moviw	1[FSR0]		;
 	movwf	destreg		; destreg |= accumul & 0x00ff;
-	pagesel	monprmp
-	goto	monprmp		; clcchr8:
+	pagesel	monempty
+	goto	monempty	; clcchr8:
 	
 mondflt
 	movlw	0-0x30		;  default:
