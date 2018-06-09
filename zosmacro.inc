@@ -191,6 +191,14 @@ num set (arg & 0x03)
 	movwf	zOS_AR#v(num)	;{if (!arg) INTCON &=~(1<<GIE); zOS_AR0[arg]=w;}
 	endm
 
+#ifdef T0IE
+#else
+T0IE	equ	TMR0IE
+#endif
+#ifdef T0IF
+#else
+T0IF	equ	TMR0IF
+#endif
 zOS_RUN	macro	t0enable,t0flags
         ;; start a TMR0 interrupt since none found (most in INTCON, others PIE0)
 zOS_T0E	equ	t0enable
@@ -1136,7 +1144,7 @@ brgvall	set	low brgvalm
 	zOS_ARG	0
 	movlw	high conisr	; w = zOS_ARG(1, conisr>>8);
 	zOS_ARG	1		; w = zOS_ARG(2, (0<<TXIF)|(1<<T0IF));
-	movlw (0<<TXIF)|(1<<T0IF)
+	movlw   (1<<T0IF)
 	zOS_ARG	2
 	movlb	0		; // still in job "0": don't forget this!!!!
 	endm			;} // zOS_CON()
