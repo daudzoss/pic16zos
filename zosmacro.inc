@@ -1137,7 +1137,7 @@ brgvall	set	low brgvalm
 	bcf	RCSTA,RX9	; RCSTA &= ~(1<<RX9);  // (5) "9-bit..set..RX9"
 	bsf	RCSTA,CREN	; RCSTA |= (1<<SPEN) | (1<<CREN); // (6) "CREN" 
 	bsf	TXSTA,TXEN	; TXSTA |= 1<<TXEN; // (5) "Enable..by..TXEN"
-	banksel	PIE1
+	banksel	PIE1;;;MAJOR FIXME: RCIE isn't necessarily defined or in PIE1!!!
 	bsf	PIE1,RCIE	; PIE1 |= 1<<RCIE; //(4) "Set..RCIE..and..PEIE"
 	zOS_ADR	contask,zOS_PRB	; fsr0 = contask & 0x7fff;// MSB 1 => privileged
 	movlw	low conisr	; w = zOS_ARG(0, conisr & 0x00ff);
