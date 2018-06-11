@@ -517,10 +517,14 @@ zos_swj
 zos_sk2
 	;; see if the interrupt type is a system one (<8)
 	pagesel	zos_swh
-	movlw	zOS_SI7|zOS_SI6|zOS_SI5|zOS_SI4|zOS_SI3
-	andwf	zOS_MSK,w	; if (0 == /* call-type number: */ WREG_SHAD &
-	btfss	STATUS,Z	;   (zOS_SI7|zOS_SI6|zOS_SI5|zOS_SI4|zOS_SI3)) {
+
+	movf	zOS_MSK,w	;	
+	andlw	0x07		; if (0 == /* call-type number: */ WREG_SHAD &
+	btfsc	STATUS,Z	;   (zOS_SI7|zOS_SI6|zOS_SI5|zOS_SI4|zOS_SI3)) {
 	goto	zos_swh		;  // handle a system zOS_SWI call:
+	xorlw	zOS_YLD		;
+	btfsc	STATUS,Z	;
+	bra	zos_sw4		;
 
 	;; zOS_NEW requires us to search for a BSR value first among empty slots
 	movf	BSR_SHAD,w	;
