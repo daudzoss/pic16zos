@@ -517,14 +517,14 @@ zos_swj
 zos_sk2
 	;; see if the interrupt type is a system one (<8)
 	pagesel	zos_swh
-
-	movf	zOS_MSK,w	;	
-	andlw	0x07		; if (0 == /* call-type number: */ WREG_SHAD &
-	btfsc	STATUS,Z	;   (zOS_SI7|zOS_SI6|zOS_SI5|zOS_SI4|zOS_SI3)) {
+	movf	zOS_MSK,w	;
+	andlw	0xf8		; if (0 == /* call-type number: */ WREG_SHAD &
+	btfss	STATUS,Z	;   (zOS_SI7|zOS_SI6|zOS_SI5|zOS_SI4|zOS_SI3)) {
 	goto	zos_swh		;  // handle a system zOS_SWI call:
+	movf	zOS_MSK,w	;
 	xorlw	zOS_YLD		;
-	btfsc	STATUS,Z	;
-	bra	zos_sw4		;
+	btfsc	STATUS,Z	;  if (zOS_MSK == zOS_YLD /*==4*/) // no job arg
+	bra	zos_sw4		;   goto zos_sw4; // for YieLDing processor fast
 
 	;; zOS_NEW requires us to search for a BSR value first among empty slots
 	movf	BSR_SHAD,w	;
@@ -636,7 +636,7 @@ zos_sw3
 	iorlw	0x70		;
 	movwf	FSR1L		;   fsr1 = 0x70 | (zOS_JOB << 1);
 	clrw			;   0[fsr1] = 1[fsr1] = 0; // mailbox guar'ed 0
-	movwi	0[FSR1]		;  case zOS_YLD:
+	movwi	0[FSR1]		;  case zOS_YLD: zos_sw4
 	movwi	1[FSR1]		;   zOS_RFS(zOS_JOB);
 zos_sw4
 
