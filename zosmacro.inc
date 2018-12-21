@@ -2327,8 +2327,11 @@ monwrit
 	zOS_MEM	FSR0,zOS_JOB,0	; fsr0 = 0x10 * (1 + zOS_JOB);
 monrtry
 	zOS_LIV	FSR0,zOS_JOB,0,mondflt
-	moviw	zOS_HDH[FSR0]	; do {
-	btfss	WREG,zOS_PRB	;  zOS_LIV(fsr0, zos_job, 0, clcchr8); // found!
+	xorwf	zOS_ME		; do {
+	btfsc	STATUS,Z	;  zOS_LIV(fsr0, zos_job, 0, clcchr8); // found!
+	bra	monrtry		;  if (zos_job == bsr) continue; // not myself?
+	moviw	zOS_HDH[FSR0]	;
+	btfss	WREG,zOS_PRB	;
 	bra	monrtry		; } while (zOS_HDH[fsr0] & (1<<zOS_PRB) == 0);
 	zOS_GLO	FSR0,zOS_JOB
 	movf	accumul,w	; fsr0 = 0x70 + 2*zos_job; // found! privileged!
