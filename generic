@@ -1,3 +1,3 @@
 #/bin/sh
-for x in .inc macro.inc alloc.inc 16crc.inc; do rm -f ../rtos$x; sed -e "s/zOS_/RTOS/g" -e "s/zos_/rtos/g" -e "s/zos/rtos/g" zos$x > ../rtos$x; chmod 444 ../rtos$x; done
+for x in .inc macro.inc alloc.inc math.inc 16crc.inc; do rm -f ../rtos$x.inc; sed -e "s/zOS_/RTOS/g" -e "s/zos_/rtos/g" -e "s/zos/rtos/g" zos$x > ../rtos$x; chmod 444 ../rtos$x; done
 
