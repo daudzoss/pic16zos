@@ -9,21 +9,20 @@ zOS_156	macro	shftdir,buf,size,gcount4,gtemp,gbank
 	movwf	FSR1L		;
 	movlw	high buf	;
 	movwf	FSR1H		;
-	banksel	MDCON		; uint8_t* fsr1 = buf;
+	banksel	MDCON		; uint8_t* fsr1 = buf, c;
 	bsf	MDCON,MDEN	; zOS_DIS(BSR); // works in job context, not ISR
 	local	i
+	clrf	gcount		; // 0 each iter (extreme workaround to gain 1 cyc)
 i = 0
 	while i < size
-	 local	do9nops#v(i),do1nop#v(i),do0nops#v(i),newword#v(i)
+	 local	do9nops#v(i),do0nops#v(i),newword#v(i)
 	 movlw	0x84		; MDCON |= 1<<MDEN; // FIXME: 17 cycles too soon
 	 movwf	FSR0H		; for (uint8_t i = 0; i < size; i++) {
 	 moviw	FSR1++		;  for (uint8_t* fsr0 = 0x8400 | fsr1[i];
 	 movwf	FSR0L		;       fsr0 < 0x8800; fsr0 += 0x0100) {
 	 movf	INDF0,w		;//<--2 cycles instead of 1 due to read from flash!
 	 movwf	gtemp		;   *gtemp = *fsr0;// next byte in 32-bit send word
-	 movlw	8		;   for (*gcount4 = 8; *gcount4; (*gcount4)--) {  
-do1nop#v(i)
-	 movwf	gcount4		;    uint8_t c;
+	 bsf	gcount,3	;   for (*gcount4 = 8; *gcount4; (*gcount4)--) {  
 do0nops#v(i)
 #if 0
 	 if (shftdir & 2)
@@ -59,8 +58,9 @@ do9nops#v(i)
 	 nop			;
 	 nop			;
 	 nop			;
-	 movf	gcount4,w	;
-	 bra	do1nops#v(i)	;
+	 nop			;
+	 nop			;
+	 bra	do0nops#v(i)	;
 i += 1
 newword#v(i)
 	endw
