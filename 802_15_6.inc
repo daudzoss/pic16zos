@@ -25,6 +25,16 @@ do9nops
 	nop			;
 	nop			;   uint8_t c;
 do0nops
+#if 1
+	if (shftdir)
+	 rlf	gtemp,f		;   if (shftdir)
+	else
+	 rrf	gtemp,f		;    c = 0x80 & *gtemp, *gtemp <<= 1;
+	endif
+	movf	STATUS,w	;   else
+	xorlw	0x80		;    c = 0x01 & *gtemp, *gtemp >>= 1;
+	movwf	MDCON		;   MDCON = (0xfe & MDCON) | (c ? 1 : 0);//edge!
+#else
 	rrf	MDCON,w		;   if (shftdir)
 	if (shftdir)
 	 rlf	gtemp,f		;    c = 0x80 & *gtemp, *gtemp <<= 1;
@@ -32,8 +42,9 @@ do0nops
 	 rrf	gtemp,f		;   else
 	endif
 	rlf	WREG		;    c = 0x01 & *gtemp, *gtemp >>= 1;
+	 iorwf	0x80		;//<--adds an extra instruction to break 16 cyc!
 	movwf	MDCON		;   MDCON = (0xfe & MDCON) | (c ? 1 : 0);//edge!
-
+#endif
 	decfsz	gcount4,f	;   if (--*gcount4) // still sending from gtemp,
 	bra	do9nops		;    continue;// must update MDCON in 16 cycles
 	incf	FSR0H,f		;   else {
@@ -46,9 +57,9 @@ newword
 	movwf	FSR0L		;
 	aslf	FSR1L,w		;    if (fsr1 & 0x0070 < 0x0070) // more message
 	addlw	0x20		;     goto newword; // unfortunately, 23 cycles!
+	 bcf	MDCON,MDEN	; //<--better to disable modulation for syncing?
 	btfsc	STATUS,C	;    else
 	bra	alldone		;     goto alldone;
-;	nop;for 24 cycles=16*1.5	
 newbyte
 	movf	INDF0,w		;   }
 	movwf	gtemp		;
