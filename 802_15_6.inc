@@ -22,7 +22,7 @@ i = 0
 	 movwf	FSR0L		;       fsr0 < 0x8800; fsr0 += 0x0100) {
 	 movf	INDF0,w		;//<--2 cycles instead of 1 due to read from flash!
 	 movwf	gtemp		;   *gtemp = *fsr0;// next byte in 32-bit send word
-	 bsf	gcount,3	;   for (*gcount4 = 8; *gcount4; (*gcount4)--) {  
+	 bsf	gcount4,3	;   for (*gcount4 = 8; *gcount4; (*gcount4)--) {  
 do0nops#v(i)
 #if 0
 	 if (shftdir & 2)
