@@ -14,15 +14,15 @@ zOS_156	macro	shfdir,size,buf,table,gcount4,gtemp,gbank
 	banksel	MDCON		; zOS_DIS(BSR); // works in job context, not ISR
 	local	i
 	clrf	gcount		;
-i = 0
 	bcf	FSR0H,2		; for (uint8_t i = 0; i < size; i++) {
 	moviw	FSR1++		;  for (fsr0 = 0x8000 | table | fsr1[i];
 	movwf	FSR0L		;       fsr0 < table + 0x0400; fsr0 += 0x0100) {
 	movf	INDF0,w		;//<--2 cycles instead of 1 due to read from flash!
 	movwf	gtemp		;   *gtemp = *fsr0;// next byte in 32-bit send word
 	bsf	gcount4,3	;   for (*gcount4 = 8; *gcount4; (*gcount4)--) {  
+i = 0
 	while i < size
-	 local	do9nops#v(i),do0nops#v(i),newword#v(i),shortc#v(i)
+	 local	do9nops#v(i),do0nops#v(i),shortc#v(i)
 do0nops#v(i)
 	 if (shfdir & 2)
 	  rlf	gtemp,f		;
@@ -36,29 +36,27 @@ shortc#v(i)
 	 decfsz	gcount4,f	;   }
 	 bra	do9nops#v(i)	;
 	 incf	FSR0H,f		;  }
-	 btfsc	FSR0H,2		;
-	 bra	newword#v(i)	; }
-	 bra	do5nops#v(i)	;
-do9nops#v(i)
-	 bra	$+1		;
-	 bra	$+1		;
-do5nops#v(i)
-	 bra	$+1		;
-	 nop			;
-	 bra	do0nops#v(i)	;
-i += 1
-newword#v(i)
+	 btfss	FSR0H,2		;
+	 bra	do5nops#v(i)	; }
 	 bcf	FSR0,2		;
 	 moviw	FSR1++		;
 	 movwf	FSR0L		;
 	 if (shfdir & 2)
-	  rlf	INDF0,w		;
+	  rlf	INDF0,w		;//<--2 cycles instead of 1 due to read from flash!
 	 else
-	  rrf	INDF0,w		;
+	  rrf	INDF0,w		;//<--2 cycles instead of 1 due to read from flash!
 	 endif
 	 movwf	gtemp		;
 	 bsf	gcount4,3	;
 	 bra	shortc#v(i+1)	;
+do9nops#v(i)
+	 nop			;
+	 bra	$+1		;
+do5nops#v(i)
+	 bra	$+1		;
+	 bra	$+1		;
+	 bra	do0nops#v(i)	;
+i += 1
 	endw
 
 	bra	$+1		;
