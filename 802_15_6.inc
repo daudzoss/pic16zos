@@ -19,23 +19,16 @@ zOS_156	macro	shfdir,size,buf,table,gcount4,gtemp,gbank
 	clrf	gcount		;
 i = 0
 	while i < size
-	 local	do9nops#v(i),do0nops#v(i),newword#v(i)
+	 local	do9nops#v(i),do0nops#v(i),newword#v(i),newnyb#v(i)
 	 bcf	FSR0H,2		; for (uint8_t i = 0; i < size; i++) {
 	 moviw	FSR1++		;  for (fsr0 = 0x8000 | table | fsr1[i];
 	 movwf	FSR0L		;       fsr0 < table + 0x0400; fsr0 += 0x0100) {
+newnyb#v(i)
 	 movf	INDF0,w		;//<--2 cycles instead of 1 due to read from flash!
 	 movwf	gtemp		;   *gtemp = *fsr0;// next byte in 32-bit send word
 	 bsf	gcount4,3	;   for (*gcount4 = 8; *gcount4; (*gcount4)--) {  
 do0nops#v(i)
 #if 0
-	 if (shfdir & 2)
-	  rlf	gtemp,f		;
-	 else
-	  rrf	gtemp,f		;
-	 endif
-	 movf	STATUS,w	;
-	 xorlw	0x80		; //<--fixes issue of modulating first bit too soon
-#else
 	 rrf	MDCON,w		;    if (shfdir < 0)
 	 if (shfdir & 2)
 	  rlf	gtemp,f		;     c = 0x80 & *gtemp, *gtemp <<= 1;
@@ -43,6 +36,14 @@ do0nops#v(i)
 	  rrf	gtemp,f		;    else
 	 endif
 	 rlf	WREG		;     c = 0x01 & *gtemp, *gtemp >>= 1;
+#else
+	 if (shfdir & 2)
+	  rlf	gtemp,f		;
+	 else
+	  rrf	gtemp,f		;
+	 endif
+	 movf	STATUS,w	;
+	 xorlw	0x80		; //<--fixes issue of modulating first bit too soon
 #endif
 	 movwf	MDCON		;    MDCON = (0xfe & MDCON) | (c ? 1 : 0);//edge!
 	 decfsz	gcount4,f	;   }
@@ -50,14 +51,11 @@ do0nops#v(i)
 	 incf	FSR0H,f		;  }
 	 btfsc	FSR0H,2		;
 	 bra	newword#v(i)	; }
-	 movf	INDF0,w		;//<--2 cycles instead of 1 due to read from flash!
-	 movwf	gtemp		;
-	 movlw	8		;
-	 movwf	gcount4		;
-	 bra	do0nops#v(i)	;
+	 bra	do5nops#v(i)	;
 do9nops#v(i)
 	 bra	$+1		;
 	 bra	$+1		;
+do5nops#v(i)
 	 bra	$+1		;
 	 nop			;
 	 bra	do0nops#v(i)	;
@@ -65,14 +63,10 @@ i += 1
 newword#v(i)
 	endw
 
+	bra	$+1		;
+	bra	$+1		;
+	bra	$+1		;
 	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	
 	bcf	MDCON,MDEN	;
 	movf	gbank,w		; zOS_ENA(); // interrupts back on!
 	movwf	BSR		;} // zOS_156()
