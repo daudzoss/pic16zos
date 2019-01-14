@@ -12,7 +12,9 @@ zOS_156	macro	shfdir,size,buf,table,gcount4,gtemp,gbank
 	iorlw	0x80		; // workarounds to gain 2 cycles: gcount, fsr0h
 	movwf	FSR0H		; uint8_t* fsr0, * fsr1 = buf, c;
 	banksel	MDCON		; zOS_DIS(BSR); // works in job context, not ISR
-;	bsf	MDCON,MDEN	; MDCON |= 1<<MDEN; // FIXME: 17 cycles too soon
+#if 0
+	bsf	MDCON,MDEN	; MDCON |= 1<<MDEN; // FIXME: 17 cycles too soon
+#endif
 	local	i
 	clrf	gcount		;
 i = 0
@@ -32,7 +34,7 @@ do0nops#v(i)
 	  rrf	gtemp,f		;
 	 endif
 	 movf	STATUS,w	;
-	 xorwf	0x80		; //<--fixes issue of modulating first bit too soon
+	 xorlw	0x80		; //<--fixes issue of modulating first bit too soon
 #else
 	 rrf	MDCON,w		;    if (shfdir < 0)
 	 if (shfdir & 2)
@@ -46,7 +48,7 @@ do0nops#v(i)
 	 decfsz	gcount4,f	;   }
 	 bra	do9nops#v(i)	;
 	 incf	FSR0H,f		;  }
-	 btfsc	FSR0H,3		;
+	 btfsc	FSR0H,2		;
 	 bra	newword#v(i)	; }
 	 movf	INDF0,w		;//<--2 cycles instead of 1 due to read from flash!
 	 movwf	gtemp		;
@@ -54,12 +56,9 @@ do0nops#v(i)
 	 movwf	gcount4		;
 	 bra	do0nops#v(i)	;
 do9nops#v(i)
-	 nop			;
-	 nop			;
-	 nop			;
-	 nop			;
-	 nop			;
-	 nop			;
+	 bra	$+1		;
+	 bra	$+1		;
+	 bra	$+1		;
 	 nop			;
 	 bra	do0nops#v(i)	;
 i += 1
