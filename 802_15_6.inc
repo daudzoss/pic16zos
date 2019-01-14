@@ -1,31 +1,32 @@
-;;; eg:	zOS_156 +1,buf,size,PCLAT,gtemp,gbank
+;;; eg:	zOS_156 +1,32,buf,0x0800,PCLAT,gtemp,gbank
 	
-zOS_156	macro	shftdir,buf,size,gcount4,gtemp,gbank
-	movf	BSR,w		;void zOS_156(const shftdir, uint8_t* buf,
-	movwf	gbank		;             const size, uint4_t* gcount4, 
+zOS_156	macro	shfdir,size,buf,table,gcount4,gtemp,gbank
+	movf	BSR,w		;void zOS_156(const shfdir, const size, const* buf,
+	movwf	gbank		;             const* table, uint4_t* gcount4, 
 	zOS_LOC	FSR1,gbank,buf
 	zOS_DIS	FSR0,gbank
-	movlw	low buf		;             uint8_t gtemp, uint8_t* gbank) {
-	movwf	FSR1L		;
-	movlw	high buf	;
-	movwf	FSR1H		;
-	banksel	MDCON		; uint8_t* fsr1 = buf, c;
-	bsf	MDCON,MDEN	; zOS_DIS(BSR); // works in job context, not ISR
+	if (table & 0x07ff)
+#error "lookup table not aligned to 2KiW boundary"
+	endif
+	movlw 	high table	;             uint8_t gtemp, uint8_t* gbank) {
+	iorlw	0x80		; // workarounds to gain 2 cycles: gcount, fsr0h
+	movwf	FSR0H		; uint8_t* fsr0, * fsr1 = buf, c;
+	banksel	MDCON		; zOS_DIS(BSR); // works in job context, not ISR
+;	bsf	MDCON,MDEN	; MDCON |= 1<<MDEN; // FIXME: 17 cycles too soon
 	local	i
-	clrf	gcount		; // 0 each iter (extreme workaround to gain 1 cyc)
+	clrf	gcount		;
 i = 0
 	while i < size
 	 local	do9nops#v(i),do0nops#v(i),newword#v(i)
-	 movlw	0x84		; MDCON |= 1<<MDEN; // FIXME: 17 cycles too soon
-	 movwf	FSR0H		; for (uint8_t i = 0; i < size; i++) {
-	 moviw	FSR1++		;  for (uint8_t* fsr0 = 0x8400 | fsr1[i];
-	 movwf	FSR0L		;       fsr0 < 0x8800; fsr0 += 0x0100) {
+	 bcf	FSR0H,2		; for (uint8_t i = 0; i < size; i++) {
+	 moviw	FSR1++		;  for (fsr0 = 0x8000 | table | fsr1[i];
+	 movwf	FSR0L		;       fsr0 < table + 0x0400; fsr0 += 0x0100) {
 	 movf	INDF0,w		;//<--2 cycles instead of 1 due to read from flash!
 	 movwf	gtemp		;   *gtemp = *fsr0;// next byte in 32-bit send word
 	 bsf	gcount4,3	;   for (*gcount4 = 8; *gcount4; (*gcount4)--) {  
 do0nops#v(i)
 #if 0
-	 if (shftdir & 2)
+	 if (shfdir & 2)
 	  rlf	gtemp,f		;
 	 else
 	  rrf	gtemp,f		;
@@ -33,8 +34,8 @@ do0nops#v(i)
 	 movf	STATUS,w	;
 	 xorwf	0x80		; //<--fixes issue of modulating first bit too soon
 #else
-	 rrf	MDCON,w		;    if (shftdir < 0)
-	 if (shftdir & 2)
+	 rrf	MDCON,w		;    if (shfdir < 0)
+	 if (shfdir & 2)
 	  rlf	gtemp,f		;     c = 0x80 & *gtemp, *gtemp <<= 1;
 	 else
 	  rrf	gtemp,f		;    else
