@@ -12,9 +12,6 @@ zOS_156	macro	shfdir,size,buf,table,gcount4,gtemp,gbank
 	iorlw	0x80		; // workarounds to gain 2 cycles: gcount, fsr0h
 	movwf	FSR0H		; uint8_t* fsr0, * fsr1 = buf, c;
 	banksel	MDCON		; zOS_DIS(BSR); // works in job context, not ISR
-#if 0
-	bsf	MDCON,MDEN	; MDCON |= 1<<MDEN; // FIXME: 17 cycles too soon
-#endif
 	local	i
 	clrf	gcount		;
 i = 0
@@ -28,15 +25,6 @@ newnyb#v(i)
 	 movwf	gtemp		;   *gtemp = *fsr0;// next byte in 32-bit send word
 	 bsf	gcount4,3	;   for (*gcount4 = 8; *gcount4; (*gcount4)--) {  
 do0nops#v(i)
-#if 0
-	 rrf	MDCON,w		;    if (shfdir < 0)
-	 if (shfdir & 2)
-	  rlf	gtemp,f		;     c = 0x80 & *gtemp, *gtemp <<= 1;
-	 else
-	  rrf	gtemp,f		;    else
-	 endif
-	 rlf	WREG		;     c = 0x01 & *gtemp, *gtemp >>= 1;
-#else
 	 if (shfdir & 2)
 	  rlf	gtemp,f		;
 	 else
@@ -44,7 +32,6 @@ do0nops#v(i)
 	 endif
 	 movf	STATUS,w	;
 	 xorlw	0x80		; //<--fixes issue of modulating first bit too soon
-#endif
 	 movwf	MDCON		;    MDCON = (0xfe & MDCON) | (c ? 1 : 0);//edge!
 	 decfsz	gcount4,f	;   }
 	 bra	do9nops#v(i)	;
