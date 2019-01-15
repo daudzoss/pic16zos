@@ -15,7 +15,7 @@ p_init	equ	$ >> 11
 	 movf	size,w		; // size can be a constant (in which case enter
 	 movwf	gtemp		; // the while loop at top), or jump in if a var
 	endif
-	zOS_LOC	FSR1,gbank,
+	zOS_LOC	FSR1,gbank,buf
 	zOS_DIS	FSR0,gbank
 	movlw 	high table	;             , uint8_t gtemp, uint8_t* gbank) {
 	iorlw	0x80		; // workarounds to gain 2 cycles: gcount, fsr0h
