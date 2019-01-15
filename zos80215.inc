@@ -1,7 +1,7 @@
-;;; eg:	zOS_156 1,32,buf,0x800,gcount,gtemp,gbank(last 3 accessible from bank 7)
-;;; or: zOS_156	1,var,buf,0x800,gcount,gtemp,gbank(with var accessible from BSR)
+;;; eg: zOS_HBC 1,32,buf,0x800,gcount,gtemp,gbank(last 3 accessible from bank 7)
+;;; or: zOS_HBC 1,var,buf,0x800,gcount,gtemp,gbank(with var accessible from BSR)
 	
-zOS_156	macro	shfdir,size,buf,table,gcount,gtemp,gbank
+zOS_HBC	macro	shfdir,size,buf,table,gcount,gtemp,gbank
 	if (table & 0x07ff)
 #error "lookup table not aligned to 2KiW boundary"
 	endif
@@ -9,7 +9,7 @@ zOS_156	macro	shfdir,size,buf,table,gcount,gtemp,gbank
 	local	p_init,p_final
 	local	restore,postmac
 p_init	equ	$ >> 11
-	movf	BSR,w		;void zOS_156(const shfdir, uint8_t size, const*
+	movf	BSR,w		;void zOS_HBC(const shfdir, uint8_t size, const*
 	movwf	gbank		;             buf, const* table, uint4_t* gcount
 	if (size > 0x007f)
 	 movf	size,w		; // size can be a constant (in which case enter
@@ -71,7 +71,7 @@ i += 1
 restore
 	bcf	MDCON,MDEN	;
 	movf	gbank,w		; zOS_ENA(); // interrupts back on!
-	movwf	BSR		;} // zOS_156()
+	movwf	BSR		;} // zOS_HBC()
 	zOS_ENA
 	
 	goto	postmac		; // double-check these delays, always same PCH?
