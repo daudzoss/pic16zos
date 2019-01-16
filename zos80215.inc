@@ -10,7 +10,7 @@ PREAMBL	macro	code32
 prev = 0-1
 temp = code32
 i = 0
-	while (i < 32)
+	while (i < 0x20)
 curr = temp & 1
 	if (curr - prev)
 	 if (curr)
