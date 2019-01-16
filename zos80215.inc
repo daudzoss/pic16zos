@@ -5,6 +5,11 @@
 ;;; eg: zOS_HBC 1,32,buf,0x800,gcount,gtemp,gbank(last 3 accessible from bank 7)
 ;;; or: zOS_HBC 1,0x80|var,buf,0x800,gcount,gtemp,gbank(var accessible from BSR)
 
+#ifdef MDCON
+#else
+#define MDCON MD1CON0		;// changed between PIC16F183xx and 184xx series
+#endif
+
 PREAMBL	macro	code32
 	local	i,prev,curr,temp
 prev = 0-1
@@ -34,13 +39,37 @@ zOS_PLC	macro	temp1,temp2,...
 	
 ;;;  size of data payload in W
 	movwf	INDF1
-	endm
-	
-zOS_SFD	macro	temp1,temp2,...
+;	endm
+;	
+;zOS_SFD	macro
 ;;; with FSR1 pointing to the start of an uninitialized array...
-;;; fill in the 8 bytes of the start-frame delimiter
+;;; fill in the 8 bytes of the start-frame delimiter (after this space got
+;;; used as scratch by zOS_PLC()
+	;; values from IEEE 802.15.6 Table 79
+	movlw	0x6a		;inline void zOS_SFD(uint8_t* fsr1) {
+	movwi	0[FSR1]		; 0[fsr1] = 0x6a;
+	movlw	0xba		;
+	movwi	1[FSR1]		; 1[fsr1] = 0xba;
+	movlw	0xdb		;
+	movwi	2[FSR1]		; 2[fsr1] = 0xdb;
+	movlw	0x53		;
+	movwi	3[FSR1]		; 3[fsr1] = 0x53;
+	movlw	0x1a		;
+	movwi	4[FSR1]		; 4[fsr1] = 0x1a;
+	movlw	0x64		;
+	movwi	5[FSR1]		; 5[fsr1] = 0x64;
+	movlw	0x5e		;
+	movwi	6[FSR1]		; 6[fsr1] = 0x5e;
+	movlw	0xb3		; 7[fsr1] = 0xb3;
+	movwi	7[FSR1]		;}
 	endm
 
+zOS_WHT	macro
+	endm
+
+zOS_CRC	macro
+	endm
+	
 zOS_HBC	macro	shfdir,size,buf,table,gcount,gtemp,gbank
 	if (table & 0x07ff)
 #error "lookup table not aligned to 2KiW boundary"
@@ -109,6 +138,7 @@ do0nops#v(i)
 	 if (i)
 	 else
 phstart
+	;; IEEE 802.15.6 Table 76
 	 PREAMBL 0x419D275F
 	 PREAMBL 0x180A5323
 	 PREAMBL 0x419D275F
