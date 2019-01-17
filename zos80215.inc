@@ -34,11 +34,27 @@ i += 1
 	endw
 	endm
 	
-zOS_PLC	macro	temp1,temp2,...
-;;; with FSR1 pointing to the start of an array at least 8+? bytes long:
-	
+zOS_PLC	macro	fsrnum.seed
+	local	fsrn,SLOWRAT
+SLOWRAT	set	0x
+	if (fsrnum & 3)
+fsrn	set	1
+	else
+fsrn	set	0
+	endif
+;;; with FSR pointing to the start of an array at least 8+? bytes long:
 ;;;  size of data payload in W
-	movwf	INDF1
+	movwf	INDF#v(fsrn)
+	swapf	INDF#v(fsrn),w
+	andlw	0x0f
+	iorlw	SLOWRAT
+	movwi	8[FSR#v(fsrn)]
+	swapf	INDF#v(fsrn),w
+	andlw	0xf0
+	iorlw	seed
+	movwi	9[FSR#v(fsrn)]
+;;;now calculate the BCH and HCS bytes
+;;;now write the MAC header
 ;	endm
 ;	
 ;zOS_SFD	macro
