@@ -45,9 +45,9 @@ H0	set	0x8
 H1	set	0x9
 H2	set	0xa
 H3	set	0xa ; [sic]
-;;; with FSR pointing to the start of an array at least 8+? bytes long:
+;;; with FSR pointing to the start of an array at least 12+w bytes long:
 ;;;  size of data payload in W
-	movwf	temp1		;uint8_t zOS_PLC(uint8_t w, uint8_t seed,
+	movwf	temp1		;uint8_t zOS_PLC(uint8_t w, uint1_t seed,
 	movlw	0x18		;                uint8_t* temp1, uint8_t* temp2)
 	movwi	H0[FSR#v(fsrn)]	;{// 164kbps, no pilot insertion in H0 byte:
 	swapf	seed,w		; 8[fsr] = 0x18;
@@ -72,33 +72,38 @@ H3	set	0xa ; [sic]
 ;;;now write the MAC header?
 	endm
 
-zOS_SFD	macro
-;;; with FSR1 pointing to the start of an uninitialized array...
-;;; fill in the 8 bytes of the start-frame delimiter (after this space got
-;;; used as scratch by zOS_PLC()
+zOS_SFD	macro	fsrnum
+	local	fsrn
+	if (fsrnum & 3)
+fsrn	set	1
+	else
+fsrn	set	0
+	endif
+;;; with FSR1 pointing to the start an uninitialized array...
+;;; fill in the 8 bytes of the start-frame delimiter
 	;; values from IEEE 802.15.6 Table 79
-	movlw	0x6a		;inline void zOS_SFD(uint8_t* fsr1) {
-	movwi	0[FSR1]		; 0[fsr1] = 0x6a;
+	movlw	0x6a		;inline void zOS_SFD(uint8_t** fsr) {
+	movwi	FSR#v(fsrn)++	; *(*fsr)++ = 0x6a;
 	movlw	0xba		;
-	movwi	1[FSR1]		; 1[fsr1] = 0xba;
+	movwi	FSR#v(fsrn)++	; *(*fsr)++ = 0xba;
 	movlw	0xdb		;
-	movwi	2[FSR1]		; 2[fsr1] = 0xdb;
+	movwi	FSR#v(fsrn)++	; *(*fsr)++ = 0xdb;
 	movlw	0x53		;
-	movwi	3[FSR1]		; 3[fsr1] = 0x53;
+	movwi	FSR#v(fsrn)++	; *(*fsr)++ = 0x53;
 	movlw	0x1a		;
-	movwi	4[FSR1]		; 4[fsr1] = 0x1a;
+	movwi	FSR#v(fsrn)++	; *(*fsr)++ = 0x1a;
 	movlw	0x64		;
-	movwi	5[FSR1]		; 5[fsr1] = 0x64;
+	movwi	FSR#v(fsrn)++	; *(*fsr)++ = 0x64;
 	movlw	0x5e		;
-	movwi	6[FSR1]		; 6[fsr1] = 0x5e;
-	movlw	0xb3		; 7[fsr1] = 0xb3;
-	movwi	7[FSR1]		;}
+	movwi	FSR#v(fsrn)++	; *(*fsr)++ = 0x5e;
+	movlw	0xb3		; *(*fsr)++ = 0xb3;
+	movwi	FSR#v(fsrn)++	;}
 	endm
 
-zOS_WHT	macro
+zOS_WHT	macro	fsrnum
 	endm
 
-zOS_CRC	macro
+zOS_CRC	macro	fsrnum
 	endm
 	
 zOS_HBC	macro	shfdir,size,buf,table,gcount,gtemp,gbank
