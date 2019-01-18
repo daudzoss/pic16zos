@@ -34,30 +34,45 @@ i += 1
 	endw
 	endm
 	
-zOS_PLC	macro	fsrnum.seed
-	local	fsrn,SLOWRAT
-SLOWRAT	set	0x
+zOS_PLC	macro	fsrnum,seed,temp1,temp2
+	local	fsrn,H0,H1,H2,H3,nocrc
 	if (fsrnum & 3)
 fsrn	set	1
 	else
 fsrn	set	0
 	endif
+H0	set	0x8
+H1	set	0x9
+H2	set	0xa
+H3	set	0xa ; [sic]
 ;;; with FSR pointing to the start of an array at least 8+? bytes long:
 ;;;  size of data payload in W
-	movwf	INDF#v(fsrn)
-	swapf	INDF#v(fsrn),w
-	andlw	0x0f
-	iorlw	SLOWRAT
-	movwi	8[FSR#v(fsrn)]
-	swapf	INDF#v(fsrn),w
-	andlw	0xf0
-	iorlw	seed
-	movwi	9[FSR#v(fsrn)]
-;;;now calculate the BCH and HCS bytes
-;;;now write the MAC header
-;	endm
-;	
-;zOS_SFD	macro
+	movwf	temp1		;uint8_t zOS_PLC(uint8_t w, uint8_t seed,
+	movlw	0x18		;                uint8_t* temp1, uint8_t* temp2)
+	movwi	H0[FSR#v(fsrn)]	;{// 164kbps, no pilot insertion in H0 byte:
+	swapf	seed,w		; 8[fsr] = 0x18;
+	andlw	0x10		; // no burst mode, scrambler seed in H1 byte:
+	movwi	H1[FSR#v(fsrn)]	; 9[fsr] = (seed & 1) << 4;
+	movf	temp1,w		;
+	btfss	STATUS,Z	;
+	addlw	1		; // actual PSDU payload+CRC length in H2 byte: 
+	movwi	H2[FSR#v(fsrn)]	; 10[fsr] = w ? 1 : 0;//no CRC if 0-byte payload
+	btfsc	STATUS,Z	;
+	movlw	3		;
+	movwf	seed		;
+	addfsr	FSR#v(fsrn),+8	;
+	zOS_CRC	#v(fsrn),seed,temp1,temp2
+	addfsr	FSR#v(fsrn),-8	; // CRC8 for the previous 3 bytes in H3 byte:
+	movwi	H3[FSR#v(fsrn)]	; 11[fsr] = zOS_CRC(fsr, w?3:0, temp1, temp2);
+	moviw	H1[FSR#v(fsrn)]	;
+	swapf	WREG		;
+	movwf	seed		; // seed unchanged (so caller can negate it)
+	moviw	H2[FSR#v(fsrn)]	; return w + 4; // return total send length
+	addlw	0x04		;}
+;;;now write the MAC header?
+	endm
+
+zOS_SFD	macro
 ;;; with FSR1 pointing to the start of an uninitialized array...
 ;;; fill in the 8 bytes of the start-frame delimiter (after this space got
 ;;; used as scratch by zOS_PLC()
