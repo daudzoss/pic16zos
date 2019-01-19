@@ -101,39 +101,57 @@ fsrn	set	0
 	endm
 
 zOS_WHT	macro	fsrnum,len,bits,temp,seed32
-	local	fsrn,nxtwrd,nextbyt,nextbit
+	local	fsrn,nextbyt,nextbit
 	if (fsrnum & 3)
 fsrn	set	1
 	else
 fsrn	set	0
 	endif
-	movwf	len		;
 	addfsr	FSR1,-1		;
+	movwf	len		;void zOS_WHT(uint8_t* fsr, uint8_t w) {
+	movlw	0x96		; uint32_t seed32 = (w & 0x80 == 0) ?
+	movwf	0+seed32	;
+	movlw	0x2a		;
+	movwf	1+seed32	;
+	movlw	0x80		;
+	movwf	2+seed32	;
+	movlw	0x4a		;
+	movwf	3+seed32	;                   0x4a802a96 :
+	btfss	len,7		;
+	bra	nextbyt		;
+	movlw	0x51		;
+	movwf	0+seed32	;
+	movlw	0xfa		;
+	movwf	1+seed32	;
+	movlw	0x46		;
+	movwf	2+seed32	;
+	movlw	0xf8		;
+	movwf	3+seed32	;                   0xf846fa51;
+	bcf	len,7		; uint7_t len = w & 0x7f;
 nextbyt
-	movlw	8		;
-	movwf	bits		;
+	movlw	8		; do {
+	movwf	bits		;  for (uint4_t bits = 8; bits; bits--) {
 	addfsr	FSR1,+1		;
 nextbit
-	rlf	3+seed32,w	;
-	movf	INDF#v(fsrn),w	;
-	xorwf	STATUS,f	;
-	rrf	INDF#v(fsrn),f	; // ser data out has been whitened by 1 bit
-
-	movf	3+seed32,w	;
+	rlf	3+seed32,w	;   uint32_t c = (seed32 & 0x80000000) >> 24;
+	movf	INDF#v(fsrn),w	;   *fsr = (c ^ ((*fsr) & 1)) | ((*fsr) >> 1);
+	xorwf	STATUS,f	;   c = ((c << 23) ^ seed32) ? 0x400 : 0;
+	rrf	INDF#v(fsrn),f	;   c = (c ^ seed32) ? 1 : 0;
+	movf	3+seed32,w	;   seed32 = (seed32 << 1) | c;
+	
 	rlf	3+seed32,f	; // bits 31:24 done
 	xorwf	3+seed32,w	; // WREG bit 7 holds pre-roll value z32^z31
 	rlf	2+seed32,f	; // bits 23:16 done
+	rlf	1+seed32,f	; // bits 15:8 done
 	swapf	WREG		; // WREG bit 3 holds pre-roll value z32^z31
 	xorwf	1+seed32,w	; // WREG bit 3 holds pre-roll value z32^z32^z11
 	swapf	WREG		; // WREG bit 7 holds pre-roll value z32^z32^z11
-	rlf	1+seed32,f	; // bits 15:8 done
 	rlf	WREG		; // C contains pre-roll value z32^z32^z11
-	rlf	seed32,f	; // bits 7:0 done
-
-	decfsz	bits,f		;
-	bra	nextbit		;
-	decfsz	len,f		;
-	bra	nextbyt		;
+	rlf	0+seed32,f	; // bits 7:0 done
+	decfsz	bits,f		;  }
+	bra	nextbit		;  fsr++;
+	decfsz	len,f		; } while (len--);
+	bra	nextbyt		;}
 	endm
 	
 samewrd
