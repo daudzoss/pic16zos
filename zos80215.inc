@@ -103,7 +103,28 @@ fsrn	set	0
 zOS_WHT	macro	fsrnum
 	endm
 
-zOS_CRC	macro	fsrnum
+zOS_CRC	macro	fsrnum,len,reg,bits
+	local	nextbyt,nextbit
+	movwf	len		;uint8_t zOS_CRC(uint8_t* fsrnum, uint8_t w) {
+	movlw	0xff		; uint8_t reg = 0xff;
+	movwf	reg		; do {
+nextbyt
+	movlw	3		;  
+	movwf	bits		;  for (uint4_t bits = 8; bits; bits--) {
+nextbit
+	rrf	data,f		;   uint1_t c = data & 1;
+	movf	reg,w		;   data >>= 1;
+	xorwf	STATUS,f	;   c ^= reg & 1;
+	movlw	0x62		;   if (c)
+	btfss	STATUS,C	;    reg ^= 0x62;
+	movlw	0		;
+	xorwf	reg,f		;
+	rrf	reg,f		;   reg = (c ? 0x80 : 0) | reg >> 1;
+	decfsz	bits,f		;
+	bra	nextbit		;  }
+	decfsz	len,f		; } while (w--);
+	bra	nextbyt		; return reg; // CCITT CRC8: x^8+x^7+x^3+x^2+1
+	movf	reg,w		;}
 	endm
 	
 zOS_HBC	macro	shfdir,size,buf,table,gcount,gtemp,gbank
