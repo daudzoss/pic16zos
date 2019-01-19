@@ -100,28 +100,71 @@ fsrn	set	0
 	movwi	FSR#v(fsrn)++	;}
 	endm
 
-zOS_WHT	macro	fsrnum
+zOS_WHT	macro	fsrnum,len,bits,temp,seed32
+	local	fsrn,nxtwrd,nextbyt,nextbit
+	if (fsrnum & 3)
+fsrn	set	1
+	else
+fsrn	set	0
+	endif
+	movwf	len		;
+	addfsr	FSR1,-1		;
+nextbyt
+	movlw	8		;
+	movwf	bits		;
+	addfsr	FSR1,+1		;
+nextbit
+	rlf	3+seed32,w	;
+	movf	INDF#v(fsrn),w	;
+	xorwf	STATUS,f	;
+	rrf	INDF#v(fsrn),f	; // ser data out has been whitened by 1 bit
+
+	movf	3+seed32,w	;
+	rlf	3+seed32,f	; // bits 31:24 done
+	xorwf	3+seed32,w	; // WREG bit 7 holds pre-roll value z32^z31
+	rlf	2+seed32,f	; // bits 23:16 done
+	swapf	WREG		; // WREG bit 3 holds pre-roll value z32^z31
+	xorwf	1+seed32,w	; // WREG bit 3 holds pre-roll value z32^z32^z11
+	swapf	WREG		; // WREG bit 7 holds pre-roll value z32^z32^z11
+	rlf	1+seed32,f	; // bits 15:8 done
+	rlf	WREG		; // C contains pre-roll value z32^z32^z11
+	rlf	seed32,f	; // bits 7:0 done
+
+	decfsz	bits,f		;
+	bra	nextbit		;
+	decfsz	len,f		;
+	bra	nextbyt		;
+	endm
+	
+samewrd
 	endm
 
-zOS_CRC	macro	fsrnum,len,reg,bits
-	local	nextbyt,nextbit
-	movwf	len		;uint8_t zOS_CRC(uint8_t* fsrnum, uint8_t w) {
+zOS_CRC	macro	fsrnum,len,bits,reg
+	local	fsrn,nextbyt,nextbit
+	if (fsrnum & 3)
+fsrn	set	1
+	else
+fsrn	set	0
+	endif
+	movwf	len		;uint8_t zOS_CRC(uint8_t* fsr, uint8_t w) {
 	movlw	0xff		; uint8_t reg = 0xff;
 	movwf	reg		; do {
+	addfsr	FSR1,-1		;
 nextbyt
-	movlw	3		;  
+	movlw	8		;  
 	movwf	bits		;  for (uint4_t bits = 8; bits; bits--) {
+	addfsr	FSR1,+1		;
 nextbit
-	rrf	data,f		;   uint1_t c = data & 1;
-	movf	reg,w		;   data >>= 1;
+	rrf	INDF#v(fsrn),f	;   uint1_t c = (*fsr) & 1;
+	movf	reg,w		;   *fsr >>= 1;
 	xorwf	STATUS,f	;   c ^= reg & 1;
 	movlw	0x62		;   if (c)
 	btfss	STATUS,C	;    reg ^= 0x62;
 	movlw	0		;
 	xorwf	reg,f		;
 	rrf	reg,f		;   reg = (c ? 0x80 : 0) | reg >> 1;
-	decfsz	bits,f		;
-	bra	nextbit		;  }
+	decfsz	bits,f		;  }
+	bra	nextbit		;  fsr++;
 	decfsz	len,f		; } while (w--);
 	bra	nextbyt		; return reg; // CCITT CRC8: x^8+x^7+x^3+x^2+1
 	movf	reg,w		;}
