@@ -1098,7 +1098,7 @@ do_swi
 	zOS_BUF	FSR0,max,p0	; }
 	zOS_RFS	WREG		; zOS_RFI(); // HWI finished
 done
-	zOS_RFI			;
+	zOS_RFI
 	
 	;; intialize the UART peripheral, job handle and first three arguments
 condecl
