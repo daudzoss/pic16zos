@@ -711,7 +711,7 @@ zOS_POP	macro	reg
 	endm
 	
 zOS_RDF macro
-#ifdef EECON1
+#ifdef EEPGD
 zOS_ADL	equ	EEADRL
 zOS_ADH	equ	EEADRH
 zOS_RDL	equ	EEDATL
@@ -723,6 +723,15 @@ zOS_RDH	equ	EEDATH
 	nop			; EECON1 |= 1<<RD;
 	nop			;} // zOS_RDF()
 #else
+#ifdef NVMREGS
+zOS_ADL	equ	NVMADRL
+zOS_ADH	equ	NVMADRH
+zOS_RDL	equ	NVMDATL
+zOS_RDH	equ	NVMDATH
+	banksel	NVMCON1
+	bcf	NVMCON1,NVMREGS	;inline void zOS_RDF(void) { // for NVM micros
+	bsf	NVMCON1,RD	; NVMCON1 &= ~(1<<CFGS); NVMCON1 |= 1<<RD;
+#else
 #ifdef PMCON1
 zOS_ADL	equ	PMADRL
 zOS_ADH	equ	PMADRH
@@ -733,15 +742,6 @@ zOS_RDH	equ	PMDATH
 	bsf	PMCON1,RD	; PMCON1 &= ~(1<<CFGS);
 	nop			; PMCON1 |= 1<<RD;
 	nop			;} // zOS_RDF()
-#else
-#ifdef NVMCON1
-zOS_ADL	equ	NVMADRL
-zOS_ADH	equ	NVMADRH
-zOS_RDL	equ	NVMDATL
-zOS_RDH	equ	NVMDATH
-	banksel	NVMCON1
-	bcf	NVMCON1,NVMREGS	;inline void zOS_RDF(void) { // for NVM micros
-	bsf	NVMCON1,RD	; NVMCON1 &= ~(1<<CFGS); NVMCON1 |= 1<<RD;
 #endif
 #endif
 #endif
