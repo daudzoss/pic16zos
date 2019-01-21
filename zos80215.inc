@@ -187,7 +187,7 @@ nextbit
 	
 zOS_HBC	macro	shfdir,size,buf,table,gcount,gtemp,gbank
 	if (table & 0x07ff)
-#error "lookup table not aligned to 2KiW boundary"
+	 error	"lookup table not aligned to 2KiW boundary"
 	endif
 	local	i,limit
 	local	p_init,p_final
@@ -299,7 +299,7 @@ i += 1
 	endw
 p_final = $ >> 11
 	if (p_final - p_init)
-#error "macro straddles a flash page boundary; anomalous behavior would result!"
+	 error	"macro straddles a flash page boundary; anomalous behavior would result!"
 	endif
 postend
 	endm
