@@ -711,7 +711,7 @@ zOS_POP	macro	reg
 	endm
 	
 zOS_RDF macro
-#ifdef EEADRL
+#ifdef EECON1
 zOS_ADL	equ	EEADRL
 zOS_ADH	equ	EEADRH
 zOS_RDL	equ	EEDATL
@@ -723,7 +723,7 @@ zOS_RDH	equ	EEDATH
 	nop			; EECON1 |= 1<<RD;
 	nop			;} // zOS_RDF()
 #else
-#ifdef PMADRL
+#ifdef PMCON1
 zOS_ADL	equ	PMADRL
 zOS_ADH	equ	PMADRH
 zOS_RDL	equ	PMDATL
@@ -734,7 +734,7 @@ zOS_RDH	equ	PMDATH
 	nop			; PMCON1 |= 1<<RD;
 	nop			;} // zOS_RDF()
 #else
-#ifdef NVMADRL
+#ifdef NVMCON1
 zOS_ADL	equ	NVMADRL
 zOS_ADH	equ	NVMADRH
 zOS_RDL	equ	NVMDATL

@@ -153,9 +153,6 @@ nextbit
 	decfsz	len,f		; } while (len--);
 	bra	nextbyt		;}
 	endm
-	
-samewrd
-	endm
 
 zOS_CRC	macro	fsrnum,len,bits,reg
 	local	fsrn,nextbyt,nextbit
