@@ -191,7 +191,7 @@ zOS_HBC	macro	shfdir,size,buf,table,gcount,gtemp,gbank
 	endif
 	local	i,limit
 	local	p_init,p_final
-	local	prstart,prend,phstart,plcphend,postart,postend,restore
+	local	prstart,prend,phstart,plcphend,postart,restore,postend,macroend
 prstart	
 p_init = $ >> 11
 	
@@ -220,7 +220,7 @@ p_init = $ >> 11
 	 movf	gtemp,w		;
 	 brw			;
 	 goto	restore		; // requesting to  send a zero-length buffer
-limit = (0x800 - prstart + prend - postart + postend - phstart + plcphend) / 
+limit = (__PAGE_SIZE+prstart-prend+postart-postend+phstart-plcphend-1) / (15+15)
 i = limit-1
 	 while (i+1)
 	  local	looptop#v(i)
@@ -285,9 +285,10 @@ restore
 	movwf	BSR		;} // zOS_HBC()
 	zOS_ENA
 	
-	goto	postend		; // double-check these delays, always same PCH?
+	goto	macroend	; // double-check these delays, always same PCH?
+postend
 i = 0
-	while i < size
+	while (i < limit)
 do9nops#v(i)
 	nop			;
 	bra	$+1		;
@@ -301,5 +302,5 @@ p_final = $ >> 11
 	if (p_final - p_init)
 	 error	"macro straddles a flash page boundary; anomalous behavior would result!"
 	endif
-postend
+macroend
 	endm
