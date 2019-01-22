@@ -239,8 +239,8 @@ looptop#v(i)
 	 bcf	FSR0H,2		; for (uint8_t i = 0; i < size; i++) {
 	 moviw	FSR1++		;  for (fsr0 = 0x8000 | table | fsr1[i];
 	 movwf	FSR0L		;       fsr0 < table + 0x0400; fsr0 += 0x0100) {
-	 movf	INDF0,w	;	;//<--2 cycles instead of 1 due to read from flash!
-	 movwf	gtemp		;   *gtemp = *fsr0;// next byte in 32-bit send word
+	 movf	INDF0,w	;	;//<--2 cycles instead of 1 due to reading flash
+	 movwf	gtemp		;   *gtemp = *fsr0;// next byte in 32-bit sendee
 	 bsf	gcount,3	;   for (*gcount = 8; *gcount; (*gcount)--) {  
 	 rrf	MDCON,w		;    if (shfdir < 0)
 do0nops#v(i)
@@ -290,12 +290,12 @@ postend
 i = 0
 	while (i < limit)
 do9nops#v(i)
-	nop			;
-	bra	$+1		;
+	 nop			;
+	 bra	$+1		;
 do6nops#v(i)
-	bra	$+1		;
-	bra	$+1		;
-	goto	do0nops#v(i)	;
+	 bra	$+1		;
+	 bra	$+1		;
+	 goto	do0nops#v(i)	;
 i += 1
 	endw
 p_final = $ >> 11
