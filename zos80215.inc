@@ -12,11 +12,11 @@
 
 PREAMBL	macro	code32
 	local	i,prev,curr,temp
-prev = 0-1
-temp = code32
-i = 0
+prev=0-1
+temp=code32
+i=0
 	while (i < 0x20)
-curr = temp & 1
+curr=temp & 1
 	if (curr - prev)
 	 if (curr)
 	  bsf	MDCON,MDBIT	;inline void PREAMBL(uint32_t code32) {
@@ -28,9 +28,9 @@ curr = temp & 1
 	else
 	 bra	$+1		;} // PREAMBL()
 	endif
-temp >>= 1
-prev = curr
-i += 1
+temp>>=1
+prev=curr
+i+=1
 	endw
 	endm
 	
@@ -189,11 +189,11 @@ zOS_HBC	macro	shfdir,size,buf,table,gcount,gtemp,gbank
 	if (table & 0x07ff)
 	 error	"lookup table not aligned to 2KiW boundary"
 	endif
-	local	i,limit
+	local	i,usable,limit
 	local	p_init,p_final
 	local	prstart,prend,phstart,plcphend,postart,restore,postend,macroend
 prstart	
-p_init = $ >> 11
+p_init=$>>11
 	
 	movf	BSR,w		;void zOS_HBC(const shfdir, uint8_t size, const*
 	movwf	gbank		;             buf, const* table, uint4_t* gcount
@@ -220,19 +220,21 @@ p_init = $ >> 11
 	 movf	gtemp,w		;
 	 brw			;
 	 goto	restore		; // requesting to  send a zero-length buffer
-limit = (__PAGE_SIZE+prstart-prend+postart-postend+phstart-plcphend-1) / (15+15)
-i = limit-1
+usable=__PAGE_SIZE - (prstart - p_init<<11)
+limit=(usable + prstart-prend + postart-postend + phstart-plcphend-1)/(15+15)
+
+i=limit-1
 	 while (i+1)
 	  local	looptop#v(i)
 	  goto	looptop#v(i)	; // jumps into middle of loop (limit maybe 90?)
-i -= 1
+i-=1
 	 endw
 	else
-limit = size	
+limit=size
 	endif
 prend
 	
-i = 0
+i=0
 	while (i < limit)
 	 local	do9nops#v(i),do0nops#v(i)
 looptop#v(i)
@@ -271,7 +273,7 @@ plcphend
 	 incf	FSR0H,f		; } // the key point of this loop is that any 2
 	 btfss	FSR0H,2		;   // successive assignments to MDCON are 16
 	 goto	do6nops#v(i)	;   // instruction cycles apart, no matter what
-i += 1
+i+=1
 	endw
 	
 postart
@@ -287,7 +289,7 @@ restore
 	
 	goto	macroend	; // double-check these delays, always same PCH?
 postend
-i = 0
+i=0
 	while (i < limit)
 do9nops#v(i)
 	 nop			;
@@ -296,9 +298,9 @@ do6nops#v(i)
 	 bra	$+1		;
 	 bra	$+1		;
 	 goto	do0nops#v(i)	;
-i += 1
+i+=1
 	endw
-p_final = $ >> 11
+p_final=$>>11
 	if (p_final - p_init)
 	 error	"macro straddles a flash page boundary; anomalous behavior would result!"
 	endif
