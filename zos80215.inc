@@ -252,9 +252,9 @@ do0nops#v(i)
 	  rrf	gtemp,f		;    else
 	 endif
 
+phstart
 	 if (i)
 	 else
-phstart
 	;; IEEE 802.15.6 Table 76
 	 PREAMBL 0x419D275F
 	 PREAMBL 0x180A5323
@@ -264,8 +264,8 @@ phstart
 	 PREAMBL 0x180A5323
 	 PREAMBL 0x419D275F
 	 PREAMBL 0x180A5323
-plcphend
 	 endif
+plcphend
 	 rlf	WREG		;     c = gtemp & 0x01, gtemp >>= 1;
 	 movwf	MDCON		;    MDCON = (0xfe & MDCON) | (c ? 1 : 0);//edge
 	 decfsz	gcount,f	;   }
