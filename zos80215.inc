@@ -189,11 +189,11 @@ zOS_HBC	macro	shfdir,size,buf,table,gcount,gtemp,gbank
 	if (table & 0x07ff)
 	 error	"lookup table not aligned to 2KiW boundary"
 	endif
-	local	i,usable,limit
+	local	i,usable,myoffst,limit
 	local	p_init,p_final
-	local	prstart,prend,phstart,plcphend,postart,restore,postend,macroend
+	local	prstart,prend,plcpcsize,postart,restore,postend,macroend
 prstart	
-p_init=$>>11
+p_init=prstart>>0xb
 	
 	movf	BSR,w		;void zOS_HBC(const shfdir, uint8_t size, const*
 	movwf	gbank		;             buf, const* table, uint4_t* gcount
@@ -220,8 +220,10 @@ p_init=$>>11
 	 movf	gtemp,w		;
 	 brw			;
 	 goto	restore		; // requesting to  send a zero-length buffer
-usable=__PAGE_SIZE - (prstart - p_init<<11)
-limit=(usable + prstart-prend + postart-postend + phstart-plcphend-1)/(15+15)
+prend
+usable=__PAGE_SIZE - (prstart - (p_init<<0xb))
+plcpsize=4*0x60
+limit=(usable + prstart-prend + 9 + plcpsize - 1)/(0x1f)
 
 i=limit-1
 	 while (i+1)
@@ -232,7 +234,6 @@ i-=1
 	else
 limit=size
 	endif
-prend
 	
 i=0
 	while (i < limit)
@@ -252,10 +253,10 @@ do0nops#v(i)
 	  rrf	gtemp,f		;    else
 	 endif
 
-phstart
 	 if (i)
 	 else
 	;; IEEE 802.15.6 Table 76
+myoffst
 	 PREAMBL 0x419D275F
 	 PREAMBL 0x180A5323
 	 PREAMBL 0x419D275F
@@ -264,8 +265,9 @@ phstart
 	 PREAMBL 0x180A5323
 	 PREAMBL 0x419D275F
 	 PREAMBL 0x180A5323
+	 org	 myoffst+plcpsize
 	 endif
-plcphend
+
 	 rlf	WREG		;     c = gtemp & 0x01, gtemp >>= 1;
 	 movwf	MDCON		;    MDCON = (0xfe & MDCON) | (c ? 1 : 0);//edge
 	 decfsz	gcount,f	;   }
@@ -276,7 +278,6 @@ plcphend
 i+=1
 	endw
 	
-postart
 	bra	$+1		;
 	bra	$+1		;
 	bra	$+1		;
@@ -288,7 +289,6 @@ restore
 	zOS_ENA
 	
 	goto	macroend	; // double-check these delays, always same PCH?
-postend
 i=0
 	while (i < limit)
 do9nops#v(i)
@@ -300,9 +300,9 @@ do6nops#v(i)
 	 goto	do0nops#v(i)	;
 i+=1
 	endw
-p_final=$>>11
+macroend
+p_final=macroend>>0x0b
 	if (p_final - p_init)
 	 error	"macro straddles a flash page boundary; anomalous behavior would result!"
 	endif
-macroend
 	endm
