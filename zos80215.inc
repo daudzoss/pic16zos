@@ -20,10 +20,13 @@ curr=temp & 1
 	if (curr - prev)
 	 if (curr)
 	  bsf	MDCON,MDBIT	;inline void PREAMBL(uint32_t code32) {
-	  nop			; for (int i = 0; i < 32; i += 1) {
 	 else
-	  bcf	MDCON,MDBIT	;  MDCON = (MDCON&0xfe) | ((code32&(1<<i))?1:0);
-	  nop			; } // each iteration must be 2 I-cycles apart
+	  bcf	MDCON,MDBIT	; for (int i = 0; i < 32; i += 1) {
+	 endif
+	 if (i)
+	  nop			;  MDCON =0x80|(MDCON&0xfe)|(code32&(1<<i)?1:0);
+	 else
+	  bsf	MDCON,MDEN	; } // each iteration must be 2 I-cycles apart
 	 endif
 	else
 	 bra	$+1		;} // PREAMBL()
