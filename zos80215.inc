@@ -224,6 +224,9 @@ p_init=prstart>>0xb
 	 brw			;
 	 goto	restore		; // requesting to  send a zero-length buffer
 prend
+#ifdef __PAGE_SIZE
+#define	__PAGE_SIZE 0x800	; usually the case
+#endif
 usable=__PAGE_SIZE - (prstart - (p_init<<0xb))
 plcpsize=4*0x60
 limit=(usable + prstart-prend + 9 + plcpsize - 1)/(0x1f)

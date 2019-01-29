@@ -3083,7 +3083,7 @@ max	set	0x70
 	local	clctbl;,clcsize	; throws "Duplicate label or redefining symbol"
 clcisr
 	movf	zOS_AR0,w	; switch (char_io = zOS_AR0) {
-	zOS_T63			;
+	zOS_T63
 clctbl
 	retlw	' '		; 0 to disable just about any RPN functionality
 	retlw   '!'		; 0 to disable command-line zos_mac() factorial
