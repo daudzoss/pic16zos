@@ -47,7 +47,7 @@ fsrn	set	0
 H0	set	0x8
 H1	set	0x9
 H2	set	0xa
-H3	set	0xa ; [sic]
+H3	set	0xb
 ;;; with FSR pointing to the start of an array at least 12+w bytes long:
 ;;;  size of data payload in W
 	movwf	temp1		;uint8_t zOS_PLC(uint8_t w, uint1_t seed,
@@ -65,7 +65,7 @@ H3	set	0xa ; [sic]
 	movwf	seed		;
 	addfsr	FSR#v(fsrn),+8	;
 	zOS_CRC	#v(fsrn),seed,temp1,temp2
-	addfsr	FSR#v(fsrn),-8	; // CRC8 for the previous 3 bytes in H3 byte:
+	addfsr	FSR#v(fsrn),-8-3; // CRC8 for the previous 3 bytes in H3 byte:
 	movwi	H3[FSR#v(fsrn)]	; 11[fsr] = zOS_CRC(fsr, w?3:0, temp1, temp2);
 	moviw	H1[FSR#v(fsrn)]	;
 	swapf	WREG		;
