@@ -56,19 +56,17 @@ H3	set	0xb
 	swapf	seed,w		; 8[fsr] = 0x18;
 	andlw	0x10		; // no burst mode, scrambler seed in H1 byte:
 	movwi	H1[FSR#v(fsrn)]	; 9[fsr] = (seed & 1) << 4;
-	movf	temp1,w		;
-	btfss	STATUS,Z	; // gross PSDU payload length in H2 byte: 
-	movwi	H2[FSR#v(fsrn)]	; 10[fsr] = w ? 1 : 0;//no CRC if 0-byte payload
-	btfsc	STATUS,Z	;
+	movf	temp1,w		; // gross PSDU payload length in H2 byte: 
+	movwi	H2[FSR#v(fsrn)]	; 10[fsr] = w;
 	movlw	3		;
 	movwf	seed		;
 	addfsr	FSR#v(fsrn),+8	;
 	zOS_CRC	#v(fsrn),seed,temp1,temp2
 	addfsr	FSR#v(fsrn),-8-3; // CRC8 for the previous 3 bytes in H3 byte:
-	movwi	H3[FSR#v(fsrn)]	; 11[fsr] = zOS_CRC(fsr, w?3:0, temp1, temp2);
+	movwi	H3[FSR#v(fsrn)]	; 11[fsr] = zOS_CRC(fsr, 3, temp1, temp2);
 	moviw	H1[FSR#v(fsrn)]	;
 	swapf	WREG		;
-	movwf	seed		; // seed unchanged (so caller can negate it)
+	movwf	seed		; // seed bit unchanged (for caller to negate)
 	moviw	H2[FSR#v(fsrn)]	; return w + 4; // return total send length
 	addlw	0x04		;}
 ;;;now write the MAC header?
