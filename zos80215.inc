@@ -57,8 +57,7 @@ H3	set	0xb
 	andlw	0x10		; // no burst mode, scrambler seed in H1 byte:
 	movwi	H1[FSR#v(fsrn)]	; 9[fsr] = (seed & 1) << 4;
 	movf	temp1,w		;
-	btfss	STATUS,Z	;
-	addlw	1		; // actual PSDU payload+CRC length in H2 byte: 
+	btfss	STATUS,Z	; // gross PSDU payload length in H2 byte: 
 	movwi	H2[FSR#v(fsrn)]	; 10[fsr] = w ? 1 : 0;//no CRC if 0-byte payload
 	btfsc	STATUS,Z	;
 	movlw	3		;

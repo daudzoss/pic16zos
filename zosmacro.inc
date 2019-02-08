@@ -2782,7 +2782,7 @@ manchr9
 	bra	mannone		; case 'Z': // go to low-power Zz mode for time
 	clrf	char_io		;  char_io = 0;
 	
-	bsf	WDTCON,SWDTEN	;  if (w = accumul<<1) { // WDT prescalre
+	bsf	WDTCON,SWDTEN	;  if (w = accumul<<1) { // WDT prescaler
 	lslf	accumul,w	;   w |= 1<<SWDTEN; // enable the wakeup
 	btfsc	STATUS,Z	;   
 	bra	mannone		; 
