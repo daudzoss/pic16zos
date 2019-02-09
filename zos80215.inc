@@ -170,8 +170,9 @@ nextbyt
 	movwf	bits		;  for (uint4_t bits = 8; bits; bits--) {
 	addfsr	FSR1,+1		;
 nextbit
-	rrf	INDF#v(fsrn),f	;   uint1_t c = (*fsr) & 1;
-	movf	reg,w		;   *fsr >>= 1;
+	rrf	INDF#v(fsrn),w	;   uint1_t c = (*fsr) & 1;
+	movf	reg,w		;
+	andlw	0x01		;
 	xorwf	STATUS,f	;   c ^= reg & 1;
 	movlw	0x62		;   if (c)
 	btfss	STATUS,C	;    reg ^= 0x62;
