@@ -68,7 +68,7 @@ H3	set	0xb
 	swapf	WREG		;
 	movwf	seed		; // seed bit unchanged (for caller to negate)
 	moviw	H2[FSR#v(fsrn)]	; return w + 4; // return total send length
-	addlw	0x04		;}
+	addlw	0x04		;} // zOS_PLC()
 ;;;now write the MAC header?
 	endm
 
@@ -151,7 +151,7 @@ nextbit
 	decfsz	bits,f		;  }
 	bra	nextbit		;  fsr++;
 	decfsz	len,f		; } while (len--);
-	bra	nextbyt		;}
+	bra	nextbyt		;} // zOS_WHT()
 	endm
 
 zOS_CRC	macro	fsrnum,len,bits,reg
@@ -178,13 +178,13 @@ nextbit
 	btfss	STATUS,C	;    reg ^= 0x62;
 	movlw	0		;
 	xorwf	reg,f		;
-	rrf	reg,f		;   reg = (c ? 0x80 : 0) | reg >> 1;
+	rrf	reg,f		;   reg = (c ? 0x80 : 0) | (reg >> 1);
 	decfsz	bits,f		;  }
 	bra	nextbit		;  fsr++;
 	decfsz	len,f		; } while (w--);
-	bra	nextbyt		;
+	bra	nextbyt		;//FIXME: is always returning 0
 	movf	reg,w		; return reg; // CCITT CRC8: x^8+x^7+x^3+x^2+1
-	addfsr	FSR1,+1		;}
+	addfsr	FSR1,+1		;} // zOS_CRC()
 	endm
 	
 zOS_HBC	macro	shfdir,size,buf,table,gcount,gtemp,gbank
