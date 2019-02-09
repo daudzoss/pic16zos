@@ -163,8 +163,8 @@ fsrn	set	0
 	endif
 	movwf	len		;uint8_t zOS_CRC(uint8_t* fsr, uint8_t w) {
 	movlw	0xff		; uint8_t reg = 0xff;
-	movwf	reg		; do {
-	addfsr	FSR1,-1		;
+	movwf	reg		;
+	addfsr	FSR1,-1		; do {
 nextbyt
 	movlw	8		;  
 	movwf	bits		;  for (uint4_t bits = 8; bits; bits--) {
@@ -181,8 +181,9 @@ nextbit
 	decfsz	bits,f		;  }
 	bra	nextbit		;  fsr++;
 	decfsz	len,f		; } while (w--);
-	bra	nextbyt		; return reg; // CCITT CRC8: x^8+x^7+x^3+x^2+1
-	movf	reg,w		;}
+	bra	nextbyt		;
+	movf	reg,w		; return reg; // CCITT CRC8: x^8+x^7+x^3+x^2+1
+	addfsr	FSR1,+1		;}
 	endm
 	
 zOS_HBC	macro	shfdir,size,buf,table,gcount,gtemp,gbank
