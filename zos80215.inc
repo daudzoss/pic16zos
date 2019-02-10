@@ -164,11 +164,11 @@ fsrn	set	0
 	movwf	len		;uint8_t zOS_CRC(uint8_t* fsr, uint8_t w) {
 	movlw	0xff		; uint8_t reg = 0xff;
 	movwf	reg		;
-	addfsr	FSR1,-1		; do {
+	addfsr	FSR#v(fsrn),-1	; do {
 nextbyt
 	movlw	8		;  
 	movwf	bits		;  for (uint4_t bits = 8; bits; bits--) {
-	addfsr	FSR1,+1		;
+	addfsr	FSR#v(fsrn),+1	;
 nextbit
 	rrf	INDF#v(fsrn),w	;   uint1_t c = (*fsr) & 1;
 	movf	reg,w		;
@@ -183,8 +183,8 @@ nextbit
 	bra	nextbit		;  fsr++;
 	decfsz	len,f		; } while (w--);
 	bra	nextbyt		;//FIXME: is always returning 0
-	movf	reg,w		; return reg; // CCITT CRC8: x^8+x^7+x^3+x^2+1
-	addfsr	FSR1,+1		;} // zOS_CRC()
+	addfsr	FSR#v(fsrn),+1	; return reg; // CCITT CRC8: x^8+x^7+x^3+x^2+1
+	movf	reg,w		;} // zOS_CRC()
 	endm
 	
 zOS_HBC	macro	shfdir,size,buf,table,gcount,gtemp,gbank
