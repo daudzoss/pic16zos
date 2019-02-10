@@ -231,7 +231,7 @@ prend
 #endif
 usable=__PAGE_SIZE - (prstart - (p_init<<0xb))
 plcpsize=4*0x60
-limit=(usable + prstart-prend + 9 + plcpsize - 1)/(0x1f)
+limit=(usable + prstart-prend + 9 + plcpsize - 1)/(0x20)
 
 i=limit-1
 	 while (i+1)
