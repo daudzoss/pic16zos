@@ -197,25 +197,27 @@ zOS_HBC	macro	shfdir,size,buf,table,gcount,gtemp,gbank
 prstart	
 p_init=prstart>>0xb
 	
-	movf	BSR,w		;void zOS_HBC(const shfdir, uint8_t size, const*
+	rlf	BSR,w		;void zOS_HBC(const shfdir, uint8_t size, const*
 	movwf	gbank		;             buf, const* table, uint4_t* gcount
 	if (size > 0x007f)
 	 movf	0x007f&size,w	; // size can be a constant (in which case enter
 	 movwf	gtemp		; // the while loop at top), or jump in if a var
 	endif
 	if (buf < 0x2000)
-	zOS_LOC	FSR1,gbank,buf
+	zOS_LOC	FSR1,BSR,buf
 	else
 	 movlw	low buf		;
 	 movwf	FSR1L		;
 	 movlw	high buf	;
 	 movwf	FSR1H		;
 	endif
-	zOS_DIS	FSR0,gbank
-	movlw 	high table	;             , uint8_t gtemp, uint8_t* gbank) {
+	
+	rlf	INTCON,w	;             , uint8_t gtemp, uint8_t* gbank) {
+	rrf	gbank,f		; gbank = (INTCON&(1<<GIE))|bsr;// preserve both
+	movlw 	high table	;
 	iorlw	0x80		; // workarounds to gain 2 cycles: gcount, fsr0h
 	movwf	FSR0H		; uint8_t* fsr0, * fsr1 = buf, c;
-	banksel	MDCON		; zOS_DIS(BSR); // works in job context, not ISR
+	banksel	MDCON		;
 	clrf	gcount		;
 	movlp	p_init		;
 	if (size > 0x007f)
@@ -290,10 +292,10 @@ i+=1
 	nop
 restore
 	bcf	MDCON,MDEN	;
-	movf	gbank,w		; zOS_ENA(); // interrupts back on!
-	movwf	BSR		;} // zOS_HBC()
-	zOS_ENA
-	
+	movf	gbank,w		;
+	movwf	BSR		; if (gbank & 0x80)
+	btfsc	gbank,GIE	;  INTCON |= 1<<GIE; // interrupts back on!
+	bsf	INTCON,GIE	;} // zOS_HBC()
 	goto	macroend	; // double-check these delays, always same PCH?
 i=0
 	while (i < limit)
