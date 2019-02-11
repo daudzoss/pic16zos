@@ -219,7 +219,7 @@ p_init=prstart>>0xb
 	movwf	FSR0H		; uint8_t* fsr0, * fsr1 = buf, c;
 	banksel	MDCON		;
 	clrf	gcount		;
-	pagesel	p_init		;
+	movlp	p_init<<3	;
 	if (size > 0x007f)
 	 movf	gtemp,w		;
 	 brw			;
