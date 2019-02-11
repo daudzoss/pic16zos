@@ -215,11 +215,11 @@ p_init=prstart>>0xb
 	rlf	INTCON,w	;             , uint8_t gtemp, uint8_t* gbank) {
 	rrf	gbank,f		; gbank = (INTCON&(1<<GIE))|bsr;// preserve both
 	movlw 	high table	;
-	iorlw	0x80		; // workarounds to gain 2 cycles: gcount, fsr0h
+;	iorlw	0x80		; // workarounds to gain 2 cycles: gcount, fsr0h
 	movwf	FSR0H		; uint8_t* fsr0, * fsr1 = buf, c;
 	banksel	MDCON		;
 	clrf	gcount		;
-	movlp	p_init		;
+	pagesel	p_init		;
 	if (size > 0x007f)
 	 movf	gtemp,w		;
 	 brw			;
