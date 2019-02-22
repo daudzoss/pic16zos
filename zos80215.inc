@@ -164,34 +164,28 @@ fsrn	set	0
 	movwf	len		;uint8_t zOS_CRC(uint8_t* fsr, uint8_t w) {
 	movlw	0xff		; uint8_t reg = 0xff;
 	movwf	reg		;
-	addfsr	FSR#v(fsrn),-1	; do {
+	addfsr	FSR#v(fsrn),-1	; for (uint9_t len = w ? w : 256; len; len--)
 nextbyt
-	movlw	8		;  
+	movlw	8		;  // straightforward implementation of Fig. 166
 	movwf	bits		;  for (uint4_t bits = 8; bits; bits--) {
 	addfsr	FSR#v(fsrn),+1	;
-	rrf	INDF#v(fsrn),w	;
 nextbit
+	rrf	INDF#v(fsrn),w	;   uint1_t c = (*fsr) & 1;  
 	movf	reg,w		;
 	xorwf	STATUS,w	;
-
-
-;rrf	INDF#v(fsrn),w	;   uint1_t c = (*fsr) & 1;
-;movf	reg,w		;
-;andlw	0x01		;
-;xorwf	STATUS,f	;   c ^= reg & 1;
-
 	lsrf	INDF#v(fsrn),f	;
 	btfsc	STATUS,C	;
-	bsf	INDF#v(fsrn),7	;
-	movlw	0x62		;   if (c)
-	btfss	STATUS,C	;    reg ^= 0x62;
-	movlw	0		;
-	xorwf	reg,f		;
-	rrf	reg,f		;   reg = (c ? 0x80 : 0) | (reg >> 1);
-	decfsz	bits,f		;  }
+	bsf	INDF#v(fsrn),7	;   *fsr = (*fsr << 7) | (*fsr >> 1); // rotated
+	rrf	WREG		;   c ^= reg & 1;
+	movlw	0x62		;   
+	btfss	STATUS,C	;
+	movlw	0		;   if (c)
+	xorwf	reg,f		;    reg ^= 0x62;
+	rrf	reg,f		;   reg = (c << 7) | (reg >> 1);
+	decfsz	bits,f		;
 	bra	nextbit		;  fsr++;
-	decfsz	len,f		; } while (w--);
-	bra	nextbyt		;//FIXME: is always returning 0
+	decfsz	len,f		; }
+	bra	nextbyt		;//FIXME: was always returning 0, might be fixed
 	addfsr	FSR#v(fsrn),+1	; return reg; // CCITT CRC8: x^8+x^7+x^3+x^2+1
 	movf	reg,w		;} // zOS_CRC()
 	endm
