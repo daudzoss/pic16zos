@@ -256,8 +256,8 @@ looptop#v(i)
 	 movf	INDF0,w	;	;//<--2 cycles instead of 1 due to reading flash
 	 movwf	gtemp		;   *gtemp = *fsr0;// next byte in 32-bit sendee
 	 bsf	gcount,3	;   for (*gcount = 8; *gcount; (*gcount)--) {  
-	 rrf	MDCON,w		;    if (shfdir < 0)
 do0nops#v(i)
+	 rrf	MDCON,w		;    if (shfdir < 0)
 	 if (shfdir & 0x80)
 	  rlf	gtemp,f		;     c = gtemp & 0x80, gtemp <<= 1;
 	 else
