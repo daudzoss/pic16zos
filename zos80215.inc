@@ -303,7 +303,7 @@ restore
 i=0
 	while (i < limit)
 do9nops#v(i)
-	 nop			;
+	 bsf	MDCON,MDEN	; // <- in case not enabled, max lost is 1 byte
 	 bra	$+1		;
 do6nops#v(i)
 	 bra	$+1		;
