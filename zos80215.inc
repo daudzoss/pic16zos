@@ -248,7 +248,7 @@ limit=size
 	
 i=0
 	while (i < limit)
-	 local	do9nops#v(i),do0nops#v(i)
+	 local	do9nops#v(i),do0nops#v(i),do5nops#v(i)
 looptop#v(i)
 	 bcf	FSR0H,2		; for (uint8_t i = 0; i < size; i++) {
 	 moviw	FSR1++		;  for (fsr0 = 0x8000 | table | fsr1[i];
@@ -276,19 +276,21 @@ myoffst
 	 PREAMBL 0x180A5323
 	 PREAMBL 0x419D275F
 	 PREAMBL 0x180A5323
-	 org	 myoffst+plcpsize
+	 org	myoffst+plcpsize
 	 endif
 
 	 rlf	WREG		;     c = gtemp & 0x01, gtemp >>= 1;
 	 movwf	MDCON		;    MDCON = (0xfe & MDCON) | (c ? 1 : 0);//edge
-	 decfsz	gcount,f	;   }
-	 goto	do9nops#v(i)	;  }
-	 incf	FSR0H,f		; } // the key point of this loop is that any 2
-	 btfss	FSR0H,2		;   // successive assignments to MDCON are 16
-	 goto	do6nops#v(i)	;   // instruction cycles apart, no matter what
+	 decfsz	gcount,f	;
+	 goto	do9nops#v(i)	;   }
+	 bsf	gcount,3	;  
+	 incf	FSR0H,f		;  } // the key point of this loop is that any 2
+	 btfss	FSR0H,2		;    // successive assignments to MDCON are 16
+	 goto	do5nops#v(i)	; }  // instruction cycles apart, no matter what
 i+=1
 	endw
 	
+	bra	$+1		;
 	bra	$+1		;
 	bra	$+1		;
 	bra	$+1		;
@@ -303,10 +305,10 @@ restore
 i=0
 	while (i < limit)
 do9nops#v(i)
+	 bra	$+1		;
+	 bra	$+1		;
+do5nops#v(i)
 	 bsf	MDCON,MDEN	; // <- in case not enabled, max lost is 1 byte
-	 bra	$+1		;
-do6nops#v(i)
-	 bra	$+1		;
 	 bra	$+1		;
 	 goto	do0nops#v(i)	;
 i+=1
