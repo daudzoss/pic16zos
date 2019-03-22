@@ -285,8 +285,10 @@ myoffst
 	 goto	do9nops#v(i)	;   }
 	 bsf	gcount,3	;  
 	 incf	FSR0H,f		;  } // the key point of this loop is that any 2
+	 movf	INDF0,w		;
+	 movwf	gtemp		;
 	 btfss	FSR0H,2		;    // successive assignments to MDCON are 16
-	 goto	do5nops#v(i)	; }  // instruction cycles apart, no matter what
+	 goto	do3nops#v(i)	; }  // instruction cycles apart, no matter what
 i+=1
 	endw
 	
@@ -307,9 +309,9 @@ i=0
 do9nops#v(i)
 	 bra	$+1		;
 	 bra	$+1		;
-do5nops#v(i)
-	 bsf	MDCON,MDEN	; // <- in case not enabled, max lost is 1 byte
 	 bra	$+1		;
+do3nops#v(i)
+	 bsf	MDCON,MDEN	; // <- in case not enabled, max lost is 1 bit
 	 goto	do0nops#v(i)	;
 i+=1
 	endw
