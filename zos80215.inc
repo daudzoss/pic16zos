@@ -1,5 +1,5 @@
 ;;; eg:	zOS_PLC ; calculate Phy Layer Convergence Protocol header, returns size
-;	zOS_CR8 ; calculate the CRC for the whole packet?
+;	zOS_CRC ; calculate the CRC for the whole packet?
 ;	zOS_SFD	; write the 8 Start Frame Delimter bytes (over any temp bytes)
 
 ;;; eg: zOS_HBC 1,32,buf,0x800,gcount,gtemp,gbank(last 3 accessible from bank 7)
@@ -79,7 +79,7 @@ fsrn	set	1
 	else
 fsrn	set	0
 	endif
-;;; with FSR1 pointing to the start an uninitialized array...
+;;; with fsrnum pointing to the start an uninitialized array...
 ;;; fill in the 8 bytes of the start-frame delimiter
 	;; values from IEEE 802.15.6 Table 79
 	movlw	0x6a		;inline void zOS_SFD(uint8_t** fsr) {
@@ -107,7 +107,7 @@ fsrn	set	1
 	else
 fsrn	set	0
 	endif
-	addfsr	FSR1,-1		;
+	addfsr	FSR#v(fsrn),-1	;
 	movwf	len		;void zOS_WHT(uint8_t* fsr, uint8_t w) {
 	movlw	0x96		; uint32_t seed32 = (w & 0x80 == 0) ?
 	movwf	0+seed32	;
@@ -131,7 +131,7 @@ fsrn	set	0
 nextbyt
 	movlw	8		; do {
 	movwf	bits		;  for (uint4_t bits = 8; bits; bits--) {
-	addfsr	FSR1,+1		;
+	addfsr	FSR#v(fsrn),+1	;
 nextbit
 	rlf	3+seed32,w	;   uint32_t c = (seed32 & 0x80000000) >> 24;
 	movf	INDF#v(fsrn),w	;   *fsr = (c ^ ((*fsr) & 1)) | ((*fsr) >> 1);
