@@ -1,4 +1,4 @@
-/* preambl4.c
+/* orthcode.c
  *
  * generates an includable assembly file (sized 1024 lines of PIC instructions)
  *  with the Table 85 orthogonal codes required of the FS-spreader by 802.15.6
