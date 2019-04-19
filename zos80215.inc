@@ -216,7 +216,8 @@ p_init=prstart>>0xb
 	endif
 	
 	rlf	INTCON,w	;             , uint8_t gtemp, uint8_t* gbank) {
-	rrf	gbank,f		; gbank = (INTCON&(1<<GIE))|bsr;// preserve both
+	rrf	gbank,f		; gbank = (INTCON&(1<<GIE))|bsr;// save GIE,bank
+	bcf	INTCON,GIE	; INTCON &= ~(1 << GIE); // then INTERRUPTS OFF!
 	movlw 	high table	;
 ;	iorlw	0x80		; // workarounds to gain 2 cycles: gcount, fsr0h
 	movwf	FSR0H		; uint8_t* fsr0, * fsr1 = buf, c;
@@ -300,8 +301,8 @@ i+=1
 restore
 	bcf	MDCON,MDEN	;
 	movf	gbank,w		;
-	movwf	BSR		; if (gbank & 0x80)
-	btfsc	gbank,GIE	;  INTCON |= 1<<GIE; // interrupts back on!
+	movwf	BSR		; if (gbank & 0x80) // if interrupts had been on
+	btfsc	gbank,GIE	;  INTCON |= 1<<GIE; // INTERRUPTS BACK ON!
 	bsf	INTCON,GIE	;} // zOS_HBC()
 	goto	macroend	; // double-check these delays, always same PCH?
 i=0
