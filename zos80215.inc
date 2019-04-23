@@ -226,8 +226,8 @@ p_init=prstart>>0xb
 	movlp	p_init<<3	;
 	if (size > 0x007f)
 	 movf	gtemp,w		;
-	 brw			;
-	 goto	restore		; // requesting to  send a zero-length buffer
+	 brw			; // requesting to  send a zero-length buffer
+	 nop			; // sends the maximum buffer instead
 prend
 #ifdef __PAGE_SIZE
 #else
@@ -235,7 +235,7 @@ prend
 #endif
 usable=__PAGE_SIZE - (prstart - (p_init<<0xb))
 plcpsize=4*0x60
-limit=(usable + prstart-prend + 9 + plcpsize - 1)/(0x24)
+limit=(usable + prstart-prend + 9 + plcpsize - 1)/(0x25)
 
 i=limit-1
 	 while (i+1)
@@ -249,7 +249,7 @@ limit=size
 	
 i=0
 	while (i < limit)
-	 local	do9nops#v(i),do0nops#v(i),do5nops#v(i)
+	 local	do9nops#v(i),do0nops#v(i),wrapbyt#v(i)
 looptop#v(i)
 	 bcf	FSR0H,2		; for (uint8_t i = 0; i < size; i++) {
 	 moviw	FSR1++		;  for (fsr0 = 0x8000 | table | fsr1[i];
@@ -284,12 +284,9 @@ myoffst
 	 movwf	MDCON		;    MDCON = (0xfe & MDCON) | (c ? 1 : 0);//edge
 	 decfsz	gcount,f	;
 	 goto	do9nops#v(i)	;   }
-	 bsf	gcount,3	;  
 	 incf	FSR0H,f		;  } // the key point of this loop is that any 2
-	 movf	INDF0,w		;
-	 movwf	gtemp		;
 	 btfss	FSR0H,2		;    // successive assignments to MDCON are 16
-	 goto	do3nops#v(i)	; }  // instruction cycles apart, no matter what
+	 goto	wrapbyt#v(i)	; }  // instruction cycles apart, no matter what
 i+=1
 	endw
 	
@@ -297,7 +294,7 @@ i+=1
 	bra	$+1		;
 	bra	$+1		;
 	bra	$+1		;
-	nop
+	bra	$+1		;
 restore
 	bcf	MDCON,MDEN	;
 	movf	gbank,w		;
@@ -308,11 +305,19 @@ restore
 i=0
 	while (i < limit)
 do9nops#v(i)
+	 bsf	MDCON,MDEN	; // <- in case not enabled, max lost is 1/4 bit
 	 bra	$+1		;
 	 bra	$+1		;
 	 bra	$+1		;
-do3nops#v(i)
-	 bsf	MDCON,MDEN	; // <- in case not enabled, max lost is 1 bit
+	 goto	do0nops#v(i)	;
+i+=1
+	endw
+i=0
+	while (i < limit)
+wrapbyt#v(i)
+	 bsf	gcount,3	;
+	 movf	INDF0,w		;
+	 movwf	gtemp		;
 	 goto	do0nops#v(i)	;
 i+=1
 	endw
