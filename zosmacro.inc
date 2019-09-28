@@ -246,6 +246,7 @@ loop
 ;;; 16x16bit signed multiply zOS_AR1:0 * zOS_AR3:2, core yielded during 7ms math
 zOS_MUL	macro	fsrnum
 	local fn,inout,fac0L,fac0H,fac1L,fac1H,zeroH,start,con,setup,enb,bsy
+	local notbusy,spinmul,result
 	if (fsrnum & 3)
 fn	 set 1
 	else
@@ -267,25 +268,21 @@ setup	set	(1<<PID1MODE1)
 enb	set	PID1EN	
 bsy	set	PID1BUSY
 	
-	movlw	low PID1CON	;void zOS_MUL(int16_t** fsr) {
+	movlw	low PID1CON	;uint8_t zOS_MUL(int16_t** fsr) { // disable GIE
 	movwf	FSR#v(fn)L	; *fsr = &PID1CON;
 	movlw	high PID1CON	;
-	movwf	FSR#v(fn)H	; do {
-spinget
-	btfss	INDF#v(fn),enb	;  while ((**fsr&(1<<enb))&& // MATHACC for sure
+	movwf	FSR#v(fn)H	;
+	btfss	INDF#v(fn),enb	; if ((**fsr&(1<<enb)) &&    // MATHACC is only
 	bra	notbusy		;         (**fsr&(1<<bsy)))  // ours if not busy
-	btfss	INDF#v(fn),bsy	;  {                         // or never enabled
-	bra	notbusy		;   zOS_ARG(0, bsr);
-	movf	zOS_ME		;   zOS_SWI(zOS_YLD);
-	zOS_ARG	0
-	zOS_SWI	zOS_YLD		;  }
-	bra	spinget		;  // interrupts now enabled if zOS_SWI called
+	btfss	INDF#v(fn),bsy	;
+	bra	notbusy		;
+	movlw	0		;
+	andwf	zOS_AR3,f	;
+	andwf	zOS_AR2,f	;
+	andwf	zOS_AR1,f	;
+	andwf	zOS_AR0,f	;
+	bra	result		;  return 0; // Z also set; can't access HW!
 notbusy
-	bcf	INTCON,GIE	;  INTCON &= ~(1<<GIE);
-	btfsc	INDF#v(fn),enb	;  // begin critical section (seizing MATHACC)
-	bra	spinget		;
-	bsf	INDF#v(fn),bsy	;
-	bra	spinget		; } while ((**fsr&(1<<enb))||(**fsr&(1<<bsy)));
 	movlw	setup		;
 	movwf	indf#v(fn)	; **fsr = 1<<PIDMODE1; // unsigned mult no accum
 	bsf	indf#v(fn),enb	; **fsr |= 1<<PID1EN; // selected, then enabled
@@ -304,7 +301,6 @@ notbusy
 	clrw			; (0x1f & PID1INH)[*fsr] = 0;
 	movwi	zeroH[FSR#v(fn)]; (0x1f & PID1INL)[*fsr] = 0; // start multiply
 	movwi	start[FSR#v(fn)]; // end critical section (seizing MATHACC)
-	bsf	INTCON,GIE	; INTCON |= 1<<GIE;
 	movlw	low PID1CON	;
 	movwf	FSR#v(fn)L	;
 	movlw	high PID1CON	; *fsr = &PID1CON;
@@ -320,8 +316,8 @@ spinmul
 	bra	spinmul		; } while (**fsr & 1<<PID1BUSY);
 	bcf	INTCON,GIE	; INTCON &= ~(1<<GIE);
 	bcf	INDF#v(fn),enb	; // begin critical section (copying result)
-	movlw	low inout	; **fsr &= ~(1<<enb); // disable MathACC to free
-	movwf	FSR#v(fn)L	;
+	movlw	low inout	; // which continues until caller stashes AR reg
+	movwf	FSR#v(fn)L	; **fsr &= ~(1<<enb); // disable MathACC to free
 	movlw	high inout	;
 	movwf	FSR#v(fn)H	; *fsr = &PID1SETL & 0x1f80; // just bank bits
 	moviw	out3[FSR#v(fn)]	; zOS_AR3 = (0x1f & PID1OUTHH)[*fsr];
@@ -330,9 +326,9 @@ spinmul
 	movwf	zOS_AR2		;
 	moviw	out1[FSR#v(fn)]	; zOS_AR1 = (0x1f & PID1OUTLH)[*fsr];
 	movwf	zOS_AR1		;
-	moviw	out0[FSR#v(fn)]	; zOS_AR0 = (0x1f & PID1OUTLL)[*fsr];
-	movwf	zOS_AR0		; // end critical section (when ARx copy's done)
-;;	bsf	INTCON,GIE	;} // zOS_MUL()
+	moviw	out0[FSR#v(fn)]	; return zOS_AR0 = (0x1f & PID1OUTLL)[*fsr];
+	movwf	zOS_AR0		;} // zOS_MUL()
+result
 	endm
 #endif
 
