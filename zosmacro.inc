@@ -312,7 +312,7 @@ spinmul
 	movf	zOS_ME		;  zOS_ARG(0, bsr);
 	zOS_ARG	0
 	zOS_SWI	zOS_YLD
-	btfss	INDF#v(fn),bsy	;  zOS_YLD();
+	btfsc	INDF#v(fn),bsy	;  zOS_YLD();
 	bra	spinmul		; } while (**fsr & 1<<PID1BUSY);
 	bcf	INTCON,GIE	; INTCON &= ~(1<<GIE);
 	bcf	INDF#v(fn),enb	; // begin critical section (copying result)
