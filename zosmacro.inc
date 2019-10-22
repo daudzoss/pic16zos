@@ -253,19 +253,19 @@ fn	 set 1
 fn	 set 0
 	endif
 inout	set	0x1f80 & PID1SETL
+fac1L	set	0x1f & PID1SETL ; "PID1SELT" in table 3-14!
+fac1H 	set	0x1f & PID1SETH 
+start	set	0x1f & PID1INL
+zeroH	set     0x1f & PID1INH
 fac0L	set	0x1f & PID1K1L
 fac0H	set	0x1f & PID1K1H
-fac1L	set	0x1f & PID1SETL 
-fac1H 	set	0x1f & PID1SETH 
-zeroH	set     0x1f & PID1INH
-start	set	0x1f & PID1INL
 con	set	0x1f & PID1CON	
 out0	set	0x1f & PID1OUTLL
 out1	set	0x1f & PID1OUTLH
 out2	set	0x1f & PID1OUTHL
 out3	set	0x1f & PID1OUTHH
-setup	set	(1<<PID1MODE1)
-enb	set	PID1EN	
+setup	set	(2<<PID1MODE1)
+enb	set	PID1EN
 bsy	set	PID1BUSY
 	
 	movlw	low PID1CON	;uint8_t zOS_MUL(int16_t** fsr) { // disable GIE
@@ -284,7 +284,7 @@ bsy	set	PID1BUSY
 	bra	result		;  return 0; // Z also set; can't access HW!
 notbusy
 	movlw	setup		;
-	movwf	indf#v(fn)	; **fsr = 1<<PIDMODE1; // unsigned mult no accum
+	movwf	indf#v(fn)	; **fsr = 2<<PIDMODE1; // signed mult w/o accum
 	bsf	indf#v(fn),enb	; **fsr |= 1<<PID1EN; // selected, then enabled
 	movlw	low inout	;
 	movwf	FSR#v(fn)L	;
@@ -298,10 +298,10 @@ notbusy
 	movwi	fac1H[FSR#v(fn)]; (0x1f & PID1SETH)[*fsr] = zOS_AR1;
 	movf	zOS_AR0,w	;
 	movwi	fac1L[FSR#v(fn)]; (0x1f & PID1SETL)[*fsr] = zOS_AR0;
-	clrw			; (0x1f & PID1INH)[*fsr] = 0;
-	movwi	zeroH[FSR#v(fn)]; (0x1f & PID1INL)[*fsr] = 0; // start multiply
-	movwi	start[FSR#v(fn)]; // end critical section (seizing MATHACC)
-	movlw	low PID1CON	;
+	clrw			;
+	movwi	zeroH[FSR#v(fn)]; (0x1f & PID1INH)[*fsr] = 0;
+	movwi	start[FSR#v(fn)]; (0x1f & PID1INL)[*fsr] = 0; // start multiply
+	movlw	low PID1CON	; // end critical section (seizing MATHACC)
 	movwf	FSR#v(fn)L	;
 	movlw	high PID1CON	; *fsr = &PID1CON;
 	movwf	FSR#v(fn)H	; do {
