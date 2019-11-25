@@ -25,6 +25,7 @@ temp=code32
 i=0
 	while (i < 0x20)
 curr=temp & 1
+#ifdef MDCON
 	if (curr - prev)
 	 if (curr)
 	  bsf	MDCON,MDBIT	;inline void PREAMBL(uint32_t code32) {
@@ -39,6 +40,18 @@ curr=temp & 1
 	else
 	 bra	$+1		;} // PREAMBL()
 	endif
+#else
+	if (i)
+	 nop			;// remember to enable the CLC output somewhere
+	else
+	 movlw	0xff		;
+	endif
+	if (curr)
+	 movwf	SSP1BUF		;
+	else
+	 clrf	SSP1BUF		;
+	endif
+#endif
 temp>>=1
 prev=curr
 i+=1
@@ -232,7 +245,11 @@ p_init=prstart>>0xb
 	movlw 	high table	;
 ;	iorlw	0x80		; // workarounds to gain 2 cycles: gcount, fsr0h
 	movwf	FSR0H		; uint8_t* fsr0, * fsr1 = buf, c;
+#ifdef MDCON
 	banksel	MDCON		;
+#else
+	banksel SSP1BUF		;
+#endif
 	clrf	gcount		;
 	movlp	p_init<<3	;
 	if (size > 0x007f)
@@ -269,7 +286,11 @@ looptop#v(i)
 	 movwf	gtemp		;   *gtemp = *fsr0;// next byte in 32-bit sendee
 	 bsf	gcount,3	;   for (*gcount = 8; *gcount; (*gcount)--) {  
 do0nops#v(i)
+#ifdef MDCON
 	 rrf	MDCON,w		;    if (shfdir < 0)
+#else
+	 movlw	0xff		; // only 0xff will be preserved by PREAMBL
+#endif
 	 if (shfdir & 0x80)
 	  rlf	gtemp,f		;     c = gtemp & 0x80, gtemp <<= 1;
 	 else
@@ -291,8 +312,13 @@ myoffst
 	 org	myoffst+plcpsize
 	 endif
 
+#ifdef MDCON
 	 rlf	WREG		;     c = gtemp & 0x01, gtemp >>= 1;
 	 movwf	MDCON		;    MDCON = (0xfe & MDCON) | (c ? 1 : 0);//edge
+#else
+	 subwfb	SSP1BUF,f	; SSP1BUF = c ? 0xff:0; // NOTE: SDI must be set
+	 nop			; // to always 1 (e.g. MCLR) and CLK to fINSTR/2
+#endif
 	 decfsz	gcount,f	;
 	 goto	do9nops#v(i)	;   }
 	 incf	FSR0H,f		;  } // the key point of this loop is that any 2
@@ -307,7 +333,12 @@ i+=1
 	bra	$+1		;
 	bra	$+1		;
 restore
+#ifdef MDCON
 	bcf	MDCON,MDEN	;
+#else
+	banksel	CLC1CON		;
+	bcf	CLC1CON,EN	;
+#endif
 	movf	gbank,w		;
 	movwf	BSR		; if (gbank & 0x80) // if interrupts had been on
 	btfsc	gbank,GIE	;  INTCON |= 1<<GIE; // INTERRUPTS BACK ON!
@@ -316,8 +347,14 @@ restore
 i=0
 	while (i < limit)
 do9nops#v(i)
+#ifdef MDCON
 	 bsf	MDCON,MDEN	; // <- in case not enabled, max lost is 1/4 bit
 	 bra	$+1		;
+#else
+	banksel	CLC1CON		;
+	 bcf	CLC1CON,EN	;
+	banksel	SSP1BUF		;
+#endif
 	 bra	$+1		;
 	 bra	$+1		;
 	 goto	do0nops#v(i)	;
