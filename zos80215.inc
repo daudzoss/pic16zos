@@ -7,7 +7,14 @@
 
 #ifdef MDCON
 #else
+#ifdef MD1CON0
 #define MDCON MD1CON0		;// changed between PIC16F183xx and 184xx series
+#else
+#ifdef CLCCON0			;// no data modulator so try to use SPI,CLC xor
+#else
+#error "no modulation hardware available"
+#endif
+#endif
 #endif
 
 PREAMBL	macro	code32
@@ -155,6 +162,8 @@ nextbit
 	endm
 
 zOS_CRC	macro	fsrnum,len,bits,reg
+#ifdef CRCCON0
+#else 				; // no hardware acceleration of CRC calculation
 	local	fsrn,nextbyt,nextbit
 	if (fsrnum & 3)
 fsrn	set	1
@@ -188,6 +197,7 @@ nextbit
 	bra	nextbyt		;//FIXME: was always returning 0, might be fixed
 	addfsr	FSR#v(fsrn),+1	; return reg; // CCITT CRC8: x^8+x^7+x^3+x^2+1
 	movf	reg,w		;} // zOS_CRC()
+#endif
 	endm
 	
 zOS_HBC	macro	shfdir,size,buf,table,gcount,gtemp,gbank
