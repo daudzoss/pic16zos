@@ -5,17 +5,18 @@
 ;;; eg: zOS_HBC 1,32,buf,0x800,gcount,gtemp,gbank(last 3 accessible from bank 7)
 ;;; or: zOS_HBC 1,0x80|var,buf,0x800,gcount,gtemp,gbank(var accessible from BSR)
 
-#ifdef MDCON
-#else
-#ifdef MD1CON0
+#ifdef MDCON			;{
+#else				;} {
+#ifdef MD1CON0			; {
 #define MDCON MD1CON0		;// changed between PIC16F183xx and 184xx series
-#else
-#ifdef CLCCON0			;// no data modulator so try to use SPI,CLC xor
-#else
-#error "no modulation hardware available"
-#endif
-#endif
-#endif
+#else				; } {
+#ifdef CLCCON0			;  {
+				;// no data modulator so try to use SPI, CLC xor
+#else				;  } {
+error "no modulation hardware available"
+#endif				;  }
+#endif				; }
+#endif				;}
 
 PREAMBL	macro	code32
 	local	i,prev,curr,temp
