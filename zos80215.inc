@@ -80,7 +80,7 @@ H3	set	0xb
 	movf	temp1,w		; // gross PSDU payload length in H2 byte: 
 	movwi	H2[FSR#v(fsrn)]	; 10[fsr] = w;
 	movlw	3		;
-	movwf	seed		;
+	movwf	seed		; // completely superfluous, moved in anyway
 	addfsr	FSR#v(fsrn),+8	;
 	zOS_CRC	#v(fsrn),seed,temp1,temp2
 	addfsr	FSR#v(fsrn),-8-3; // CRC8 for the previous 3 bytes in H3 byte:
@@ -176,22 +176,39 @@ nextbit
 	endm
 
 zOS_CRC	macro	fsrnum,len,bits,reg
-#ifdef CRCCON0
-#else 				; // no hardware acceleration of CRC calculation
 	local	fsrn,nextbyt,nextbit
 	if (fsrnum & 3)
 fsrn	set	1
 	else
 fsrn	set	0
 	endif
-	movwf	len		;uint8_t zOS_CRC(uint8_t* fsr, uint8_t w) {
+;	movwf	len		;uint8_t zOS_CRC(uint8_t* fsr, uint8_t len) {
 	movlw	0xff		; uint8_t reg = 0xff;
 	movwf	reg		;
 	addfsr	FSR#v(fsrn),-1	; for (uint9_t len = w ? w : 256; len; len--)
 nextbyt
+#ifdef CRCCON0
+	movf	BSR,w		;
+	movwf	reg		;
+	banksel	CRCCON0		;
+	clrf	CRCACCL		;
+	clrf	CRCACCH		;
+	movlw	0x??		;
+	movwf	CRCXORL		;
+	movlw	0x??		;
+	movwf	CRCXORH		;
+	movlw	0x70|0x0?	;
+	movwf	CRCCON1		;
+	movlw	0x??		;
+	movwf	CRCCON0		;
+	btfsc	CRCCON0,FULL	;
+	bra	$-1		;
+	moviw	++FSR#v(fsrn)	;
+	movwf	CRCDATL		;
+#else 				; // no hardware acceleration of CRC calculation
+	addfsr	FSR#v(fsrn),+1	;
 	movlw	8		;  // straightforward implementation of Fig. 166
 	movwf	bits		;  for (uint4_t bits = 8; bits; bits--) {
-	addfsr	FSR#v(fsrn),+1	;
 nextbit
 	rrf	INDF#v(fsrn),w	;   uint1_t c = (*fsr) & 1;  
 	movf	reg,w		;
@@ -207,9 +224,19 @@ nextbit
 	rrf	reg,f		;   reg = (c << 7) | (reg >> 1);
 	decfsz	bits,f		;
 	bra	nextbit		;  fsr++;
+#endif
 	decfsz	len,f		; }
 	bra	nextbyt		;//FIXME: was always returning 0, might be fixed
 	addfsr	FSR#v(fsrn),+1	; return reg; // CCITT CRC8: x^8+x^7+x^3+x^2+1
+#ifdef CRCCON0
+	btfsc	CRCCON0,BUSY_CRCCON0 ;
+	bra	$-1		;
+	movf	CRCDATL,w	;
+	movwf	bits		;
+	movf	reg,w		;
+	movwf	BSR		;
+	movf	bits,w		;
+#else
 	movf	reg,w		;} // zOS_CRC()
 #endif
 	endm
