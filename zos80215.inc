@@ -80,7 +80,7 @@ H3	set	0xb
 	movf	temp1,w		; // gross PSDU payload length in H2 byte: 
 	movwi	H2[FSR#v(fsrn)]	; 10[fsr] = w;
 	movlw	3		;
-	movwf	seed		; // completely superfluous, moved in anyway
+;	movwf	seed		; // completely superfluous, moved in anyway
 	addfsr	FSR#v(fsrn),+8	;
 	zOS_CRC	#v(fsrn),seed,temp1,temp2
 	addfsr	FSR#v(fsrn),-8-3; // CRC8 for the previous 3 bytes in H3 byte:
@@ -182,29 +182,31 @@ fsrn	set	1
 	else
 fsrn	set	0
 	endif
-;	movwf	len		;uint8_t zOS_CRC(uint8_t* fsr, uint8_t len) {
+	movwf	len		;uint8_t zOS_CRC(uint8_t* fsr, uint8_t w) {
 	movlw	0xff		; uint8_t reg = 0xff;
 	movwf	reg		;
-	addfsr	FSR#v(fsrn),-1	; for (uint9_t len = w ? w : 256; len; len--)
-nextbyt
 #ifdef CRCCON0
 	movf	BSR,w		;
 	movwf	reg		;
 	banksel	CRCCON0		;
 	clrf	CRCACCL		;
 	clrf	CRCACCH		;
-	movlw	0x??		;
+	clrf	CRCXORH		;
+	movlw	0x8c		;// x^8 (implied) + x^7 + x^3 + x^2 +1 (implied)
 	movwf	CRCXORL		;
-	movlw	0x??		;
-	movwf	CRCXORH		;
-	movlw	0x70|0x0?	;
+	movlw	0x70|0x07	;// 7+1=8 bit data words, 7+2=9 polynomial coeff
 	movwf	CRCCON1		;
-	movlw	0x??		;
-	movwf	CRCCON0		;
+	movlw	0x82		;// CRCSHIFTM shift right; CRCGO disabled; CRCEN
+	movwf	CRCCON0		;// enabled; CRCACCM data not augmented with 0's
+#endif
+	addfsr	FSR#v(fsrn),-1	; for (uint9_t len = w ? w : 256; len; len--)
+nextbyt
+#ifdef CRCCON0
 	btfsc	CRCCON0,FULL	;
 	bra	$-1		;
 	moviw	++FSR#v(fsrn)	;
 	movwf	CRCDATL		;
+	bsf	CRCCON0,GO	;
 #else 				; // no hardware acceleration of CRC calculation
 	addfsr	FSR#v(fsrn),+1	;
 	movlw	8		;  // straightforward implementation of Fig. 166
@@ -231,7 +233,7 @@ nextbit
 #ifdef CRCCON0
 	btfsc	CRCCON0,BUSY_CRCCON0 ;
 	bra	$-1		;
-	movf	CRCDATL,w	;
+	movf	CRCACCL,w	;
 	movwf	bits		;
 	movf	reg,w		;
 	movwf	BSR		;
