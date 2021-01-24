@@ -4,6 +4,23 @@
 ;;; (one of them must occupy the lower byte of a 16-bit register, upper cleared)
 ;;; prod16 should be cleared unless for multiply-accumulate with a prior result
 MULTACC	macro	fact8,fact16,prod16	
+#if 0;def zOS_MUL
+	if (fact8 & 0x7e)
+	 if (fact16 & 0x7e)
+	  zOS_MUL fact16,fact8,0
+	  if (fact16^prod16)
+	   movf	fact16,w
+	   addwf prod16
+	   movf	1+fact16,w
+	   addwfc 1+prod16
+	  endif
+	 else
+	  error "bad arg for fact8"
+	 endif
+	else
+	error "bad arg for fact16"
+	endif
+#else
 	local	mulbegin,mulnext,muldone
 	bcf	STATUS,C	;inline void MULTACC(uint8_t* fact8,
 mulbegin	
@@ -22,6 +39,7 @@ mulnext
 	btfss	STATUS,Z	;
 	bra	mulbegin	;}
 muldone
+#endif
 	endm
 
 ;;; DIVIDE
