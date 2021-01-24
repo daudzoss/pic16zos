@@ -243,8 +243,10 @@ loop
 	endm
 
 #ifdef	PID1CON
-
-zOS_MUL	macro	fact0,fact1
+zOS_SPN	equ	0		;e.g. zOS_MUL INDF0,INDF0,zOS_SPN if no scratch
+zOS_M4B	equ	1		;e.g. zOS_MUL INDF0,zOS_M4B,temp for 4 seq bytes
+	
+zOS_MUL	macro	fact0,fact1,scratch
 	local	mem0,mem1,i,j,k,busy,notbusy,spinmul
 mem0=fact0
 mem0&=0x7f
@@ -256,15 +258,13 @@ mem0&=0x7f
 mem1=fact0
 mem1&=0x7f
  	endif
-	local	inout,fac0L,fac0H,fac1L,fac1H,zeroH,start,con,setup,enb,bsy
-inout	set	0x1f80 & PID1SETL
+	local	fac0L,fac0H,fac1L,fac1H,zeroH,start,setup,enb,bsy
 fac1L	set	0x1f & PID1SETL ; "PID1SELT" in table 3-14!
 fac1H 	set	0x1f & PID1SETH 
 start	set	0x1f & PID1INL
 zeroH	set     0x1f & PID1INH
 fac0L	set	0x1f & PID1K1L
 fac0H	set	0x1f & PID1K1H
-con	set	0x1f & PID1CON	
 out0	set	0x1f & PID1OUTLL
 out1	set	0x1f & PID1OUTLH
 out2	set	0x1f & PID1OUTHL
@@ -296,17 +296,16 @@ busy
 	bcf	INTCON,GIE	; while (1) { // begin critical section
 	btfss	INDF1,enb	;  INTCON &= ~(1 << GIE); // interrupts off!
 	bra	notbusy		;  if (*fsr1 & (1<<PID1EN) == 0) break;
-#if 1
-	rrf	WREG,w		;  uint8_t temp = WREG; //preserve W as PCLATH:C
-	movwf	PCLATH		;  zOS_ARG(0, WREG = bsr); //then yield the core
-	movf	zOS_ME		;  zOS_SWI(WREG = zOS_YLD); //before re-checking
-	zOS_ARG	0
-	zOS_SWI	zOS_YLD
-	rlf	PCLATH,w	;  WREG = temp;
-#else
-	bsf	INTCON,GIE	;  INTCON |= 1 << GIE; // interrupts back on!
-#endif
-	bra	busy		; }
+	if (scratch)
+	 movwf	scratch		;  uint8_t scratch = WREG; // preserve W, yield
+	 movf	zOS_ME		;  zOS_ARG(0, WREG=bsr); zOS_SWI(WREG=zOS_YLD);
+	 zOS_ARG 0
+	 zOS_SWI zOS_YLD
+	 movf	scratch,w	;  WREG = scratch;
+	else
+	 bsf	INTCON,GIE	;  INTCON |= 1 << GIE; // interrupts back on!
+	endif
+	bra	busy		; } // wait for timer to fire for context switch
 notbusy
 	bsf	INDF1,enb	; *fsr1 |= 1<<PID1EN; // seize PID1EN as a mutex
 	bsf	INTCON,GIE	; INTCON |= 1 << GIE; // end critical section
@@ -314,7 +313,7 @@ notbusy
 	movwi	fac0L[FSR1]	; // this allows PCLATH:WREG (or even WREG:BSR)
 	movwi	fac0H[FSR1]	; // to be one or both of the multiplicands
 	movwi	fac1L[FSR1]	; // by not clobbering WREG
-	movwi	fac1H[FSR1]	;
+	movwi	fac1H[FSR1]	; // ...now copy all values not coming from WREG
 
 	if (mem0)
 	 if (mem0^WREG)
@@ -331,20 +330,28 @@ notbusy
 	 moviw	1[FSR0]		; }
 	 movwi	fac0H[FSR1]	;
 	endif
-	if (mem1^1)
-	 if (mem1^WREG)
-	  movf	mem1,w		; if (mem1 != INDF1) { // shorthand for FSR0[2]
-	  movwi	fac1L[FSR1]	;  fsr1[0x1f & PID1SETL] = (*mem0) & 0xff;
-	 endif
-	 if (mem1^BSR)
-	  movf	1+mem1,w	;  fsr1[0x1f & PID1SETH] = (*mem0) >> 8;
-	  movwi	fac1H[FSR1]	; } else {
+
+	if (mem1)
+	 if (mem1^1)
+	  if (mem1^WREG)
+	   movf	mem1,w		; if (mem1 != INDF0) {
+	  movwi	fac1L[FSR1]	;  if (mem1 != INDF1) {
+	  endif
+	  if (mem1^BSR)
+	   movf	1+mem1,w	;   fsr1[0x1f & PID1SETL] = (*mem1) & 0xff;
+	  movwi	fac1H[FSR1]	;   fsr1[0x1f & PID1SETH] = (*mem1) >> 8;
+	  endif
+	 else
+	  moviw	2[FSR0]		;  } else { // shorthand for FSR0[2]
+	  movwi	fac0L[FSR1]	;   fsr1[0x1f & PID1SETL] = fsr0[2];
+	  moviw	3[FSR0]		;   fsr1[0x1f & PID1SETH] = fsr0[3];
+	  movwi	fac0H[FSR1]	;  }
 	 endif
 	else
-	 moviw	2[FSR0]		;  fsr1[0x1f & PID1SETL] = fsr0[2];
-	 movwi	fac0L[FSR1]	;  fsr1[0x1f & PID1SETH] = fsr0[3];
-	 moviw	3[FSR0]		; }
-	 movwi	fac0H[FSR1]	;
+	 moviw	0[FSR0]		; } else { // squaring INDF0:
+	 movwi	fac0L[FSR1]	;  fsr1[0x1f & PID1SETL] = fsr0[0];
+	 moviw	1[FSR0]		;  fsr1[0x1f & PID1SETH] = fsr0[1];
+	 movwi	fac0L[FSR1]	; }
 	endif
 
 	movlw	setup		;
@@ -365,7 +372,7 @@ spinmul
 	 moviw	out0[FSR1]	;  fsr0[0] = fsr1[0x1f & PID1OUTLL];
 	 movwi	0[FSR0]		;  fsr0[1] = fsr1[0x1f & PID1OUTLH];
 	 moviw	out1[FSR1]	; }
-	 movwi	1[FSR0]	;
+	 movwi	1[FSR0]		;
 	endif
 	if (mem1^1)
 	 moviw	out2[FSR1]	; if (mem1 != INDF1) { // shorthand for FSR0[2]
