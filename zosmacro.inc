@@ -243,15 +243,20 @@ loop
 	endm
 
 #ifdef	PID1CON
-;;; 16x16bit signed multiply zOS_AR1:0 * zOS_AR3:2, core yielded during 7us math
-zOS_MUL	macro	fsrnum
-	local fn,inout,fac0L,fac0H,fac1L,fac1H,zeroH,start,con,setup,enb,bsy
-	local notbusy,spinmul,result,nresult
-	if (fsrnum & 3)
-fn	 set 1
-	else
-fn	 set 0
-	endif
+
+zOS_MUL	macro	fact0,fact1
+	local	mem0,mem1,i,j,k,busy,notbusy,spinmul
+mem0=fact0
+mem0&=0x7f
+mem1=fact1
+mem1&=0x7f
+	if (mem0 > mem1)
+mem0=fact1
+mem0&=0x7f
+mem1=fact0
+mem1&=0x7f
+ 	endif
+	local	inout,fac0L,fac0H,fac1L,fac1H,zeroH,start,con,setup,enb,bsy
 inout	set	0x1f80 & PID1SETL
 fac1L	set	0x1f & PID1SETL ; "PID1SELT" in table 3-14!
 fac1H 	set	0x1f & PID1SETH 
@@ -267,124 +272,140 @@ out3	set	0x1f & PID1OUTHH
 setup	set	(2<<PID1MODE1)
 enb	set	PID1EN
 bsy	set	PID1BUSY
-	
-	movlw	1<<GIE		;uint8_t zOS_MUL(int16_t** fsr) {
-	xorwf	INTCON,w	;
-	btfsc	STATUS,Z	; if (INTCON && (1 << GIE))
-	bra	nresult		;  return; // Z will be set indicating unsafe to
-	movlw	low PID1CON	;//trust zOS_ARn contents haven't been clobbered
-	movwf	FSR#v(fn)L	;
-	movlw	high PID1CON	;
-	movwf	FSR#v(fn)H	; *fsr = &PID1CON;
 
-	movlw	0		;
-	iorwf	zOS_AR0,w	;
-	iorwf	zOS_AR1,w	;
-	btfsc	STATUS,Z	; if (*(uint16_t*)zOS_AR0 == 0 ||
-	bra	result		;
-	movlw	0		;
-	iorwf	zOS_AR2,w	;
-	iorwf	zOS_AR3,w	;
-	btfsc	STATUS,Z	;    (*(uint16_t*)zOS_AR2 == 0)
-	bra	result		;  return 0; // Z not set, to indicate 0 product
-	btfss	INDF#v(fn),enb	; if ((**fsr&(1<<enb)) &&    // MATHACC is only
-	bra	notbusy		;         (**fsr&(1<<bsy)))  // ours if not busy
-	btfss	INDF#v(fn),bsy	;
-	bra	notbusy		;
-	bsf	STATUS,Z	;
-	bra	nresult		;  return; // Z will be set indicating no access
+i=0
+j=0	
+k=256	
+	while	(i < 8)
+	 if (j & PID1CON)
+	  bsf	FSR1L,i		;void zOS_MUL(int16_t* fact0, int16_t* fact1) {
+	 else
+	  bcf	FSR1L,i		; uint16_t* mem0 = (fact0<=fact1) ? fact0:fact1;
+	 endif
+	 if (k & PID1CON)
+	  bsf	FSR1H,i		; uint16_t* mem1 = (fact0<=fact1) ? fact1:fact0;
+	 else
+	  bcf	FSR1H,i		; uint8_t* fsr1 = &PID1CON;
+	 endif
+i+=1
+j<<=1
+k<<=1	
+	endw
+
+busy
+	bcf	INTCON,GIE	; while (1) { // begin critical section
+	btfss	INDF1,enb	;  INTCON &= ~(1 << GIE); // interrupts off!
+	bra	notbusy		;  if (*fsr1 & (1<<PID1EN) == 0) break;
+#if 1
+	rrf	WREG,w		;  uint8_t temp = WREG; //preserve W as PCLATH:C
+	movwf	PCLATH		;  zOS_ARG(0, WREG = bsr); //then yield the core
+	movf	zOS_ME		;  zOS_SWI(WREG = zOS_YLD); //before re-checking
+	zOS_ARG	0
+	zOS_SWI	zOS_YLD
+	rlf	PCLATH,w	;  WREG = temp;
+#else
+	bsf	INTCON,GIE	;  INTCON |= 1 << GIE; // interrupts back on!
+#endif
+	bra	busy		; }
 notbusy
-	movlw	setup		;
-	movwf	indf#v(fn)	; **fsr = 2<<PIDMODE1; // signed mult w/o accum
-	bsf	indf#v(fn),enb	; **fsr |= 1<<PID1EN; // selected, then enabled
-	movlw	low inout	;
-	movwf	FSR#v(fn)L	;
-	movlw	high inout	;
-	movwf	FSR#v(fn)H	; *fsr = &PID1SETL & 0x1f80; // just bank bits
-	movf	zOS_AR3,w	;
-	movwi	fac0H[FSR#v(fn)]; (0x1f & PID1K1H)[*fsr] = zOS_AR3;
-	movf	zOS_AR2,w	;
-	movwi	fac0L[FSR#v(fn)]; (0x1f & PID1K1L)[*fsr] = zOS_AR2;
-	movf	zOS_AR1,w	;
-	movwi	fac1H[FSR#v(fn)]; (0x1f & PID1SETH)[*fsr] = zOS_AR1;
-	movf	zOS_AR0,w	;
-	movwi	fac1L[FSR#v(fn)]; (0x1f & PID1SETL)[*fsr] = zOS_AR0;
-	clrw			;
-	movwi	zeroH[FSR#v(fn)]; (0x1f & PID1INH)[*fsr] = 0;
-	movwi	start[FSR#v(fn)]; (0x1f & PID1INL)[*fsr] = 0; // start multiply
-	bsf	INTCON,GIE	; INTCON |= 1 << GIE; // OK to clobber zOS_ARn
-	movlw	low PID1CON	; // end critical section (seizing MATHACC)
-	movwf	FSR#v(fn)L	;
-	movlw	high PID1CON	; *fsr = &PID1CON;
-	movwf	FSR#v(fn)H	; do { // wait 4 instr. cyc per Microchip TB3134
-spinmul
-#if 0
-	movf	zOS_ME		;  zOS_ARG(0, bsr);  zOS_YLD();
-	zOS_ARG	0
-	zOS_SWI	zOS_YLD
-#endif
-	btfsc	INDF#v(fn),bsy	;
-	bra	spinmul		; } while (**fsr & 1<<PID1BUSY);
-	bcf	INTCON,GIE	; INTCON &= ~(1<<GIE);
-	bcf	INDF#v(fn),enb	; // begin critical section (copying result)
-	movlw	low inout	; // which continues until caller stashes AR reg
-	movwf	FSR#v(fn)L	; **fsr &= ~(1<<enb); // disable MathACC to free
-	movlw	high inout	;
-	movwf	FSR#v(fn)H	; *fsr = &PID1SETL & 0x1f80; // just bank bits
-	moviw	out3[FSR#v(fn)]	; zOS_AR3 = (0x1f & PID1OUTHH)[*fsr];
-	movwf	zOS_AR3		;
-	moviw	out2[FSR#v(fn)]	; zOS_AR2 = (0x1f & PID1OUTHL)[*fsr];
-	movwf	zOS_AR2		;
-	moviw	out1[FSR#v(fn)]	; zOS_AR1 = (0x1f & PID1OUTLH)[*fsr];
-	movwf	zOS_AR1		;
-	moviw	out0[FSR#v(fn)]	; return zOS_AR0 = (0x1f & PID1OUTLL)[*fsr];
-	movwf	zOS_AR0		; // Z will be cleared to indicate valid product
-result
-	bcf	STATUS,Z	;} // zOS_MUL()
-nresult
-	endm
-#endif
+	bsf	INDF1,enb	; *fsr1 |= 1<<PID1EN; // seize PID1EN as a mutex
+	bsf	INTCON,GIE	; INTCON |= 1 << GIE; // end critical section
+	
+	movwi	fac0L[FSR1]	; // this allows PCLATH:WREG (or even WREG:BSR)
+	movwi	fac0H[FSR1]	; // to be one or both of the multiplicands
+	movwi	fac1L[FSR1]	; // by not clobbering WREG
+	movwi	fac1H[FSR1]	;
 
-zOS_M16	macro	mem0,mem1	
-	local	fact0,fact1,retry,done
-	if (mem0 > mem1)
-fact0	equ	mem1
-fact1	equ	mem0
+	if (mem0)
+	 if (mem0^WREG)
+	  movf	mem0,w		; if (mem0 != INDF0) {
+	  movwi	fac0L[FSR1]	;  fsr1[0x1f & PID1K1L] = (*mem0) & 0xff;
+	 endif
+	 if (mem0^BSR)
+	  movf	1+mem0,w	;  fsr1[0x1f & PID1K1H] = (*mem0) >> 8;
+	  movwi	fac0H[FSR1]	; } else {
+	 endif
 	else
-fact0	equ	mem0
-fact1	equ	mem1
+	 moviw	0[FSR0]		;  fsr1[0x1f & PID1K1L] = fsr0[0];
+	 movwi	fac0L[FSR1]	;  fsr1[0x1f & PID1K1H] = fsr0[1];
+	 moviw	1[FSR0]		; }
+	 movwi	fac0H[FSR1]	;
 	endif
-retry
-	movf	fact0,w		;void zOS_M16(
-	zOS_ARG	0
-	if (fact0 != zOS_AR0)
-	 if (fact0 == INDF0)
-	  moviw	1[FSR0]		;
-	 else
-	  movf	1+fact0,w	;
+	if (mem1^1)
+	 if (mem1^WREG)
+	  movf	mem1,w		; if (mem1 != INDF1) { // shorthand for FSR0[2]
+	  movwi	fac1L[FSR1]	;  fsr1[0x1f & PID1SETL] = (*mem0) & 0xff;
 	 endif
-	 zOS_ARG 1
-	endif
-	if (fact1 != zOS_AR2)
-	 movf	fact1,w		;
-	 zOS_ARG 2
-	 if (fact1 == INDF1)
-	  moviw	1[FSR1]		;
-	 else
-	  movf	1+fact1,w	;
+	 if (mem1^BSR)
+	  movf	1+mem1,w	;  fsr1[0x1f & PID1SETH] = (*mem0) >> 8;
+	  movwi	fac1H[FSR1]	; } else {
 	 endif
-	 zOS_ARG 3
+	else
+	 moviw	2[FSR0]		;  fsr1[0x1f & PID1SETL] = fsr0[2];
+	 movwi	fac0L[FSR1]	;  fsr1[0x1f & PID1SETH] = fsr0[3];
+	 moviw	3[FSR0]		; }
+	 movwi	fac0H[FSR1]	;
 	endif
 
-	zOS_MUL
-	btfss	STATUS,Z	; need to prevent immediate clobbering
-	bra	done		;
-	movf	zOS_ME		;
-	zOS_ARG	0
-	zOS_SWI	zOS_YLD
-	bra	retry		;} // zOS_M16()
-done
+	movlw	setup		;
+	movwf	INDF1		; *fsr1 = 2<<PIDMODE1; // signed mult, no accum.
+	clrw			;
+	movwi	zeroH[FSR1]	; fsr1[0x1f & PID1INH] = 0;
+	movwi	start[FSR1]	; fsr1[0x1f & PID1INL] = 0; // starts a multiply
+spinmul
+	btfsc	INDF1,bsy	; while (*fsr1 & (1<<PID1BUSY))
+	bra	spinmul		;  ; // max 4 instr. cycles per Microchip TB3134
+
+	if (mem0)
+	 moviw	out0[FSR1]	; if (mem0 != INDF0) {
+	 movwf	fact0		;  *fact0 = fsr1[0x1f & PID1OUTLL];
+	 moviw	out1[FSR1]	;  *fact0 |= fsr1[0x1f & PID1OUTLH] << 8;
+	 movwf	1+fact0,w	; } else {
+	else
+	 moviw	out0[FSR1]	;  fsr0[0] = fsr1[0x1f & PID1OUTLL];
+	 movwi	0[FSR0]		;  fsr0[1] = fsr1[0x1f & PID1OUTLH];
+	 moviw	out1[FSR1]	; }
+	 movwi	1[FSR0]	;
+	endif
+	if (mem1^1)
+	 moviw	out2[FSR1]	; if (mem1 != INDF1) { // shorthand for FSR0[2]
+	 movwf	fact1		;  *fact1 = fsr1[0x1f & PID1OUTHL];
+	 moviw	out3[FSR1]	;  *fact1 |= fsr1[0x1f & PID1OUTHH] << 8;
+	 movwi	1+fact1		; } else {
+	else
+	 moviw	out2[FSR1]	;  fsr0[2] = fsr1[0x1f & PID1OUTHL];
+	 movwi	2[FSR0]		;  fsr0[3] = fsr1[0x1f & PID1OUTHH];
+	 moviw	out3[FSR1]	; }
+	 movwi	3[FSR0]		; *fsr1 &= ~(1<<PID1EN); // done; mutex released
+	endif
+	bcf	INDF1,enb	;} // zOS_MUL()
+
+	if (mem0 == INDF1)
+	 error	"illegal use of special register INDF1 as multiplicand"
+	endif
+	if (mem0 == FSR0H)
+	 error	"illegal use of special register FSR0H as multiplicand"
+	endif	
+	if (mem0 == FSR1L)
+	 error	"illegal use of special register FSR1L as multiplicand"
+	endif	
+	if (mem0 == FSR1H)
+	 error	"illegal use of special register FSR1H as multiplicand"
+	endif
+;	if (mem1 == 1) //"zOS_MUL INDF0,1" is shorthand for FSR0[0] thru FSR0[3]
+;	 error	"illegal use of special register INDF1 as multiplicand"
+;	endif	
+	if (mem1 == FSR0H)
+	 error	"illegal use of special register FSR0H as multiplicand"
+	endif
+	if (mem1 == FSR0L)
+	 error	"illegal use of special register FSR0L as multiplicand"
+	endif
+	if (mem1 == FSR1H)
+	 error	"illegal use of special register FSR1H as multiplicand"
+	endif	
 	endm
+#endif
 
 zOS_PAG	macro	fsrnum
 	local	fsrn
