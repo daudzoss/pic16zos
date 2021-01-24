@@ -243,10 +243,10 @@ loop
 	endm
 
 #ifdef	PID1CON
-;;; 16x16bit signed multiply zOS_AR1:0 * zOS_AR3:2, core yielded during 7ms math
+;;; 16x16bit signed multiply zOS_AR1:0 * zOS_AR3:2, core yielded during 7us math
 zOS_MUL	macro	fsrnum
 	local fn,inout,fac0L,fac0H,fac1L,fac1H,zeroH,start,con,setup,enb,bsy
-	local notbusy,spinmul,result
+	local notbusy,spinmul,result,nresult
 	if (fsrnum & 3)
 fn	 set 1
 	else
@@ -268,20 +268,31 @@ setup	set	(2<<PID1MODE1)
 enb	set	PID1EN
 bsy	set	PID1BUSY
 	
-	movlw	low PID1CON	;uint8_t zOS_MUL(int16_t** fsr) { // disable GIE
-	movwf	FSR#v(fn)L	; *fsr = &PID1CON;
+	movlw	1<<GIE		;uint8_t zOS_MUL(int16_t** fsr) {
+	xorwf	INTCON,w	;
+	btfsc	STATUS,Z	; if (INTCON && (1 << GIE))
+	bra	nresult		;  return; // Z will be set indicating unsafe to
+	movlw	low PID1CON	;//trust zOS_ARn contents haven't been clobbered
+	movwf	FSR#v(fn)L	;
 	movlw	high PID1CON	;
-	movwf	FSR#v(fn)H	;
+	movwf	FSR#v(fn)H	; *fsr = &PID1CON;
+
+	movlw	0		;
+	iorwf	zOS_AR0,w	;
+	iorwf	zOS_AR1,w	;
+	btfsc	STATUS,Z	; if (*(uint16_t*)zOS_AR0 == 0 ||
+	bra	result		;
+	movlw	0		;
+	iorwf	zOS_AR2,w	;
+	iorwf	zOS_AR3,w	;
+	btfsc	STATUS,Z	;    (*(uint16_t*)zOS_AR2 == 0)
+	bra	result		;  return 0; // Z not set, to indicate 0 product
 	btfss	INDF#v(fn),enb	; if ((**fsr&(1<<enb)) &&    // MATHACC is only
 	bra	notbusy		;         (**fsr&(1<<bsy)))  // ours if not busy
 	btfss	INDF#v(fn),bsy	;
 	bra	notbusy		;
-	movlw	0		;
-	andwf	zOS_AR3,f	;
-	andwf	zOS_AR2,f	;
-	andwf	zOS_AR1,f	;
-	andwf	zOS_AR0,f	;
-	bra	result		;  return 0; // Z also set; can't access HW!
+	bsf	STATUS,Z	;
+	bra	nresult		;  return; // Z will be set indicating no access
 notbusy
 	movlw	setup		;
 	movwf	indf#v(fn)	; **fsr = 2<<PIDMODE1; // signed mult w/o accum
@@ -301,18 +312,18 @@ notbusy
 	clrw			;
 	movwi	zeroH[FSR#v(fn)]; (0x1f & PID1INH)[*fsr] = 0;
 	movwi	start[FSR#v(fn)]; (0x1f & PID1INL)[*fsr] = 0; // start multiply
+	bsf	INTCON,GIE	; INTCON |= 1 << GIE; // OK to clobber zOS_ARn
 	movlw	low PID1CON	; // end critical section (seizing MATHACC)
 	movwf	FSR#v(fn)L	;
 	movlw	high PID1CON	; *fsr = &PID1CON;
-	movwf	FSR#v(fn)H	; do {
+	movwf	FSR#v(fn)H	; do { // wait 4 instr. cyc per Microchip TB3134
 spinmul
 #if 0
-	clrwdt			;  clrwdt();
-#endif
-	movf	zOS_ME		;  zOS_ARG(0, bsr);
+	movf	zOS_ME		;  zOS_ARG(0, bsr);  zOS_YLD();
 	zOS_ARG	0
 	zOS_SWI	zOS_YLD
-	btfsc	INDF#v(fn),bsy	;  zOS_YLD();
+#endif
+	btfsc	INDF#v(fn),bsy	;
 	bra	spinmul		; } while (**fsr & 1<<PID1BUSY);
 	bcf	INTCON,GIE	; INTCON &= ~(1<<GIE);
 	bcf	INDF#v(fn),enb	; // begin critical section (copying result)
@@ -327,10 +338,53 @@ spinmul
 	moviw	out1[FSR#v(fn)]	; zOS_AR1 = (0x1f & PID1OUTLH)[*fsr];
 	movwf	zOS_AR1		;
 	moviw	out0[FSR#v(fn)]	; return zOS_AR0 = (0x1f & PID1OUTLL)[*fsr];
-	movwf	zOS_AR0		;} // zOS_MUL()
+	movwf	zOS_AR0		; // Z will be cleared to indicate valid product
 result
+	bcf	STATUS,Z	;} // zOS_MUL()
+nresult
 	endm
 #endif
+
+zOS_M16	macro	mem0,mem1	
+	local	fact0,fact1,retry,done
+	if (mem0 > mem1)
+fact0	equ	mem1
+fact1	equ	mem0
+	else
+fact0	equ	mem0
+fact1	equ	mem1
+	endif
+retry
+	movf	fact0,w		;void zOS_M16(
+	zOS_ARG	0
+	if (fact0 != zOS_AR0)
+	 if (fact0 == INDF0)
+	  moviw	1[FSR0]		;
+	 else
+	  movf	1+fact0,w	;
+	 endif
+	 zOS_ARG 1
+	endif
+	if (fact1 != zOS_AR2)
+	 movf	fact1,w		;
+	 zOS_ARG 2
+	 if (fact1 == INDF1)
+	  moviw	1[FSR1]		;
+	 else
+	  movf	1+fact1,w	;
+	 endif
+	 zOS_ARG 3
+	endif
+
+	zOS_MUL
+	btfss	STATUS,Z	; need to prevent immediate clobbering
+	bra	done		;
+	movf	zOS_ME		;
+	zOS_ARG	0
+	zOS_SWI	zOS_YLD
+	bra	retry		;} // zOS_M16()
+done
+	endm
 
 zOS_PAG	macro	fsrnum
 	local	fsrn
