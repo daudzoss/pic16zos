@@ -310,10 +310,16 @@ notbusy
 	bsf	INDF1,enb	; *fsr1 |= 1<<PID1EN; // seize PID1EN as a mutex
 	bsf	INTCON,GIE	; INTCON |= 1 << GIE; // end critical section
 	
-	movwi	fac0L[FSR1]	; // this allows PCLATH:WREG (or even WREG:BSR)
-	movwi	fac0H[FSR1]	; // to be one or both of the multiplicands
-	movwi	fac1L[FSR1]	; // by not clobbering WREG
-	movwi	fac1H[FSR1]	; // ...now copy all values not coming from WREG
+	if (mem1<STATUS)
+	else
+	 if (mem0>WREG)
+	 else
+	  movwi	fac0L[FSR1]	; // this allows PCLATH:WREG (or even WREG:BSR)
+	  movwi	fac0H[FSR1]	; // to be one or both of the multiplicands
+	  movwi	fac1L[FSR1]	; // by not clobbering WREG
+	  movwi	fac1H[FSR1]	; // ...now copy all values not coming from WREG
+	 endif
+	endif
 
 	if (mem0)
 	 if (mem0^WREG)
