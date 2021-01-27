@@ -343,15 +343,15 @@ notbusy
 	  endif
 	 else
 	  moviw	2[FSR0]		;  } else { // shorthand for FSR0[2]
-	  movwi	fac0L[FSR1]	;   fsr1[0x1f & PID1SETL] = fsr0[2];
+	  movwi	fac1L[FSR1]	;   fsr1[0x1f & PID1SETL] = fsr0[2];
 	  moviw	3[FSR0]		;   fsr1[0x1f & PID1SETH] = fsr0[3];
-	  movwi	fac0H[FSR1]	;  }
+	  movwi	fac1H[FSR1]	;  }
 	 endif
 	else
-	 moviw	0[FSR0]		; } else { // squaring INDF0:
-	 movwi	fac0L[FSR1]	;  fsr1[0x1f & PID1SETL] = fsr0[0];
+	 moviw	0[FSR0]		; } else { // squaring INDF0 (for 16-bit result)
+	 movwi	fac1L[FSR1]	;  fsr1[0x1f & PID1SETL] = fsr0[0];
 	 moviw	1[FSR0]		;  fsr1[0x1f & PID1SETH] = fsr0[1];
-	 movwi	fac0L[FSR1]	; }
+	 movwi	fac1L[FSR1]	; }
 	endif
 
 	movlw	setup		;
@@ -359,31 +359,37 @@ notbusy
 	clrw			;
 	movwi	zeroH[FSR1]	; fsr1[0x1f & PID1INH] = 0;
 	movwi	start[FSR1]	; fsr1[0x1f & PID1INL] = 0; // starts a multiply
+	nop			;// result takes 4 I cycles per Microchip TB3134
 spinmul
 	btfsc	INDF1,bsy	; while (*fsr1 & (1<<PID1BUSY))
-	bra	spinmul		;  ; // max 4 instr. cycles per Microchip TB3134
+	bra	spinmul		;  ;// should loop 1x; if not 1 nop insufficient
 
 	if (mem0)
-	 moviw	out0[FSR1]	; if (mem0 != INDF0) {
+	 moviw	out0[FSR1]	; if (mem0 != INDF0) { // write back over args
 	 movwf	fact0		;  *fact0 = fsr1[0x1f & PID1OUTLL];
 	 moviw	out1[FSR1]	;  *fact0 |= fsr1[0x1f & PID1OUTLH] << 8;
-	 movwf	1+fact0,w	; } else {
+	 movwf	1+fact0		;
+	 moviw	out2[FSR1]	;  *fact1 = fsr1[0x1f & PID1OUTLL];
+	 movwf	2+fact0		;  *fact1 |= fsr1[0x1f & PID1OUTLH] << 8;
+	 moviw	out3[FSR1]	;
+	 movwf	3+fact0		; } else { // at least one indirect arg
 	else
-	 moviw	out0[FSR1]	;  fsr0[0] = fsr1[0x1f & PID1OUTLL];
-	 movwi	0[FSR0]		;  fsr0[1] = fsr1[0x1f & PID1OUTLH];
-	 moviw	out1[FSR1]	; }
-	 movwi	1[FSR0]		;
-	endif
-	if (mem1^1)
-	 moviw	out2[FSR1]	; if (mem1 != INDF1) { // shorthand for FSR0[2]
-	 movwf	fact1		;  *fact1 = fsr1[0x1f & PID1OUTHL];
-	 moviw	out3[FSR1]	;  *fact1 |= fsr1[0x1f & PID1OUTHH] << 8;
-	 movwi	1+fact1		; } else {
-	else
-	 moviw	out2[FSR1]	;  fsr0[2] = fsr1[0x1f & PID1OUTHL];
-	 movwi	2[FSR0]		;  fsr0[3] = fsr1[0x1f & PID1OUTHH];
-	 moviw	out3[FSR1]	; }
-	 movwi	3[FSR0]		; *fsr1 &= ~(1<<PID1EN); // done; mutex released
+	 if (mem1^1)
+	  moviw	out2[FSR1]	;  if (mem1 != INDF1) { // not FSR0[2] shorthand
+	  movwf	fact1		;   *fact1 = fsr1[0x1f & PID1OUTHL];
+	  moviw	out3[FSR1]	;   *fact1 |= fsr1[0x1f & PID1OUTHH] << 8;
+	  movwi	1+fact1		;  } else {
+	 else
+	  moviw	out0[FSR1]	;   fsr0[0] = fsr1[0x1f & PID1OUTLL];
+	  movwi	0[FSR0]		;   fsr0[1] = fsr1[0x1f & PID1OUTLH];
+	  moviw	out1[FSR1]	;   if (mem1 != INDF0) {// INDF0*INDF0 is 16-bit
+	  movwi	1[FSR0]		;    fsr0[2] = fsr1[0x1f & PID1OUTHL];
+	  if (mem1)
+	  moviw	out2[FSR1]	;    fsr0[3] = fsr1[0x1f & PID1OUTHH];
+	  movwi	2[FSR0]		;   }
+	  moviw	out3[FSR1]	;  }
+	  movwi	3[FSR0]		; } *fsr1 &= ~(1<<PID1EN);//done; mutex released
+	  endif
 	endif
 	bcf	INDF1,enb	;} // zOS_MUL()
 
