@@ -9,10 +9,10 @@
 ;;; console automatically quits and starts
 ;;;  app if no input within TBD sec (preferable TBD is also the tx interval)
 ;;; modes (rates, dual channel vs. product) selectable through mailbox
-	
+
 	processor 16lf1619
 	include p16lf1619.inc
-	
+
 C_UART	equ	.000009600;GHz
 #ifdef EX21MHZ
 C_SYSTM	equ	.021000000;GHz
@@ -29,10 +29,10 @@ C_SYSTM	equ	.016000000;GHz
 	__CONFIG _CONFIG2,_LVP_OFF & _DEBUG_ON & _LPBOR_ON & BORV_LO & _STVREN_OFF & _PLLEN_OFF & _nZCD_OFF & _PPS1WAY_OFF & _WRT_OFF
 #endif
 #endif
-C_RATIO	equ	C_SYSTEM/C_UART
-	
+C_RATIO	equ	C_SYSTM/C_UART
+
 	__CONFIG _CONFIG3,_WDTCCS_SWC & _WDTCWS_WDTCWSSW & _WDTE_SWDTEN & _WDTCPS_WDTCPS1F
-	
+
 ;;; MPN    MPN    prog SRAM
 ;;; '1614  '1618  4096 512
 ;;; '1615  '1619  8192 1024
@@ -59,6 +59,7 @@ C_RATIO	equ	C_SYSTEM/C_UART
 
 	include	zos.inc
 	include	zosmacro.inc
+	include	zos80215.inc
 
 OUTCHAR	equ	zOS_SI3
 ADC4SWI	equ	zOS_SI4
@@ -78,6 +79,7 @@ isr_adc
 isr_ctx
 
 main
+	;; clock setup: 16/32MHz internal or 21MHz external
 	banksel	OSCCON
 	movlw	0xf<<IRCF0	;void main(void) {
 	movwf	OSCCON		; OSCCON = 0x38;// 16MHz (32MHz with PLL) if int
@@ -94,7 +96,7 @@ main
 	btfss	OSCSTAT,HFIOFS	; while (OSCSTAT & (1<<HFIOFS) == 0)
 	bra	$-1		;  ; // 16/32MHz only: await HFINTOSC "stable"
 #endif
-
+	;; pin setup
 	banksel	ANSELA
 	clrf	ANSELA		; ANSELA = 0; // no analog inputs among RA pins
 	banksel	ANSELC		;
@@ -111,7 +113,7 @@ main
 	banksel	TRISC
 	movlw	0x0f		; TRISC = (0<<RC5) | (0<<RC4) | (1<<RC3) |
 	movwf	TRISC		;         (1<<RC2) | (1<<RC1) | (1<<RC0);
-	
+
 	banksel	HIDRVC
 	bsf	HIDRVC,RC4	;
 	bsf	HIDRVC,RC5	; HIDRVC |= (1 << RC5) | (1 << RC4); // 100mA
@@ -126,15 +128,15 @@ main
 	movwf	PPSLOCK		; PPSLOCK = 0xaa; // magic step 2
 	bcf	PPSLOCK,PPSLOCKED;PPSLOCK &= ~(1<<PPSLOCKED); // unlock PPS
 	movlw	RA2		;
-	movwf	RXPPS		; RXPPS = (0<<3) | RA2; // HOST_TX input
+	movwf	RXPPS		; RXPPS = (0<<3)|RA2; // HOST_TX input (to PIC)
 
 	banksel	RA4PPS
 	movlw	0x14		;
-	movwf	RA4PPS		; RA4PPS = 0x14; // HOST_RX output
-	movlw	0x10		;
-	movwf	RC4PPS		; RC4PPS = 0x10; // CWG1OUTA
-	movlw	0x11		;
-	movwf	RC5PPS		; RC5PPS = 0x11; // CWG1OUTB
+	movwf	RA4PPS		; RA4PPS = 0x14; // HOST_RX output (from PIC)
+	movlw	0x04		;
+	movwf	RC4PPS		; RC4PPS = 0x04; // CLC1OUT
+	movlw	0x05		;
+	movwf	RC5PPS		; RC5PPS = 0x05; // CLC2OUT
 
 	banksel	PPSLOCK
 	movlw	0x55		;
@@ -143,10 +145,36 @@ main
 	movwf	PPSLOCK		; PPSLOCK = 0xaa; // magic step 2
 	bsf	PPSLOCK,PPSLOCKED;PPSLOCK |= 1<<PPSLOCKED; // re-lock PPS
 
-	;; SSP setup (as modulation clock)
-	;; CLC setup (feeding CWG)
-	;; CWG setup
-	
+	;; SSP setup (as modulation bitstream)
+	banksel	SSP1CON1
+	movlw	0x01		;
+	movwf	SSP1ADD		; SSP1ADD = 1; // fCLK = fINSTR/2 = fOSC/4(1+1)
+	movlw	0x0a		;
+	movwf	SSP1CON1	; SSP1CON1 = 0x0a; // no outputs, idle low, fCLK
+
+	;; CLC setup (xoring with fOSC and feeding CWG)
+	banksel	CLC1CON
+	movlw	0x28	  	; // SPI SDO bit xor'ed with main oscillator
+	movwf	CLC1SEL0	; CLC1SEL0 = 40; // "SDO" line from Table 1
+	movwf	CLC2SEL0	; CLC2SEL0 = 40;
+	movlw	0x21		;
+	movwf	CLC1SEL2	; CLC1SEL2 = 33; // "FOSC" line from Table 1
+	movwf	CLC2SEL2	; CLC2SEL2 = 33;
+	movlw	0x02		; // only those two inputs into the xor:
+	movwf	CLC1GLS0	; CLC1GLS0 = 0x02; // Icxd1T into Icxg1
+	movwf	CLC2GLS0	; CLC1GLS0 = 0x02; // Icxd1T into Icxg1
+	movlw	0x20		;
+	movwf	CLC1GLS2	; CLC1GLS2 = 0x20; // Icxd3T into Icxg3
+	movwf	CLC2GLS2	; CLC1GLS2 = 0x20; // Icxd3T into Icxg3
+	clrf	CLC1POL		;
+	movlw	0x80		; CLC1POL = 0; // no inversions on CLC1, but...
+	movwf	CLC2POL	    	; CLC2POL = 0x80; // CLC2 = ~CLC1
+	movlw	0x81		;
+	movwf	CLC1CON		; CLC1CON = 0x81;
+	movwf	CLC2CON		; CLC2CON = 0x81; // enabled, XOR function
+
+	;; TMR1 setup (triggering a modulation, and PU replacement of console)
+
 	zOS_CLC	0,C_RATIO,PIR1,LATA,RA3,isr_ctx
 	movlw	OUTCHAR		; zOS_CLC(0,C_RATIO,PIR1,LATA,RA3,isr_ctx);//...
 	movwi	0[FSR0]		;} // main()
