@@ -12,7 +12,7 @@
 #else				; } {
 #ifdef CLCCON0			;  {
 				;// no data modulator so try to use SPI, CLC xor
-#else				;  } {
+#else				;  } { // (SPI SCLK should be set to fINSTR/2)
 error "no modulation hardware available"
 #endif				;  }
 #endif				; }
@@ -267,7 +267,7 @@ p_init=prstart>>0xb
 	 movlw	high buf	;
 	 movwf	FSR1H		;
 	endif
-	
+
 	rlf	INTCON,w	;             , uint8_t gtemp, uint8_t* gbank) {
 	rrf	gbank,f		; gbank = (INTCON&(1<<GIE))|bsr;// save GIE,bank
 	bcf	INTCON,GIE	; INTCON &= ~(1 << GIE); // then INTERRUPTS OFF!
@@ -316,14 +316,14 @@ looptop#v(i)
 	 bsf	gcount,3	;   for (*gcount = 8; *gcount; (*gcount)--) {  
 do0nops#v(i)
 #ifdef MDCON
-	 rrf	MDCON,w		;    if (shfdir < 0)
+	 rrf	MDCON,w		;    if (shfdir < 0) {
 #else
-	 movlw	0xff		; // only 0xff will be preserved by PREAMBL
+	 nop			;
 #endif
 	 if (shfdir & 0x80)
-	  rlf	gtemp,f		;     c = gtemp & 0x80, gtemp <<= 1;
+	  rlf	gtemp,f		;     c = gtemp & 0x80; gtemp <<= 1;
 	 else
-	  rrf	gtemp,f		;    else
+	  rrf	gtemp,f		;    } else { c = gtemp & 0x01; gtemp >>= 1; }
 	 endif
 
 	 if (i)
@@ -342,11 +342,11 @@ myoffst
 	 endif
 
 #ifdef MDCON
-	 rlf	WREG		;     c = gtemp & 0x01, gtemp >>= 1;
+	 rlf	WREG		;    
 	 movwf	MDCON		;    MDCON = (0xfe & MDCON) | (c ? 1 : 0);//edge
 #else
-	 subwfb	SSP1BUF,f	; SSP1BUF = c ? 0xff:0; // NOTE: SDI must be set
-	 nop			; // to always 1 (e.g. MCLR) and CLK to fINSTR/2
+	 subwfb	WREG,w		;    //subwfb WREG,w is equivalent to w-w-C = -C
+	 movwf	SSP1BUF		;    SSP1BUF = c ? 0xff : 0;
 #endif
 	 decfsz	gcount,f	;
 	 goto	do9nops#v(i)	;   }
@@ -381,7 +381,7 @@ do9nops#v(i)
 	 bra	$+1		;
 #else
 	banksel	CLC1CON		;
-	 bcf	CLC1CON,EN	;
+	 bsf	CLC1CON,EN	;
 	banksel	SSP1BUF		;
 #endif
 	 bra	$+1		;
