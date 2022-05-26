@@ -2593,7 +2593,11 @@ max	set	0x70
 ;zOS_MON()-derived macros referring to these local variables wouldn't open it
 ;until expansion and would throw an undefined-var error during the processing
 
-	
+#ifdef	WDTCON
+#else
+#define	WDTCON	WDTCON0
+#endif
+
 mantask
 #if 0;seems unnec 18 Jan
 	movf	zOS_JOB,w	;int8_t mantask(void) {//destreg,accumul,char_io

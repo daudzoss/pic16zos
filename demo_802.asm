@@ -10,23 +10,23 @@
 ;;;  app if no input within TBD sec (preferable TBD is also the tx interval)
 ;;; modes (rates, dual channel vs. product) selectable through mailbox
 
-	processor 16lf1619
-	include p16lf1619.inc
+	processor 16f1619
+	include p16f1619.inc
 
 C_UART	equ	.000009600;GHz
 #ifdef EX21MHZ
 C_SYSTM	equ	.021000000;GHz
 	__CONFIG _CONFIG1,_CLKOUTEN_OFF & _BOREN_NSLEEP & _CP_OFF & _MCLRE_ON & _PWRTE_ON & _FOSC_ECH
-	__CONFIG _CONFIG2,_LVP_OFF & _DEBUG_ON & _LPBOR_ON & BORV_LO & _STVREN_OFF & _PLLEN_OFF & _nZCD_OFF & _PPS1WAY_OFF & _WRT_OFF
+	__CONFIG _CONFIG2,_LVP_OFF & _DEBUG_ON & _LPBOR_ON & BORV_LO & _STVREN_OFF & _PLLEN_OFF & _ZCD_OFF & _PPS1WAY_OFF & _WRT_OFF
 #else
 #ifdef  IN32MHZ
 C_SYSTM	equ	.032000000;GHz
 	__CONFIG _CONFIG1,_CLKOUTEN_OFF & _BOREN_NSLEEP & _CP_OFF & _MCLRE_ON & _PWRTE_ON & _FOSC_INTOSC
-	__CONFIG _CONFIG2,_LVP_OFF & _DEBUG_ON & _LPBOR_ON & BORV_LO & _STVREN_OFF & _PLLEN_ON & _nZCD_OFF & _PPS1WAY_OFF & _WRT_OFF
+	__CONFIG _CONFIG2,_LVP_OFF & _DEBUG_ON & _LPBOR_ON & BORV_LO & _STVREN_OFF & _PLLEN_ON & _ZCD_OFF & _PPS1WAY_OFF & _WRT_OFF
 #else
 C_SYSTM	equ	.016000000;GHz
 	__CONFIG _CONFIG1,_CLKOUTEN_OFF & _BOREN_NSLEEP & _CP_OFF & _MCLRE_ON & _PWRTE_ON & _FOSC_INTOSC
-	__CONFIG _CONFIG2,_LVP_OFF & _DEBUG_ON & _LPBOR_ON & BORV_LO & _STVREN_OFF & _PLLEN_OFF & _nZCD_OFF & _PPS1WAY_OFF & _WRT_OFF
+	__CONFIG _CONFIG2,_LVP_OFF & _DEBUG_ON & _LPBOR_ON & _BORV_LO & _STVREN_OFF & _PLLEN_OFF & _ZCD_OFF & _PPS1WAY_OFF & _WRT_OFF
 #endif
 #endif
 C_RATIO	equ	C_SYSTM/C_UART
@@ -72,7 +72,7 @@ ADC7SWI	equ	zOS_SI7
 
 	zOS_NAM	"ADC control, buffer"
 adcmeas
-	bra
+	bra	adcmeas
 
 isr_adc
 
@@ -180,9 +180,9 @@ main
 	movwi	0[FSR0]		;} // main()
 i=4
 	while i < 8
-	zOS_ADR	isr_adc,0
+	zOS_ADR	isr_adc,zOS_FLA
 	zOS_INT	0/ADIF,ADC#v(i)SWI
-	zOS_ADR	adcmeas	
+	zOS_ADR	adcmeas,zOS_UNP
 	zOS_LAU	WREG
 	zOS_ACT	FSR0
 i+=1

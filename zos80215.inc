@@ -10,10 +10,10 @@
 #ifdef MD1CON0			; {
 #define MDCON MD1CON0		;// changed between PIC16F183xx and 184xx series
 #else				; } {
-#ifdef CLCCON0			;  {
+#ifdef CLC1CON			;  {
 				;// no data modulator so try to use SPI, CLC xor
 #else				;  } { // (SPI SCLK should be set to fINSTR/2)
-error "no modulation hardware available"
+ error "no modulation hardware available"
 #endif				;  }
 #endif				; }
 #endif				;}
