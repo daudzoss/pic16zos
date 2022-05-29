@@ -174,9 +174,19 @@ main
 	movwf	CLC2CON		; CLC2CON = 0x81; // enabled, XOR function
 
 	;; TMR1 setup (triggering a modulation, and PU replacement of console)
-
+	banksel T1CON
+	movlw   0x31		;
+	movwf   T1CON		; T1CON = 0x31; // fOSC/4, max prescale, enable
+	banksel TMR1H
+	clrf    TMR1H	   	;
+	clrf    TMR1L		; TMR1 = 0x0000; // longest console timeout
+	banksel PIE1
+	bsf     PIE1,TMR1IE	; PIE1 |= 1<<TMR1IE;
 	zOS_CLC	0,C_RATIO,PIR1,LATA,RA3,isr_ctx
-	movlw	OUTCHAR		; zOS_CLC(0,C_RATIO,PIR1,LATA,RA3,isr_ctx);//...
+	movlw	OUTCHAR		; fsr0=zOS_CLC(0,C_RATIO,PIR1,LATA,RA3,isr_ctx);
+	movwi   FSR0--		; *fsr0-- = OUTCHAR;
+	moviw   0[FSR0]		; *fsr0 |= 1<<TMR1IF;
+	iorlw   1<<TMR1IF	; for (int i = 4; i < 8; i++) { /* adcmeas */ }
 	movwi	0[FSR0]		;} // main()
 i=4
 	while i < 8
