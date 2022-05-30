@@ -206,8 +206,8 @@ zOS_T0F	equ	t0flags
 	if (zOS_T0E)
 	 banksel zOS_T0E
 	 bsf	zOS_T0E,T0IE	;inline void zOS_RUN(uint8_t* t0enable) {
-	  if (zOS_T0E - INTCON)
-	   bsf	INTCON,PEIE	; if (t0enable) { *t0enable |= 1<<T0IE;
+	 if (zOS_T0E - INTCON)
+	  bsf	INTCON,PEIE	; if (t0enable) { *t0enable |= 1<<T0IE;
 	 endif
 	endif
 	;; advance the stack pointer to allow 5 stacks of 3 each (+1 if running)
@@ -396,6 +396,7 @@ spinmul
 	  moviw	out3[FSR1]	;  }
 	  movwi	3[FSR0]		; } *fsr1 &= ~(1<<PID1EN);//done; mutex released
 	  endif
+	 endif
 	endif
 	bcf	INDF1,enb	;} // zOS_MUL()
 
