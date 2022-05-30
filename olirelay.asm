@@ -34,22 +34,22 @@
 ;;;       IN3_|  9 (RB3)   (RB4) 10 |_IN4 (ICSP pin 6)
 ;;;           |_____________________|
 
-PORT1	equ	PORTA<<3
+PORT1	equ	(PORTA<<3)
 OPTO1	equ	RA4
-PORT2	equ	PORTB<<3	
+PORT2	equ	(PORTB<<3)	
 OPTO2	equ	RB0
-PORT3	equ	PORTB<<3
+PORT3	equ	(PORTB<<3)
 OPTO3	equ	RB3	
-PORT4	equ	PORTB<<3
+PORT4	equ	(PORTB<<3)
 OPTO4	equ	RB4
 HBEAT	equ	RB5	
 	
 #ifdef LATA
-RPORT	equ	LATA<<3
-RHIGH	equ	LATA>>8
+RPORT	equ	(0xff&(LATA<<3))
+RHIGH	equ	(LATA>>8)
 #else
-RPORT	equ	PORTA<<3
-RHIGH	equ	PORTA>>8
+RPORT	equ	(0xff&(PORTA<<3))
+RHIGH	equ	(PORTA>>8)
 #endif
 RELAY1	equ	RA3
 RELAY2	equ	RA2
