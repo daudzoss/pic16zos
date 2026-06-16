@@ -2600,7 +2600,7 @@ max	set	0x70
 #endif
 
 mantask
-#if 0;seems unnec 18 Jan
+#if 0 ;seems unnec 18 Jan
 	movf	zOS_JOB,w	;int8_t mantask(void) {//destreg,accumul,char_io
 	movwf	BSR		; bsr = zos_job; // to access char_io
 #endif
@@ -2847,7 +2847,7 @@ manchr7
 	clrf	char_io		;   break;
 	
 manchr8
-#if 0;has never worked
+#if 0 ;has never worked
 	movf	char_io,w	;  }
 	xorlw	'S'		;
 	btfss	STATUS,Z	;
@@ -2888,7 +2888,7 @@ manchr9
 mannone
 	retlw	0		; } return 0; //naught to do }
 
-#if 0;has never worked	
+#if 0 ;has never worked	
 	;guaranteed to arrive with p0=p1, interrupts off and in the correct bank
 stkinfo
 	movf	wrap,f		;int8_t stkinfo(void) {
