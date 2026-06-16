@@ -5,18 +5,27 @@
 ;;; eg: zOS_HBC 1,32,buf,0x800,gcount,gtemp,gbank(last 3 accessible from bank 7)
 ;;; or: zOS_HBC 1,0x80|var,buf,0x800,gcount,gtemp,gbank(var accessible from BSR)
 
-#ifdef MDCON			;{
-#else				;} {
-#ifdef MD1CON0			; {
+#ifdef MDCON
+				;{
+#else
+				;} {
+#ifdef MD1CON0
+				; {
 #define MDCON MD1CON0		;// changed between PIC16F183xx and 184xx series
-#else				; } {
-#ifdef CLC1CON			;  {
+#else
+				; } {
+#ifdef CLC1CON
+				;  {
 				;// no data modulator so try to use SPI, CLC xor
-#else				;  } { // (SPI SCLK should be set to fINSTR/2)
+#else
+				;  } { // (SPI SCLK should be set to fINSTR/2)
  error "no modulation hardware available"
-#endif				;  }
-#endif				; }
-#endif				;}
+#endif
+				;  }
+#endif
+				; }
+#endif
+				;}
 
 PREAMBL	macro	code32
 	local	i,prev,curr,temp
@@ -207,8 +216,8 @@ nextbyt
 	moviw	++FSR#v(fsrn)	;
 	movwf	CRCDATL		;
 	bsf	CRCCON0,GO	;
-#else 				; // no hardware acceleration of CRC calculation
-	addfsr	FSR#v(fsrn),+1	;
+#else 
+	addfsr	FSR#v(fsrn),+1	; // no hardware acceleration of CRC calculation
 	movlw	8		;  // straightforward implementation of Fig. 166
 	movwf	bits		;  for (uint4_t bits = 8; bits; bits--) {
 nextbit
