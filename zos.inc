@@ -121,19 +121,18 @@ zOS_J5M	equ	0x60
 	
 zOS_MEM	macro	fsrnum,job,offset
 	local	fsrn
-	if fsrnum and 3
-fsrn set 1
-	else
-fsrn set 0
-	endif
 	swapf	job,w		;inline void zOS_MEM(int8_t* *fsrnum,
 	addlw	0x10		;                    const int8_t* job,
 	andlw	0x70		;                    const
 	if offset
 	 addlw	offset		;                    int8_t offset) {
 	endif
-	movwf	FSR&fsrn&L	; *fsrnum = (((job + 1) & 0x07) << 4) + offset;
-	clrf	FSR&fsrn&H	;} // zOS_MEM()
+	if fsrnum and 3
+	 movwf	FSR1L	; *fsrnum = (((job + 1) & 0x07) << 4) + offset;
+	 clrf	FSR1H	;} // zOS_MEM()
+	else
+	 movwf	FSR0L	; *fsrnum = (((job + 1) & 0x07) << 4) + offset;
+	 clrf	FSR0H	;} // zOS_MEM()
 	endm
 
 ;;; macro to wind the circular stack around from the running job# to the new job
@@ -142,15 +141,18 @@ fsrn set 0
 ;;; note: caller is responsible for making sure the STKPTR/_SHAD bank is active
 zOS_ROL	macro	old,new,temp,fsrnum,base
 	local fsrn,loop1,loop2,done
-	if fsrnum  and  3
-fsrn set 1
-	else
-fsrn set 0
-	endif
 	movlw	low base	;inline void zOS_ROL(const int8_t* old,
-	movwf	FSR&fsrn&L	;                    const int8_t* new,
+        if fsrnum and 3
+	 movwf	FSR1L		;                    const int8_t* new,
+	else
+	 movwf	FSR0L		;                    const int8_t* new,
+	endif
 	movlw	high base	;                    int8_t* temp,
-	movwf	FSR&fsrn&H	;                    int16_t* *fsrnum,
+        if fsrnum and 3
+	 movwf	FSR1H	;                    int16_t* *fsrnum,
+	else
+	 movwf	FSR0H
+	endif
 	movf	new,w		;                    int8_t* base) {
 	subwf	old,w		; //responsibility of caller to banksel STKPTR
 	btfsc	STATUS,Z	; if (*new == *old) // nothing to do
