@@ -20,7 +20,7 @@ CRCini	macro	crc16,crc_buff,bits
 CRCeng	macro	crc16,crc_buff,bits
 	local	CRC16Engine,NextBitEngine
 	
-CRC16Engine
+CRC16Engine:
 	bcf	STATUS,C	;
 	rlf	crc_buff,f	;
 	rlf	1+crc_buff,f	;
@@ -32,7 +32,7 @@ CRC16Engine
 	xorwf	crc_buff,f	;
 	movlw	PolynomLow	;
 	xorwf	1+crc_buff,f	;
-NextBitEngine
+NextBitEngine:
 	decfsz	bits,f		;
 	bra	CRC16Engine	;
 	endm
@@ -46,7 +46,7 @@ zOS_CRC	macro	crc16,crc_buff,bits,temp
 	CRCini	crc16,crc_buff,bits
 	movlw	3
 	movwf	temp
-NextCRC16
+NextCRC16:
 	CRCeng	crc16,crc_buff,bits
 	movf	FSR0L,w		;
 	xorwf	FSR1L,w		;
@@ -60,20 +60,20 @@ NextCRC16
 	decfsz	temp,f		;
 	bra	AppendZeroes	;
 	bra	ReturnToMain	;
-AppendZeroes
+AppendZeroes:
 	clrf	crc_buff	;
 	movlw	Iterations	;
 	movwf	bits		;
 	bra	NextCRC16	;
 	
 	;; Reload CRC buffer register with new data word.
-Reload
+Reload:
 	moviw	++FSR1		;
 	movwf	crc_buff	;
 	movlw	Iterations	;
 	movwf	bits		;
 	bra	NextCRC16	;
-ReturnToMain
+ReturnToMain:
 	;; append CRC to message
 	movf	crc16,w		;
 	movwi	FSR0++		;
@@ -89,7 +89,7 @@ zOS_RCR	macro	crc16,crc_buff,bits,databytes,temp
 	CRCini	crc16,crc_buff,bits
 	movlw	0x02		;
 	addwf	databytes,f	;
-NextCRCRestore
+NextCRCRestore:
 	CRCeng	crc16,crc_buff,bits
 	decfsz	databytes,f	;
 	bra	ReloadRestore	;
@@ -100,7 +100,7 @@ NextCRCRestore
 	bra	ReturnToMain	;
 
 	;; Reload CRC buffer register with new data word.
-ReloadRestore
+ReloadRestore:
 	moviw	++FSR1		;
 	movwf	crc_buff	;
 	movlw	Iterations	;
@@ -116,12 +116,12 @@ zOS_C16	macro	putchar_swi,crc16,crc_buff,bits,databytes,temp
 	local	crcdecl,crctask,crcreset,crcloop
 	bra	crcdecl
 	zOS_NAM	"CRC validator"
-crctask
+crctask:
 	zOS_SWI	zOS_YLD
 	zOS_MY2	FSR0
-crcreset
+crcreset:
 	clrf	INDF0		;
-crcloop
+crcloop:
 	zOS_SWI	zOS_YLD
 	zOS_MY2	FSR0
 	movf	INDF0,w		;

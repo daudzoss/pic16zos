@@ -32,13 +32,13 @@ mulbegin
 	movf	1+fact16,w	;
 	addwfc	1+prod16,f	;
 	bcf	STATUS,C	;
-mulnext
+mulnext:
 	rlf	fact16,f	;
 	rlf	1+fact16,f	; *prod16 += *fact8 * (*fact16 & 0x00ff);
 	movf	fact8,f		;
 	btfss	STATUS,Z	;
 	bra	mulbegin	;}
-muldone
+muldone:
 #endif
 	endm
 
@@ -71,7 +71,7 @@ DIVIDE	macro	dividend,divisor,quotient,quo_hi
 	incfsz	WREG		;                      uint8_t* quo_hi) {
 	bra	divnot0		; if (divisor == 0)
 	bra	divdone		;  return 0; // Z flag will be clear if div by 0
-divnot0
+divnot0:
 	movf	dividend,f	; else if (*dividend == 0)
 	btfss	STATUS,Z	;
 	bra	divsub1		;
@@ -80,14 +80,14 @@ divnot0
 	bra	divsub1		;
 	clrw			;
 	bra	divdone		;  return 0; // Z flag will be set if actually 0
-divsub1
+divsub1:
 	decf	dividend,f	; else {
 	incfsz	dividend,f	;  // subtract one from dividend to ease compare
 	bra	divsubc		;
 	decf	1+dividend,f	;
-divsubc
+divsubc:
 	decf	dividend,f	;
-divloop
+divloop:
 	btfsc	1+dividend,7	;  uint16_t result = (*dividend) / divisor;
 	bra	divchek		;
 	addwf	dividend,f	;
@@ -102,7 +102,7 @@ divloop
 	else
 	 decf	quotient,f	;  }
 	endif
-divchek
+divchek:
 	sublw	0		;  // works with non-static divisor, not re-read
 	addwf	dividend,f	;  if (*quotient)
 	xorwf	dividend,f	;   return *quotient; // Z flag will be clear
@@ -111,16 +111,16 @@ divchek
 	bra	divdone		;
 	clrw			;   *dividend ^= divisor;
 	addwfc	1+dividend,f	;   while (*dividend & 0x80 == 0)
-divbias
+divbias:
 	rlf	dividend,f	;    *dividend <<= 1;
 	btfss	STATUS,C	;   while (*dividend & 0x80) {
 	bra	divbias		;    *dividend <<= 1;
-divroll
+divroll:
 	rrf	WREG		;    w = 0x80 | (w >> 1);
 	rlf	dividend,f	;   }
 	btfsc	STATUS,C	;   return w; // Z flag will be set
 	bra	divroll		;  }
 	comf	WREG		; }
 	movf	quotient,f	;} // DIVIDE()
-divdone
+divdone:
 	endm

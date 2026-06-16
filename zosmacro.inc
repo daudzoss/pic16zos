@@ -105,7 +105,7 @@ zOS_TAI	macro	type		;inline void zOS_TAI(const int8_t type) {
 
 zOS_LAU	macro	stash		;inline void zOS_LAU(int8_t* stash) {
 	local retry
-retry
+retry:
 	zOS_SWI	zOS_NEW
 	bcf	INTCON,GIE	; do {  w = zOS_SWI(zOS_NEW);
 #ifdef CAUTIOUS
@@ -135,14 +135,14 @@ fsrn	 set 0
 	btfss	WREG,1		;   *fsrn = (w + 1) << 4; // structure for job w
 	bra	proceed		;   (*fsrn)[zOS_PCH] &= 0x7f; // allowed to run
 	bra	endact		;  } // else w was > 5
-proceed
+proceed:
 	zOS_MEM	FSR#v(fsrn),WREG,zOS_PCH
 	movlw	0x7f		; } // else w was < 1
 	andwf	INDF#v(fsrn),f	;
 	swapf	FSR#v(fsrn)L,w	;
 	andlw	0x07		; return w;
 	addlw	0xff		;} // zOS_ACT()
-endact
+endact:
 	endm
 	
 zOS_INI	macro	fsrnum,val0,val1
@@ -230,7 +230,7 @@ zOS_DBG	macro
 	banksel	STKPTR
 	clrf	STKPTR		;inline void zOS_DBG(void) {
 	clrw			; for (int8_t w = STKPTR = 0;
-loop
+loop:
 	clrf	TOSH		;      w < 16; w++){
 	movwf	TOSL		;  TOSH = 0;
 	incf	STKPTR,w	;  TOSL = w;
@@ -292,7 +292,7 @@ j<<=1
 k<<=1	
 	endw
 
-busy
+busy:
 	bcf	INTCON,GIE	; while (1) { // begin critical section
 	btfss	INDF1,enb	;  INTCON &= ~(1 << GIE); // interrupts off!
 	bra	notbusy		;  if (*fsr1 & (1<<PID1EN) == 0) break;
@@ -306,7 +306,7 @@ busy
 	 bsf	INTCON,GIE	;  INTCON |= 1 << GIE; // interrupts back on!
 	endif
 	bra	busy		; } // wait for timer to fire for context switch
-notbusy
+notbusy:
 	bsf	INDF1,enb	; *fsr1 |= 1<<PID1EN; // seize PID1EN as a mutex
 	bsf	INTCON,GIE	; INTCON |= 1 << GIE; // end critical section
 	
@@ -366,7 +366,7 @@ notbusy
 	movwi	zeroH[FSR1]	; fsr1[0x1f & PID1INH] = 0;
 	movwi	start[FSR1]	; fsr1[0x1f & PID1INL] = 0; // starts a multiply
 	nop			;// result takes 4 I cycles per Microchip TB3134
-spinmul
+spinmul:
 	btfsc	INDF1,bsy	; while (*fsr1 & (1<<PID1BUSY))
 	bra	spinmul		;  ;// should loop 1x; if not 1 nop insufficient
 
@@ -491,7 +491,7 @@ mem3nyb	set	memroun&0xfff
 membase	set	mem3nyb>>4
 memsize	set	size>>4
 	
-isr
+isr:
 	local	mloop,mcandid,mexact,mnotall,groloop
 	local	free,floop,ffound,invalid,done
 	
@@ -519,7 +519,7 @@ isr
 #endif
 	zOS_LOC	FSR0,BSR,adrarry;  for (fsr0 = (bsr<<7)+adrarry,
 	zOS_LOC	FSR1,BSR,sizarry;       fsr1 = (bsr<<7)+sizarry;
-mloop
+mloop:
 	moviw	FSR0++		;       (alloced = temp = *fsr0++);// next poss.
 	btfsc	STATUS,Z	;       fsr1++) {
 	bra	invalid		;
@@ -528,7 +528,7 @@ mloop
 	moviw	FSR1++		;   w = *fsr1++; // number of bytes used,0=freed
 	btfss	STATUS,Z	;
 	bra	mloop		;   if (w == 0) { // allocatable
-mcandid
+mcandid:
 	moviw	0[FSR0]		;    w = *fsr0;// upper limit to allocating here
 	btfsc	STATUS,Z	;    if (w == 0)
 	bra	invalid		;     goto invalid; // past the highest address
@@ -544,7 +544,7 @@ mcandid
 	bra	mloop		;
 	bra	mnotall		;     continue; // not enough allocatable here
 
-mexact
+mexact:
 	movf	zOS_AR0,w	;    if (w == 0) { // exactly enough!
 	movwi	-1[FSR1]	;     -1[fsr1] = zOS_AR0; // allocated size
 	moviw	-1[FSR0]	;     w = -1[fsr0]; // recycled handle
@@ -588,14 +588,14 @@ groloop
 	movf	alloced,w	;    w = alloced;
 	bra	done		;    goto done; // return the fsr0 address added
 
-free
+free:
 	movf	zOS_MSK,w	; //////////////////////////////////////////////
 	andlw	fi		; //////////       free()                ///////
 	btfsc	STATUS,Z	;
 	bra	invalid		; } else if (zOS_MSK & fi)
 
 	zOS_LOC	FSR0,BSR,adrarry
-floop
+floop:
 	moviw	FSR0++		;  for (fsr0 = (bsr<<7) + adrarry;
 	xorwf	zOS_AR0,w	;       fsr0 < adrarry + tblrows;//FIXME:sorted!
 	btfsc	STATUS,Z	;       fsr0++)              //could quit early!
@@ -607,7 +607,7 @@ floop
 	bra	floop		;
 
 	bra	invalid		;   if (*fsr0 == zOS_AR0) {
-ffound
+ffound:
 	if (tblrows & 0x20)
 	 addfsr	FSR0,0x1f	;
 	 addfsr	FSR0,tblrows-0x1f;
@@ -617,19 +617,19 @@ ffound
 	moviw	--FSR0		;    w = *--fsr0;
 	clrf	INDF0		;    *fsr0 = 0;
 	bra	done		;   }
-invalid
+invalid:
 	clrw			; else invalid: w = 0; // can't malloc nor free
-done
+done:
 	zOS_RFS	WREG		; done: return w;
 	
 	zOS_NAM "heap allocator"
 ;	zOS_NAM	"malloc(),free(),garbage coll"
-task
+task:
 	local	iniarry,coalesc,coaloop,coscoot
 	
 	bcf	INTCON,GIE	;task:
 	zOS_LOC	FSR0,BSR,0x70
-iniarry
+iniarry:
 	clrw			; INTCON &= ~(1<<GIE);
 	movwi	--FSR0		; for (fsr0 = (bsr<<7)|(adrarry+tblsize);
 	movlw	adrarry		;      fsr > adrarry; fsr--)
@@ -647,13 +647,13 @@ iniarry
 	movwi	1[FSR1]		; (0x70|(bsr<<1))[1] =
 	movwi	1[FSR0]		; adrarry[1] = membase+memsize;//max allocatable
 
-coalesc
+coalesc:
 	movf	zOS_ME		; do { // combine adjacent rows whose size are 0
 	zOS_ARG	0
 	zOS_SWI	zOS_YLD
 	zOS_LOC	FSR0,BSR,adrarry+1
 	zOS_LOC	FSR1,BSR,sizarry
-coaloop
+coaloop:
 	bcf	INTCON,GIE	;  zOS_ARG(0, bsr);
 	moviw	++FSR0		;  zOS_SWI(zOS_YLD); // only 1 pass per schedule
 	btfsc	STATUS,Z	;  INTCON &= ~(1<<GIE); // critical section (
@@ -664,7 +664,7 @@ coaloop
 	moviw	0[FSR1]		;    do {// fsr1->redun row siz,trails fsr0->adr
 	btfss	STATUS,Z	;     INTCON &= ~(1<<GIE); // critical section (
 	bra	coaloop		;     uint8_t w = *++fsr1;
-coscoot
+coscoot:
 	moviw	++FSR1		;     -1[fsr1] = w;
 	movwi	-1[FSR1]	;     w = *fsr0++;
 	moviw	FSR0++		;    } while ((-2[fsr0] = w) != 0);
@@ -673,7 +673,7 @@ coscoot
 	bra	coscoot		; } while (1);
 	bra	coalesc		;decl:
 
-decl
+decl:
 	zOS_ADR	task,zOS_UNP	; fsr0 = task & 0x7fff;// MSB 0 => unprivileged
 	movlw	low isr		; w = zOS_ARG(0, isr & 0x00ff);
 	zOS_ARG	0
@@ -724,25 +724,25 @@ zOS_UNW	macro	job		;inline void zOS_UNW(int8_t job) { }
 zOS_OUT	macro	swinum,str,temp
 	local	agent,pre,post,setup,len,sloop,loop
 	bra	setup		;inline void zOS_OUT(uint8_t swinum, char* str,
-agent
+agent:
 	brw			;                    uint8_t* temp) { // no '\0'
 pre	
 	dt	str
-post
+post:
 len	set	post-pre
 	if (len > 254)
 	 error "string too long"
 	endif
 	
 	if (len)
-setup
+setup:
 	 movlw	len		; zOS_SWI(zOS_YLD); // get buffer empty as poss.
 	 movwf	temp		; for (*temp = strlen(str); *temp; --*temp) {
-sloop
+sloop:
 	 movf	zOS_ME		;
 	zOS_ARG	0
 	zOS_SWI	zOS_YLD
-loop
+loop:
 	 movf	temp,w		;  zOS_ARG(0, w = str[strlen(str) - *temp]);
 	 sublw	len		;  while (zOS_SWI(swinum) != 1) { // buffer full
 	pagesel	agent
@@ -750,11 +750,11 @@ loop
 	zOS_ARG 0
 	
 	else
-sloop
+sloop:
 	movf	zOS_ME		;
 	zOS_ARG	0
 	zOS_SWI	zOS_YLD
-setup
+setup:
 	 if (temp - zOS_AR0)
 	  if (temp - WREG)
 	   movf	temp,w		;
@@ -879,7 +879,7 @@ nextcol
 	nop			;
 	incf	PMADRL,f	;
 	bra	nextcol		; } // PMADRL is now at a multiple of 0x0020
-start_w
+start_w:
 	bcf	PMCON1,LWLO	; PMCON1 &= ~(1<<LWLO); // "actually start"
 	movlw	0x55		; PMCON2 = 0x55; // "required sequence..."
 	movwf	PMCON2		;
@@ -929,7 +929,7 @@ loop
 	bra	loop		;    INTCON &= ~(1<<GIE); // undo SWI GIE toggle
 	incf	zOS_ADH,f	;    zOS_PSH(&bsr);
 	bra	loop		;   } else break;
-done
+done:
 	zOS_POP	BSR		;  } else break;
 	bsf	INTCON,GIE	; } zOS_POP(&bsr); INTCON |= 1<<GIE;
 	endm			;} // zOS_STR()
@@ -987,32 +987,32 @@ fsrn set 0
 	movwf	1+ptr		; } else { // print an ascii character
 	movlw	2		;  if ((w = zOS_PUT(fsrnum,max,ptr[0],w)) == 0)
 	bra	done		;   return 0; // buffer was full
-ascii
+ascii:
 	zOS_PUT	fsrnum,max,2+ptr,ptr
 	btfsc	STATUS,Z	;  ptr[1] = w^ptr[0]; // correctly updated
 	bra	done		;  w = 1;
 	xorwf	ptr,w		; }
 	movwf	1+ptr		; return w; // num of characters added to buffer
-err1
+err1:
 	movlw	1		;} // zOS_BUF()
-done
+done:
 	endm
 
 zOS_NUL	macro	hwflag		;void zOS_NUL(void) { // replacement for zOS_CON
 	bra	decl		; goto decl;
 	local	task,isr,decl	; task: do {
-task
+task:
 	movf	zOS_ME		;  zOS_ARG(0, bsr);
 	zOS_ARG	0
 	zOS_SWI	zOS_YLD		;  zOS_SWI(zOS_YLD);
 	bra	task		; } while (1);
 	
-isr
+isr:
 	banksel	zOS_T0F		; isr:
 	bcf	zOS_T0F,T0IF	;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
 	zOS_RFI			;  zOS_RFI(); // and go back to scheduler
 	
-decl
+decl:
 	zOS_ADR	task,zOS_UNP	; fsr0 = task & 0x7fff;// MSB 0 => unprivileged
 	movlw	low isr		; w = zOS_ARG(0, isr & 0x00ff);
 	zOS_ARG	0
@@ -1076,7 +1076,7 @@ uatxmit	 set	TX#v(p)REG & 0x001f ; mask off just the sfr SFR
 rtsflag	 set	TX#v(p)IF	
 	endif
 	zOS_NAM	"console (output-only)"
-contask
+contask:
 	movlw	high uatbase	; goto decl;
 	movwf	FSR0H		;task:// all init that requires knowledge of BSR
 	zOS_MY2	FSR0
@@ -1127,7 +1127,7 @@ inited
 	bra	conloop		;  if (p0 & 0x7f == max) // ignore low bank bit
 	movf	wrap,w		;   p0 = wrap; // =buf xor the lowest bank bit
 	movwf	p0		;  // end critical section
-conloop
+conloop:
 	zOS_ENA
 	zOS_MEM	FSR0,BSR,0
 	moviw	zOS_HDH[FSR0]	;
@@ -1142,7 +1142,7 @@ conloop
 	;;  number of characters stored in the buffer
 	;; Note: caller needs to make sure to check status of return value for
 	;; != 0, just in case job is in between sleeps or with a full buffer
-conisr
+conisr:
 	local	done,do_swi,nottmr
 	
 	;; if it's a simple and frequent timer overflow interrupt finish quickly
@@ -1176,23 +1176,23 @@ conisr
 	bra	done		; } else {
 	
 	;; check for validated SWI first since it will be in zOS_MSK, else a HWI
-nottmr
+nottmr:
 	movf	zOS_MSK,f	;  if (zOS_MSK) { // a SWI to buffer a character
 	btfss	STATUS,Z	;   w = zOS_BUF(&fsr0, max, p0); // zOS_AR0,_AR1
 	bra	do_swi		;   zOS_RFS(w); } else zOS_RET(); // not ours(!)
 	zOS_RET
 	
 	;; point fsr0 to uatbase (again?), point fsr1 to p0
-do_swi
+do_swi:
 	movf	zOS_JOB,w	;
 	movwf	BSR		;
 	zOS_BUF	FSR0,max,p0	; }
 	zOS_RFS	WREG		; zOS_RFI(); // HWI finished
-done
+done:
 	zOS_RFI
 	
 	;; intialize the UART peripheral, job handle and first three arguments
-condecl
+condecl:
 	banksel	uatbase
 	bcf	RCSTA,SPEN	;decl: // all init that is BSR independent here
 	bcf	RCSTA,CREN	; RCSTA &= ~((1<<SPEN)|(1<<CREN));
@@ -1295,7 +1295,7 @@ rxflag	 set	RC#v(p)IF
 	
 	zOS_NAM	"console I/O"
 ;;; FIXME: haven't actually written the var init code for zOS_MON et al yet
-rxtask
+rxtask:
 	movf	optadrh,w	; goto rxdecl;
 	movwf	PCLATH		;rxtask:
 	iorwf	optadrl,w	;
@@ -1304,7 +1304,7 @@ rxtask
 	movf	optadrl,w	;  if ((optadrh<<8) | optadrl)
 	callw			;   (*(optadrh<<8) | optadrl)) (); //returns to:
 ;;; FIXME: do anything interesting with return value? 0 sent if nothing happened
-no_opt
+no_opt:
 	movf	tskadrh,w	;
 	movwf	PCLATH		;  goto (tskadrh<<8) | tskadrl;// zOS_CON() code
 	movf	tskadrl,w	;
@@ -1327,7 +1327,7 @@ rxisr
 	movlw	'!'		;   zOS_AR0 = '!';
 	movwf	zOS_AR0		;   zOS_BUF(zOS_JOB, p0);
 	zOS_BUF	FSR0,max,p0	;  }
-noovrrn
+noovrrn:
 #endif
 	banksel	uarbase
 	movf	uarecv,w	;  // this read removes it from the FIFO
@@ -1359,7 +1359,7 @@ dstl	set	destreg-vars
 dsth	set	destreh-vars
 chio	set	char_io-vars
 
-rxdecl
+rxdecl:
 	zOS_CON	p,ra,rt,h,pi
 	zOS_LAU	zOS_JOB
 	zOS_ACT	FSR1
@@ -1458,10 +1458,10 @@ zOS_DEC	macro	putch,puts,enc,retadr
 	btfss	1+enc,4		;
 	bra	calllit		; if ((enc & 0x3000 == 0x3000) ||
 	bra	ophi_11		;     (enc & 0x3000 == 0)) { // not b_/call/goto
-ophi_0X
+ophi_0X:
 	btfsc	1+enc,4		;
 	bra	bitops		;  enc = w; // builds string index in bits 8~12
-ophi_11
+ophi_11:
 	clrf	1+enc		;  switch (w) { case 0: /*
 	brw			;movwf/callw/movlb/brw/retfie/return/clrwdt/nop/
 	bra	overld0		;option/reset/sleep/tris/mov[wi]*/ goto overld0;
@@ -1498,7 +1498,7 @@ ophi_11
 	bra	literal-0	;/* 0x3enn => addlw */ case 30: goto literal-0;
 	bra	overld3		;/* 0x3fnn movwi/iw []*/ case 31: goto overld3;
 
-bitops
+bitops:
 	andlw	0x0c		; } else if (enc & 0x3000 == 0x1000) { // bit op
 	addlw	low opc_bit	;// fortuitously, opcodes are separated by 4 in
 	movwf	FSR0L		;// enc as well as the opcode strings of 4 words
@@ -1522,7 +1522,7 @@ bitops
 	incf	1+enc,f		; // opc_lit[3] = "andlw 0"
 	incf	1+enc,f		; // opc_lit[2] = "xorlw 0"
 	incf	1+enc,f		; // opc_lit[1] = "sublw 0"
-literal
+literal:
 	lslf	1+enc,w		; } literal: // opc_lit[0] = "addlw 0"
 	lslf	WREG		;
 	addlw	low opc_lit	;
@@ -1532,7 +1532,7 @@ literal
 	clrw			;
 	addwfc	FSR0H,f		; fsr0 = opc_lit[w];
 	movlw	0xff		; w = 0xff;
-onelit
+onelit:
 	andwf	enc,f		;onelit:
 	pagesel	puts
 	call	puts		; enc &= w;
@@ -1540,13 +1540,13 @@ onelit
 	zOS_ADR	hexpref,zOS_FLA
 	pagesel	puts
 	call	puts		;  puts("0x");
-litbyte
+litbyte:
 	movf	enc,w		; litbyte:
 	pagesel	putch
 	bsf	STATUS,C	;  putch(enc & 0xff, c = 1); // as hexadecimal
 	call	putch		;  return;
 	bra	endopc		; }
-calllit
+calllit:
 	movlw	low opccall	;
 	bcf	STATUS,C	;
 	btfsc	1+enc,3		;
@@ -1559,7 +1559,7 @@ calllit
 	pagesel	puts
 	call	puts		; puts(fsr0 = opccall[w /*0 or 4*/ >> 2];
 	movlw	0x07		;
-bradest
+bradest:
 	andwf	1+enc,w		;
 	pagesel	putch
 	bsf	STATUS,C	;
@@ -1584,14 +1584,14 @@ bradest
 	incf	1+enc,f		; // opc_reg[3] = "lsrf   "
 	incf	1+enc,f		; // opc_reg[2] = "asrf   "
 	incf	1+enc,f		; // opc_reg[1] = "subwfb "
-destreg
+destreg:
 	lslf	1+enc,w		; // opc_reg[0] = "addwfc "
 	clrf	1+enc		; //so test between w and f will happen for wf's
 	lslf	WREG		;
 	addlw	low opc_reg	;
 	movwf	FSR0L		;
 	movlw	high opc_reg	;//FIXME: needs comments
-onedest
+onedest:
 	movwf	FSR0H		;
 	clrw			;
 	addwfc	FSR0H,f		; // carry set by jumper!!
@@ -1612,7 +1612,7 @@ nametst
 	bsf	STATUS,C	;
 	call	putch		;
 	bra	flagreg		;
-namereg
+namereg:
 	movf	enc,w		;
 	andlw	0x0f		;
 	pagesel	nameoff
@@ -1625,7 +1625,7 @@ namereg
 	addwfc	FSR0H,f		;
 	pagesel	puts
 	call	puts		;
-flagreg
+flagreg:
 	incf	1+enc,w		;
 	btfsc	STATUS,Z	; if (enc & 0xff00 == 0xff00)
 	bra	endopc		;  return;
@@ -1642,10 +1642,10 @@ flagreg
 regarg2	
 	pagesel	putch
 	call	putch		;
-endopc
+endopc:
 	pagesel	retadr
 	goto	retadr		;
-overld0
+overld0:
 	movlw	0xff		;
 	movwf	1+enc		; enc |= 0xff00; // special, allows: bra onedest
 	movlw	low opc_mov	;
@@ -1655,7 +1655,7 @@ overld0
 	btfsc	enc,7		;
 	bra	onedest		;
 	bra	omnibus		;
-nodest
+nodest:
 	movwf	FSR0H		;
 	clrw			;
 	addwfc	FSR0H,f		;
@@ -1663,7 +1663,7 @@ nodest
 	call	puts		;
 	pagesel	retadr
 	goto	retadr		;
-overld1
+overld1:
 	movlw	low opcclrw	;
 	bcf	STATUS,C	;
 	btfsc	enc,7		;
@@ -1675,7 +1675,7 @@ overld1
 	btfsc	enc,7		;
 	bra	onedest		;
 	bra	nodest		;
-overld2
+overld2:
 	movlw	low opc_mlp	;
 	movwf	FSR0L		;
 	movlw	high opc_mlp	;
@@ -1700,12 +1700,12 @@ overld2
 	movlw	0xff		;
 	bra	onelit		;
 #if 0
-braneg
+braneg:
 	comf	enc,f		;
 	incf	enc,f		; enc = -enc;
 	movlw	opc_bng-opc_bpo	;
 	bra	brapos+1	;
-brapos
+brapos:
 	movlw	0		;
 	addlw	low opc_bpo	;
 	movwf	FSR0L		;
@@ -1715,15 +1715,15 @@ brapos
 	addwfc	FSR0H,f		;
 	movlw	0xff		;
 	bra	onelit		;
-opc_bpo
+opc_bpo:
 	da	"bra   +"
-opc_bng
+opc_bng:
 	da	"bra   -"
 #else
-braneg
+braneg:
 	movlw	0xff		;
 	movwf	1+enc		;
-brapos
+brapos:
 	movf	3+enc,w		;
 	addwf	enc,f		; // the caller already updated
 	movf	4+enc,w		;
@@ -1736,11 +1736,11 @@ brapos
 	call	puts		;
 	movlw	0x7f		;
 	bra	bradest		;
-opc_bra
+opc_bra:
 	da	"bra    0x"
 #endif	
 	
-overld3
+overld3:
 	swapf	enc,w		;  w = enc >> 4;
 	pagesel	putmovi
 	call	putmovi		;  putmovi(w); // bit3 0/1  => moviw/movwi
@@ -1761,14 +1761,14 @@ overld3
 	addwf	FSR0L,f		;
 	clrw			;    fsr0 = "-0x";
 	addwfc	FSR0H,f		;   }
-printof
+printof:
 	pagesel	puts
 	call	puts		;   puts(fsr0);
 	pagesel	putch
 	movf	1+enc,w		;
 	bsf	STATUS,C	;
 	call	putch		;   putch(enc[1], c = 1); // hexadecimal value
-printfn
+printfn:
 	swapf	enc,w		;  }
 	andlw	0x04		;
 	addlw	low offset0	;
@@ -1782,7 +1782,7 @@ printfn
 	pagesel	retadr		; return;
 	goto	retadr		;} // zOS_DEC()
 
-newbank
+newbank:
 	movlw	low opc_mlb	;
 	movwf	FSR0L		;
 	movlw	high opc_mlb	;
@@ -1790,7 +1790,7 @@ newbank
 	movlw	0x1f		;
 	bra	onelit		;
 	
-omnibus
+omnibus:
 	btfsc	enc,6		; // we know bit 7 (movwf) is clear
 	bra	noargs		;
 	movlw	0xf0		;
@@ -1812,14 +1812,14 @@ omnibus
 	call	puts		;  puts(fsr0);
 	pagesel	retadr
 	goto	retadr		; else // post incr/decrement
-post
+post:
 	zOS_SEL	fsrposi,fsrposd,enc,0
 	pagesel	puts
 	call	puts		;  puts(fsr0);
 	pagesel	retadr
 	goto	retadr		; }
 
-noargs
+noargs:
 	lslf	enc,w		;
 	lslf	WREG		;
 	andlw	0x3c		; w = (enc & 0x0f) * 4; // uniform string length
@@ -1828,7 +1828,7 @@ noargs
 	movlw	high opcomni	;
 	bra	nodest		;
 	
-putmovi
+putmovi:
 	lsrf	WREG		;void putmovi(uint4_t w) {
 	andlw	0x04		;
 	addlw	low opc_miw	;
@@ -1840,30 +1840,30 @@ putmovi
 	pagesel	puts
 	goto	puts		;} // putmovi()
 	
-zero
+zero:
 	da	"0"
-offset0
+offset0:
 	da	"[FSR0]",0
-offset1
+offset1:
 	da	"[FSR1]",0
-fsrprei
+fsrprei:
 	da	"++FSR0",0
 	da	"++FSR1",0
-fsrpred
+fsrpred:
 	da	"--FSR0",0
 	da	"--FSR1",0
 	
-fsrposi
+fsrposi:
 	da	"FSR0++",0
 	da	"FSR1++",0
-fsrposd
+fsrposd:
 	da	"FSR0--",0
 	da	"FSR1--",0
 opc_miw	
 	da	"moviw  "
-opc_mwi
+opc_mwi:
 	da	"movwi  "
-opc_lit
+opc_lit:
 	da	"addlw  "
 	da	"sublw  "
 	da	"xorlw  "
@@ -1871,16 +1871,16 @@ opc_lit
 	da	"iorlw  "
 	da	"retlw  "
 	da	"movlw  "
-opc_mlb
+opc_mlb:
 	da	"movlb  "
-opc_mlp
+opc_mlp:
 	da	"movlp  "
-opc_af0
+opc_af0:
 	da	"addfsr FSR0,",0
-opc_af1
+opc_af1:
 	da	"addfsr FSR1,",0
 	
-opc_reg
+opc_reg:
 	da	"addwfc "
 	da	"subwfb "
 	da	"asrf   "
@@ -1900,25 +1900,25 @@ opc_reg
 	da	"iorwf  "
 	da	"decf   "
 	da	"subwf  "
-opc_mov
+opc_mov:
 	da	"movwf  "
 
-opc_bit
+opc_bit:
 	da	"bcf    "
 	da	"bsf    "
 	da	"btfsc  "
 	da	"btfss  "
 	
-opccall
+opccall:
 	da	"call   0x"
-opcgoto
+opcgoto:
 	da	"goto   0x"
 	
-opcclrw
+opcclrw:
 	da	"clrw   "
 	da	"clrf   "
 
-opcomni
+opcomni:
 	da	"nop    "
 	da	"reset  "
 	da	"option "
@@ -1936,35 +1936,35 @@ opcomni
 	da	"invalid"
 	da	"invalid"
 	
-hexpref
+hexpref:
 	da	"0x",0
-hex_neg
+hex_neg:
 	da	"-0x"
-regnam0
+regnam0:
 	da	"INDF0"
-regnam1
+regnam1:
 	da	"INDF1"
-regnam2
+regnam2:
 	da	"PCL"
-regnam3
+regnam3:
 	da	"STATUS",0
-regnam4
+regnam4:
 	da	"FSR0L"
-regnam5
+regnam5:
 	da	"FSR0H"
-regnam6
+regnam6:
 	da	"FSR1L"
-regnam7
+regnam7:
 	da	"FSR1H"
-regnam8
+regnam8:
 	da	"BSR"
-regnam9
+regnam9:
 	da	"WREG",0
-regnamA
+regnamA:
 	da	"PCLATH",0
-regnamB
+regnamB:
 	da	"INTCON",0
-nameoff
+nameoff:
 	brw			;
 	retlw	regnam0-regnam0	;
 	retlw	regnam1-regnam0	;
@@ -2025,7 +2025,7 @@ max	set	0x70
 #else	
 	local	monout,loop,done,disasmb,disasmr,monpack
 	
-monpack
+monpack:
 #ifdef CAUTIOUS
 	movf	BSR,w
 	movwf	zOS_JOB
@@ -2039,7 +2039,7 @@ monpack
 	movwf	zOS_ADL		; zOS_ADL = fsr0 & 0x00ff;
 	movf	FSR0H,w		; zOS_ADH = fsr0 >> 8;
 	movwf	zOS_ADH		; while (1) {
-loop
+loop:
 	zOS_RDF
 	rlf	zOS_RDL,w	;  zOS_RDF(); // read packed 14-bit contents
 	movwf	FSR0L		;  //1st char:
@@ -2072,30 +2072,30 @@ loop
 	bra	loop		;  if ((zOS_ADL = (zOS_ADL + 1) & 0x00ff) == 0)
 	incf	zOS_ADH,f	;   zOS_ADH++;
 	bra	loop		; }
-done
+done:
 	return			;} // monpack()
 	
-monout
+monout:
 	pagesel	monbufs
 	btfss	STATUS,C	;void monout(char w, uint1_t c) { // zOS_DEC arg
 	goto	monbufs		; if (c == 0) monbufs(w); else monlsb(w);
 	pagesel	monlsb
 	goto	monlsb		;} // monout()
 	
-disasmb
+disasmb:
 	movlw	' '		;
 	pagesel	monbufs
 	call	monbufs		;
 	zOS_DEC	monout,monpack,accumul,disasmr
 #endif
 	
-monback
+monback:
 	andlw	0x3f		;void monback(uint3_t job, uint8_t ptr, char w){
 	btfsc	STATUS,Z	; if (w &= 0x3f) {
 	return			;  // 63 \b's should be enough in a buffer of 64
 	movwf	zOS_AR1		;  
 #if 0	
-monbac2
+monbac2:
 	movf	p0,w		; // don't actually want to wind back buffer;
 	xorwf	p1,w		; // the point is show what will be overwritten
 	btfsc	STATUS,Z	;
@@ -2111,12 +2111,12 @@ monbac2
 	decfsz	zOS_AR1,f	;
 	bra	monbac2		;
 	return			;
-monbarn
+monbarn:
 #endif
 	movlw	0x08		;
 	movwf	zOS_AR0		;  zOS_AR0 = '\b'; // FIXME: or '\0177'?
 
-monloop
+monloop:
 	zOS_BUF	FSR0,max,p0
 	andlw	0x1		;  for (zOS_AR1 = w; zOS_AR1; zOS_AR1--) {
 	btfsc	STATUS,Z	;   if (zOS_BUF(job, ptr) == 0) // buff full
@@ -2125,35 +2125,35 @@ monloop
 	bra	monloop		; }
 	return			;} // monback() monloop()
 	
-monhex
+monhex:
 	movf	accumuh,w	;void monhex(void) { monlsb(,,w = accumuh); }
-monlsb
+monlsb:
 	clrf	zOS_AR0		;void monlsb(uint3_t job, uint8_t ptr, char w) {
 	movwf	zOS_AR1		;
 	zOS_BUF	FSR1,max,p0	; return zOS_BUF(&fsr,ptr,w); } // 0/1/2 printed
 	return			;} // monlsb
 	
-mon0
+mon0:
 	movlw	'0'		;void mon0(void) { zOS_AR0 = '0'; monbufs(ptr);
 	bra	monbufs		;} // mon0()
 
-monx
+monx:
 	movlw	'x'		;void monx(void) { zOS_AR0 = '0'; monbufs(ptr);
 	bra	monbufs		;} // monx()
 
-monspc
+monspc:
 	movlw	' '		;void monspc(void) { zOS_AR0 = ' '; monbufs(ptr);
 	bra	monbufs		;} // monscp()
-monlf
+monlf:
 	movlw	'\n'		; return zOS_BUF(zos_job, ptr, w);
-monbufs
+monbufs:
 	movwf	zOS_AR0		;} // moncrlf() monlf()
-monbufd
+monbufd:
 	movlw	1		;void monbufs(uint8_t ptr, char w) {
 	movwf	zOS_AR1		; goto monloop();
 	bra	monloop		;} // monbufs() FIXME:comments above are useless
 	
-monisr
+monisr:
 	movf	zOS_JOB,w	;void monisr(void) {
 	movwf	BSR		;  bsr = zos_job;// to access char_io var et al
 	pagesel	monbufd
@@ -2189,7 +2189,7 @@ monisr
 	clrf	char_io		;  }
 	zOS_RFI
 
-monchr1
+monchr1:
 	btfsc	zOS_AR0,6	;  if (zOS_AR0 & 0x40)
 	bcf	zOS_AR0,5	;   zOS_AR0 &= 0xdf; // zOS_AR0=tolower(zOS_AR0)
 	movf	zOS_AR0,w	;//FIXME: ` { | } ~ DEL mapped onto @ [ \ ] ^ _
@@ -2207,7 +2207,7 @@ monchr1
 	pagesel	monprmp
 	goto	monprmp		;   goto monprmp;
 	
-monchr2
+monchr2:
 	movf	char_io,w	;
 #if 0
 	xorlw	0x0a		;
@@ -2242,7 +2242,7 @@ monchr2
 	pagesel	monprmp
 	goto	monprmp		;   goto monprmp;
 
-monchr3
+monchr3:
 	movf	char_io,w	;
 	xorlw	','		;
 	movlw	' '		;
@@ -2261,7 +2261,7 @@ monchr3
 	btfss	STATUS,Z	;  case '=':
 	bra	monchr4		;
 
-mondump
+mondump:
 	movf	accumul,w	;   // pressing ' ' or '.' or '=' should apply
 	iorwf	accumuh,w	;   // to the recently incremented address from
 	btfsc	STATUS,Z	;   // a previous operation (if any) or to an
@@ -2275,7 +2275,7 @@ mondump
 	pagesel	monzero
 	btfsc	STATUS,Z	;    break;
 	goto	monzero		;   }
-mondest
+mondest:
 	btfss	1+destreg,7	;   if (destreg & 0x8000) { // flash, not RAM
 	bra	monram		;
 	pagesel	mon0
@@ -2318,7 +2318,7 @@ mondest
 	local	disasmb,disasmr
 	pagesel	disasmb
 	goto	disasmb		;    goto disasmb; disasmr:
-disasmr
+disasmr:
 #endif	
 	movlw	'\r'
 	pagesel	monbufs
@@ -2328,7 +2328,7 @@ disasmr
 	pagesel	monprmp
 	goto	monprmp		;   }
 	
-monram
+monram:
 	pagesel	mon0
 	call	mon0		;
 	pagesel	monx
@@ -2357,7 +2357,7 @@ monram
 	call	monlf		;    goto monprmp;
 	pagesel	monprmp
 	goto	monprmp		;   }
-monramd
+monramd:
 	movf	char_io,w	;   // or follow by 3 backspaces in the '=' case
 	xorlw	'.'		;   // to show that \r will result in a 0 write
 	btfss	STATUS,Z	;
@@ -2367,7 +2367,7 @@ monramd
 	clrf	char_io		;   char_io = 0;
 	zOS_RFI			;  break;
 
-monchr4
+monchr4:
 	movf	char_io,w	;
 	xorlw	'X'		;
 	btfss	STATUS,Z	;  case 'X':
@@ -2377,7 +2377,7 @@ monchr4
 	clrf	char_io		;  break;
 	zOS_RFI
 
-monchr5
+monchr5:
 	movf	char_io,w	;
 	xorlw	'%'		;
 	btfss	STATUS,Z	;  case '%':
@@ -2388,7 +2388,7 @@ monchr5
 	bra	monpctg		;   if (accumul > 102)
 	movlw	0x66		;
 	movwf	accumul		;    accumul = 102;
-monpctg
+monpctg:
 	movf	accumul,w	;   accumul = zOS_PCT(accumul);
 	zOS_PCT	accumul
 	movf	accumul,w	;  monecho:
@@ -2399,7 +2399,7 @@ monpctg
 	clrf	char_io		;  break;
 	zOS_RFI
 	
-monchr6
+monchr6:
 	movf	char_io,w	;
 	xorlw	'?'		;
 	btfss	STATUS,Z	; case '?':
@@ -2408,7 +2408,7 @@ monchr6
 	movwf	destreg		;  destreg = -1;
 	movlw	0x3b		;
 	movwf	char_io		;  // fall through with "-1,accumul" to readback
-monwrit
+monwrit:
 	movf	char_io,w	;
 	xorlw	0x3b		;
 	btfss	STATUS,Z	;  case ';': // store highest priv job's globals
@@ -2416,7 +2416,7 @@ monwrit
 	movlw	zOS_NUM+1	;
 	movwf	zOS_JOB		; zos_job = zOS_NUM+1;// search from high to low
 	zOS_MEM	FSR0,zOS_JOB,0	; fsr0 = 0x10 * (1 + zOS_JOB);
-monrtry
+monrtry:
 	zOS_LIV	FSR0,zOS_JOB,0,mondflt
 	xorwf	zOS_ME		; do {
 	btfsc	STATUS,Z	;  zOS_LIV(fsr0, zos_job, 0, clcchr8); // found!
@@ -2435,7 +2435,7 @@ monrtry
 	pagesel	monempty
 	goto	monempty	; clcchr8:
 	
-mondflt
+mondflt:
 	movlw	0-0x30		;  default:
 	addwf	char_io,f	;
 	btfsc	char_io,7	;
@@ -2456,7 +2456,7 @@ mondflt
 	clrf	char_io		;     break;         // just go into octal mode
 	zOS_RFI
 	
-monchr7
+monchr7:
 	movlw	0xf0		;
 	andwf	char_io,w	;
 	btfss	STATUS,Z	;    } else if ((char_io & 0xf0 == 0) // 0-9,a-f
@@ -2478,7 +2478,7 @@ monchr7
 	clrf	char_io		;     break;
 	zOS_RFI
 	
-monchr8
+monchr8:
 	movf	char_io,w	;    } else /*if (char_io <= 9)*/ {
 	andlw	0xf0		;     uint16_t sum;
 	btfss	STATUS,Z	;     accumuh <<= 1;
@@ -2504,9 +2504,9 @@ monchr8
 	movlw	0		;   char_io += 0x37; // 0x10->'G',0x11->'H' etc.
 	addwfc	accumuh,f	;   zOS_AR1 = accumul;
 	zOS_RFI
-monchr9
+monchr9:
 	movlw	0-0x37		;   if (isr) goto isr; // with zOS_AR1=accumul
-monsave
+monsave:
 	movlw	0x37		;  } // switch ()
 	addwf	char_io,f	;  char_io = 0;
 	movf	accumul,w	; } // if () // was less than 32 so aborts
@@ -2519,7 +2519,7 @@ monsave
 	endif
 
 ;;; 
-monprmp
+monprmp:
 	movf	1+destreg,w	;monprmp:
 	movwf	accumuh		; accumuh = destreg>>8;
 	iorwf	destreg,w	; if (destreg) { // prompt with destreg if non-0
@@ -2535,21 +2535,21 @@ monprmp
 	movwf	accumuh		;monlast: zOS_ACC(&accumul,&numbase); zOS_RFI();
 	pagesel	monlsb
 	call	monlsb		;         char_io = 0;
-monempty
+monempty:
 	pagesel	monspc
 	call	monspc		;    putchar(' ');
-monzero
+monzero:
 	zOS_ACC	accumul,numbase
-monlast
+monlast:
 	clrf	char_io		;} // zOS_MON()
 	zOS_RFI
-endmon
+endmon:
 	zOS_INP	p,ra,rt,h,pi,monisr 
 	endm	
 
 zOS_NAM	macro	str
 	local	start
-start
+start:
 	dt	str
 	dt	0
 	dt	start-$
@@ -2599,7 +2599,7 @@ max	set	0x70
 #define	WDTCON	WDTCON0
 #endif
 
-mantask
+mantask:
 #if 0
 	movf	zOS_JOB,w	;int8_t mantask(void) {//destreg,accumul,char_io
 	movwf	BSR		; bsr = zos_job; // to access char_io
@@ -2625,7 +2625,7 @@ mantask
 	btfsc	STATUS,Z	;  else
 	clrf	char_io		;   break; // failure, drop to end of switch()
 
-manchr
+manchr:
 	movf	char_io,w	;
 	xorlw	'H'		;
 	btfss	STATUS,Z	; caseH:
@@ -2649,7 +2649,7 @@ manchr
 	btfsc	STATUS,Z	;  else
 	clrf	char_io		;   break;
 	
-manchr0
+manchr0:
 	movf	char_io,w	;
 	xorlw	'I'		;
 	btfss	STATUS,Z	; caseI:
@@ -2687,10 +2687,10 @@ manchr0
 	zOS_SWI	0xff		;
 #endif
 	
-reenabl
+reenabl:
 	zOS_ENA
 
-manchr1
+manchr1:
 	movf	char_io,w	; }
 	xorlw	'J'		;
 	btfss	STATUS,Z	; caseJ:
@@ -2711,7 +2711,7 @@ manchr1
 	zOS_ENA
 	retlw	0		;  return 0;//try again after caller advances p0
 
-manchr2
+manchr2:
 	movf	char_io,w	;
 	xorlw	'K'		;
 	btfss	STATUS,Z	; caseK:
@@ -2728,7 +2728,7 @@ manchr2
 	zOS_SWI	zOS_END
 ;;; FIXME: put J at bottom so K onward don't pay a performance penalty awaiting
 	
-manchr3
+manchr3:
 	movf	char_io,w	;
 	xorlw	'L'		;
 	btfss	STATUS,Z	; caseL:
@@ -2749,7 +2749,7 @@ manchr3
 	zOS_ARG	0
 	zOS_SWI	zOS_RST		;   break; // failure, drop to end of switch()
 
-manchr4
+manchr4:
 	movf	char_io,w	;
 	xorlw	'N'		;
 	btfss	STATUS,Z	; caseN:
@@ -2784,7 +2784,7 @@ manchr4
 ;	btfsc	STATUS,Z	;  } else
 ;	clrf	char_io		;   break;
 
-manchr5
+manchr5:
 	movf	char_io,w	;
 	xorlw	'P'		;
 	btfss	STATUS,Z	; caseP:
@@ -2808,7 +2808,7 @@ manchr5
 	bra	manchr6		;  }
 	zOS_ACC	accumul,numbase
 	
-manchr6
+manchr6:
 	movf	char_io,w	;
 	xorlw	'Q'		;
 	btfss	STATUS,Z	; caseQ:
@@ -2820,7 +2820,7 @@ manchr6
 	btfss	STATUS,Z	;  if (accumul)
 	sleep			;   sleep(); // never wakes up
 
-manchr7
+manchr7:
 	movf	char_io,w	;
 	xorlw	'R'		;
 	btfss	STATUS,Z	; caseR:
@@ -2846,7 +2846,7 @@ manchr7
 	zOS_ACC	accumul,numbase
 	clrf	char_io		;   break;
 	
-manchr8
+manchr8:
 #if 0
 	movf	char_io,w	;  }
 	xorlw	'S'		;
@@ -2870,7 +2870,7 @@ manchr8
 	retlw	0		;  return 0;//try again after caller advances p0
 #endif
 	
-manchr9
+manchr9:
 	movf	char_io,w	;
 	xorlw	'Z'		;
 	btfss	STATUS,Z	;
@@ -2885,12 +2885,12 @@ manchr9
 	movwf	WDTCON		;
 	sleep			;  break;  // wakes up according to prescaler
 
-mannone
+mannone:
 	retlw	0		; } return 0; //naught to do }
 
 #if 0
 	;guaranteed to arrive with p0=p1, interrupts off and in the correct bank
-stkinfo
+stkinfo:
 	movf	wrap,f		;int8_t stkinfo(void) {
 	movwf	p0		; p0 = p1 = wrap;
 	movwf	p1		;
@@ -2917,7 +2917,7 @@ stkinfo
 	movwi	FSR1++		; p1 += sprintf(p1, "\r\n-%1X", accumul & 7);
 	movlw	3		;
 	movwf	accumuh		; for (accumuh = 3; accumuh; accumuh--) {
-stkloop
+stkloop:
 	movlw	' '		;
 	movwi	FSR1++		;  p1 += sprintf(p1, " %04X", *((int*) fsr0));
 	moviw	--FSR0		;
@@ -2937,7 +2937,7 @@ stkloop
 	return			;} // stkinfo()
 #endif
 	;guaranteed to arrive with p0=p1, interrupts off and in the correct bank
-jobinfo
+jobinfo:
 	movf	wrap,w		;int8_t jobinfo(void) {
 	movwf	p0		; p0 = p1 = wrap;
 	movwf	p1		; fsr0 = 0x10 * (1 + accumul); //FIXME: 2+
@@ -3004,7 +3004,7 @@ jobinfo
 	zOS_IHF	zOS_SIM,FSR0,FSR1
 	movlw	')'		;   p1 += sprintf(p1, "(h%02Xs%02X) ",
 	movwi	FSR1++		;                 zOS_HIM[fsr0], zOS_SIM[fsr0]);
-manname
+manname:
 	movlw	' '		;
 	movwi	FSR1++		;
 	movlw	0x22 ;'"'	;
@@ -3019,9 +3019,9 @@ manname
 	movlw	mandead-manlive	;
 	movwf	char_io		;    char_io = strlen(mandead);
 	bra	manloop		;
-mandead
+mandead:
 	zOS_NAM	"<not running>"
-manlive
+manlive:
 	moviw	zOS_HDL[FSR0]	;   } else {
 	movwf	char_io		;
 	moviw	zOS_HDH[FSR0]	;
@@ -3045,13 +3045,13 @@ manlive
 	btfss	FSR0L,7		;
 	decf	FSR0H,f		;
 	bra	manbit1		;
-manbit0
+manbit0:
 	btfsc	FSR0L,7		;
 	decf	FSR0H,f		;
-manbit1
+manbit1:
 	movwf	FSR0L		;   for (fsr0 -= char_io; ++char_io; fsr1++) {
 #endif
-manloop
+manloop:
 	moviw	FSR0++		;    char w = *fsr0++ ;
 	btfsc	WREG,7		;
 	bra	crlf		;    if ((w > '\0177') ||
@@ -3080,7 +3080,7 @@ crlf
 	clrf	char_io		; return w;
 	zOS_ENA
 	return			;
-endman
+endman:
 	local	vars,manl,manh
 vars	set	0x20
 manl	set	optadrl-vars
@@ -3176,10 +3176,10 @@ max	set	0x70
 ;until expansion and would throw an undefined-var error during the processing
 
 	local	clctbl;,clcsize	; throws "Duplicate label or redefining symbol"
-clcisr
+clcisr:
 	movf	zOS_AR0,w	; switch (char_io = zOS_AR0) {
 	zOS_T63
-clctbl
+clctbl:
 	retlw	' '		; 0 to disable just about any RPN functionality
 	retlw   '!'		; 0 to disable command-line zos_mac() factorial
 	retlw	0x22
@@ -3258,7 +3258,7 @@ clcsize	equ	$-clctbl
 	addwfc	1+destreg,f	;  destreg += (accumuh << 8) | accumul;
 	bra	clcprmp		; break;
 
-clcchr2
+clcchr2:
 	movf	char_io,w	;
 	xorlw	'-'		;
 	btfss	STATUS,Z	;
@@ -3270,7 +3270,7 @@ clcchr2
 	subwfb	1+destreg,f	;  destreg -= (accumuh << 8) | accumul;
 	bra	clcprmp		; break;
 	
-clcchr3
+clcchr3:
 	movf	char_io,w	;
 	xorlw	'*'		;
 	btfss	STATUS,Z	;
@@ -3293,7 +3293,7 @@ clcchr3
 #endif
 	bra	clcprmp		; break;
 
-clcchr4
+clcchr4:
 	movf	char_io,w	;
 	xorlw	'/'		;
 	btfss	STATUS,Z	;
@@ -3316,7 +3316,7 @@ clcchr4
 #endif
 	bra	clcprmp		; break;
 
-clcchr5
+clcchr5:
 	movf	char_io,w	;
 	xorlw	'^'		;
 	btfss	STATUS,Z	;
@@ -3327,7 +3327,7 @@ clcchr5
 	movf	accumul,f	;  //                    zOS_AR2 (factor 1)
 	btfsc	STATUS,Z	;  //                    zOS_AR3 (factor 2)
 	bra	clcexp1		;  //  output arg zOS_AR1:zOS_AR0 (product)
-clcexp0
+clcexp0:
 	clrf	zOS_AR0		;  zOS_AR1 = 0;
 	clrf	zOS_AR1		;  for (uint8_t w = 1; accumul > 0; accumul--) {
 	movwf	zOS_AR2		;   zOS_AR0 = (uint16_t) 0;
@@ -3339,13 +3339,13 @@ clcexp0
 	movf	zOS_AR0,w	;   zos_mac(&zOS_AR0 /* += */,           
 	decfsz	accumul,f	;           &zOS_AR2 /* * */, &zOS_AR3, fsr0);
 	bra	clcexp0		;   w = zOS_AR0;
-clcexp1
+clcexp1:
 	movwf	destreg		;  }
 	clrf	1+destreg	;  destreg = ((uint16_t) zOS_AR1) << 8) | w;
 #endif
 	bra	clcprmp		; break;
 
-clcchr6
+clcchr6:
 	movf	char_io,w	;
 	xorlw	'!'		;
 	btfss	STATUS,Z	;
@@ -3356,7 +3356,7 @@ clcchr6
 	movf	accumul,f	;  //                    zOS_AR2 (factor 1)
 	btfsc	STATUS,Z	;  //                    zOS_AR3 (factor 2)
 	bra	clcfac1		;  //  output arg zOS_AR1:zOS_AR0 (product)
-clcfac0
+clcfac0:
 	clrf	zOS_AR0		;  zOS_AR1 = 0;
 	clrf	zOS_AR1		;  for (uint8_t w = 1; accumul-->1; accumul--) {
 	movwf	zOS_AR2		;   zOS_AR0 = (uint16_t) 0;
@@ -3368,12 +3368,12 @@ clcfac0
 	movf	zOS_AR0,w	;           &zOS_AR2 /* * */, &zOS_AR3, fsr0);
 	decfsz	accumul,f	;   w = zOS_AR0;
 	bra	clcfac0		;  }
-clcfac1
+clcfac1:
 	movwf	destreg		;  destreg = ((uint16_t) zOS_AR1) << 8) | w;
 	clrf	1+destreg	;  // 1 <= destreg <= 720
 #endif
 	bra	clcprmp		; break;
-clcchr7
+clcchr7:
 	movf	accumul,w	; default: zOS_AR1 = accumul; if (isr) goto isr;
 	movwf	zOS_AR1		; }// caller may use zOS_AR1 or accumuh:accumul
 	pagesel	isr		;
@@ -3383,7 +3383,7 @@ clcchr7
 	 zOS_RFI
 	endif
 	
-clcprmp
+clcprmp:
 	movlw	'\r'		;
 	pagesel	monbufs
 	call	monbufs		;
@@ -3411,10 +3411,10 @@ clcprmp
 	pagesel	monbufs
 	call	monbufs		; char_io = 0;
 	zOS_ACC	accumul,numbase
-clclast
+clclast:
 	clrf	char_io		;} // zOS_CLC()
 	zOS_RFI
-endclc
+endclc:
 	zOS_MAN	p,ra,rt,h,pi,clcisr
 	endm
 
@@ -3428,7 +3428,7 @@ zOS_T63	macro
 	pagesel	chrtran		;\
 	call	chrtran		; w = table[(w >= ' ') ? (w & 0x3f) : 0];\
 	bra	$+0x42		; /*must be followed by 63-char retlw string:*/\
-chrtran
+chrtran:
 	brw			; static char table[64] = "\0\
 	retlw	0		;/* zOS_T63() */ 
 	endm

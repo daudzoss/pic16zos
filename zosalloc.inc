@@ -42,7 +42,7 @@ HEAP2	equ	zOS_FRE+HEAPSML
 	
 	bra	endalloc
 	
-malloc
+malloc:
 	zOS_ARG	0		;void* malloc(uint8_t w) { // w is numbytes/16
 #ifdef LMALLOC
 #if (LMALLOC-SMALLOC)
@@ -60,14 +60,14 @@ malloc
 	btfss	STATUS,Z	;  w = zOS_SWI(LMALLOC); // allocated address/16
 	return			; return w;
 #ifdef LMALLOC
-bigallo
+bigallo:
 	zOS_SWI	LMALLOC
 #endif
 	return			;}
 	
 
 	;; large-bytecount (128=16*HEAPTHR+16) table has fewer entries so faster
-free
+free:
 	zOS_ARG	0		;uint8_t free(void* w) { // w is address/16
 #ifdef LMALLOC
 #if (LMALLOC-SMALLOC)
@@ -82,4 +82,4 @@ free
 	zOS_SWI	SFREE
 	return			;}
 	
-endalloc
+endalloc:

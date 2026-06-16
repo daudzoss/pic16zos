@@ -158,11 +158,11 @@ fsrn	set	0
 	movlw	0xf8		;
 	movwf	3+seed32	;                   0xf846fa51;
 	bcf	len,7		; uint7_t len = w & 0x7f;
-nextbyt
+nextbyt:
 	movlw	8		; do {
 	movwf	bits		;  for (uint4_t bits = 8; bits; bits--) {
 	addfsr	FSR#v(fsrn),+1	;
-nextbit
+nextbit:
 	rlf	3+seed32,w	;   uint32_t c = (seed32 & 0x80000000) >> 24;
 	movf	INDF#v(fsrn),w	;   *fsr = (c ^ ((*fsr) & 1)) | ((*fsr) >> 1);
 	xorwf	STATUS,f	;   c = ((c << 23) ^ seed32) ? 0x400 : 0;
@@ -209,7 +209,7 @@ fsrn	set	0
 	movwf	CRCCON0		;// enabled; CRCACCM data not augmented with 0's
 #endif
 	addfsr	FSR#v(fsrn),-1	; for (uint9_t len = w ? w : 256; len; len--)
-nextbyt
+nextbyt:
 #ifdef CRCCON0
 	btfsc	CRCCON0,FULL	;
 	bra	$-1		;
@@ -220,7 +220,7 @@ nextbyt
 	addfsr	FSR#v(fsrn),+1	; // no hardware acceleration of CRC calculation
 	movlw	8		;  // straightforward implementation of Fig. 166
 	movwf	bits		;  for (uint4_t bits = 8; bits; bits--) {
-nextbit
+nextbit:
 	rrf	INDF#v(fsrn),w	;   uint1_t c = (*fsr) & 1;  
 	movf	reg,w		;
 	xorwf	STATUS,w	;
@@ -294,7 +294,7 @@ p_init=prstart>>0xb
 	 movf	gtemp,w		;
 	 brw			; // requesting to  send a zero-length buffer
 	 nop			; // sends the maximum buffer instead
-prend
+prend:
 #ifdef __PAGE_SIZE
 #else
 #define	__PAGE_SIZE 0x800	; usually the case
@@ -338,7 +338,7 @@ do0nops#v(i)
 	 if (i)
 	 else
 	;; IEEE 802.15.6 Table 76
-myoffst
+myoffst:
 	 PREAMBL 0x419D275F
 	 PREAMBL 0x180A5323
 	 PREAMBL 0x419D275F
@@ -370,7 +370,7 @@ i+=1
 	bra	$+1		;
 	bra	$+1		;
 	bra	$+1		;
-restore
+restore:
 #ifdef MDCON
 	bcf	MDCON,MDEN	;
 #else
@@ -407,7 +407,7 @@ wrapbyt#v(i)
 	 goto	do0nops#v(i)	;
 i+=1
 	endw
-macroend
+macroend:
 p_final=macroend>>0x0b
 	if (p_final - p_init)
 	 error	"macro straddles a flash page boundary; anomalous behavior would result!"
