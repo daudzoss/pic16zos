@@ -569,7 +569,7 @@ zos_dup:
 	moviw	[zOS_HDH]fsr0	;    if (zOS_HDH[fsr0] & (1<<zOS_PRB))
 	btfsc	WREG,zOS_PRB	;     goto zos_swk; // job has privileged perms
 	bra	zos_swk		;   }
-zos_err	
+zos_err:
 	clrf	zOS_JOB		;   zos_job = 0;
 	zOS_RFS	zOS_JOB		;   zOS_RFS(zOS_JOB); // perms error or no empty
 	
