@@ -120,7 +120,6 @@ zOS_J4M	equ	0x50
 zOS_J5M	equ	0x60	
 	
 zOS_MEM	macro	fsrnum,job,offset
-	local	fsrn
 	swapf	job,w		;inline void zOS_MEM(int8_t* *fsrnum,
 	addlw	0x10		;                    const int8_t* job,
 	andlw	0x70		;                    const
@@ -128,11 +127,11 @@ zOS_MEM	macro	fsrnum,job,offset
 	 addlw	offset		;                    int8_t offset) {
 	endif
 	if fsrnum and 3
-	 movwf	FSR1L	; *fsrnum = (((job + 1) & 0x07) << 4) + offset;
-	 clrf	FSR1H	;} // zOS_MEM()
+	 movwf	FSR1L		; *fsrnum = (((job + 1) & 0x07) << 4) + offset;
+	 clrf	FSR1H		;} // zOS_MEM()
 	else
-	 movwf	FSR0L	; *fsrnum = (((job + 1) & 0x07) << 4) + offset;
-	 clrf	FSR0H	;} // zOS_MEM()
+	 movwf	FSR0L		; *fsrnum = (((job + 1) & 0x07) << 4) + offset;
+	 clrf	FSR0H		;} // zOS_MEM()
 	endm
 
 ;;; macro to wind the circular stack around from the running job# to the new job
@@ -140,7 +139,7 @@ zOS_MEM	macro	fsrnum,job,offset
 ;;; typically: zOS_ROL BSR_SHAD,JOB_NUM(BSR?),zOS_TMP,FSR0L,zOS_STK
 ;;; note: caller is responsible for making sure the STKPTR/_SHAD bank is active
 zOS_ROL	macro	old,new,temp,fsrnum,base
-	local fsrn,loop1,loop2,done
+	local	loop1,loop2,done
 	movlw	low base	;inline void zOS_ROL(const int8_t* old,
         if fsrnum and 3
 	 movwf	FSR1L		;                    const int8_t* new,
@@ -149,9 +148,9 @@ zOS_ROL	macro	old,new,temp,fsrnum,base
 	endif
 	movlw	high base	;                    int8_t* temp,
         if fsrnum and 3
-	 movwf	FSR1H	;                    int16_t* *fsrnum,
+	 movwf	FSR1H		;                    int16_t* *fsrnum,
 	else
-	 movwf	FSR0H
+	 movwf	FSR0H		;                    int16_t* *fsrnum,
 	endif
 	movf	new,w		;                    int8_t* base) {
 	subwf	old,w		; //responsibility of caller to banksel STKPTR
@@ -168,9 +167,17 @@ zOS_ROL	macro	old,new,temp,fsrnum,base
 	movwf	temp		; for (STKPTR = *temp = 2+3*((w<0) ? (w+5) : w);
 loop1:
 	movf	TOSL,w		;      STKPTR != *temp + 1;
-	movwi	FSR&fsrn&++	;      STKPTR = (STKPTR>0) ? (STKPTR-1):zOS_TOS)
+	if fsrnum and 3
+	 movwi	FSR1++		;      STKPTR = (STKPTR>0) ? (STKPTR-1):zOS_TOS)
+	else
+	 movwi	FSR0++		;      STKPTR = (STKPTR>0) ? (STKPTR-1):zOS_TOS)
+	endif
 	movf	TOSH,w		;
-	movwi	FSR&fsrn&++	;  *(*fsrnum)++ = (TOSH << 8) | TOSL;
+	if fsrnum and 3
+	 movwi	FSR1++		;  *(*fsrnum)++ = (TOSH << 8) | TOSL;
+	else
+	 movwi	FSR0++		;  *(*fsrnum)++ = (TOSH << 8) | TOSL;
+	endif
 	decf	STKPTR,f	;
 	movlw	zOS_TOS		;
 	btfsc	STKPTR,4	;
@@ -181,9 +188,17 @@ loop1:
 	bra	loop1		;
 	clrf	STKPTR		; for (STKPTR = 0;
 loop2:
-	moviw	--FSR&fsrn&	;      STKPTR <= zOS_TOS;
+	if fsrnum and 3
+	 moviw	--FSR1		;      STKPTR <= zOS_TOS;
+	else
+	 moviw	--FSR0		;      STKPTR <= zOS_TOS;
+	endif
 	movwf	TOSH		;      STKPTR++) {
-	moviw	--FSR&fsrn&	;  TOSH = *(*fsrnum) >> 8;
+	if fsrnum and 3
+	 moviw	--FSR1		;  TOSH = *(*fsrnum) >> 8;
+	else
+	 moviw	--FSR0		;  TOSH = *(*fsrnum) >> 8;
+	endif
 	movwf	TOSL		;  TOSL = *--(*fsrnum) & 0x00ff;
 	incf	STKPTR,w	; }
 	movwf	STKPTR		;
@@ -246,19 +261,18 @@ zOS_RFS	macro	retreg
 ;;; according to incr then branch to unf if job-1 == 0 or job+1 > zOS_NUM,
 ;;; with fsrnum pointing to job's bank 0 structure and then incremented +/-16
 zOS_LIV	macro	fsrnum,job,incr,unf
-	local	fsrn,loop
-	if (fsrnum  and  3)
-fsrn set 1
-	else
-fsrn set 0
-	endif
+	local	loop
 loop:
 	if (incr)
 	 movlw	0x10		;inline int8_t zOS_LIV(int8_t* *fsrnum,
 	else
 	 movlw	0-0x10		;     uint8_t *job, int8_t incr, void *(unf)()) {
 	endif
-	addwf	FSR&fsrn&L,f	; do {
+	if fsrnum and 3
+	 addwf	FSR1L,f		; do {
+	else
+	 addwf	FSR0L,f		; do {
+	endif
 	if (incr)
 	 incf	job,f		;  *fsrnum += incr ? 0x10 : -0x10;// next struct
 	 movlw	0xff-zOS_NUM	;  job += incr ? 1 : -1; // next job#
@@ -269,7 +283,11 @@ loop:
 	 btfsc	STATUS,Z	;  } else if (zOS_PCH[fsrnum]) // found runnable
 	endif
 	bra	unf		;   return w = zOS_PCH[fsrnum]; // Z was cleared
-	moviw	zOS_PCH[FSR&fsrn&]
+	if fsrnum and 3
+	 moviw	zOS_PCH[FSR1]
+	else
+	 moviw	zOS_PCH[FSR0]
+	endif
 	btfsc	STATUS,Z	; } while (1); // job is runnable (or unf was 0)
 	bra	loop		;} // zOS_LIV()
 	endm
