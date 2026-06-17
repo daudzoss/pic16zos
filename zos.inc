@@ -475,11 +475,11 @@ zos_no0:
 	movwf	FSR1H_SHAD	;     FSR1H_SHAD = *++fsr0;
 
 	;; set new job stack pointer, last step before completing context switch
-	moviw	[zOS_RTS]fsr0	;
+	moviw	[-5]fsr0;zOS_RTS;
 	movwf	STKPTR		;     STKPTR = zOS_SSP[FSR0-11];
-	moviw	[zOS_RTL]fsr0	;     TOSL = zOS_PCL[FSR0-11];
+	moviw	[-9]fsr0;zOS_RTL;     TOSL = zOS_PCL[FSR0-11];
 	movwf	TOSL		;     TOSH = zOS_PCH[FSR0-11];
-	moviw	[zOS_RTH]fsr0	;     return (void)__isr;
+	moviw	[-8]fsr0;zOS_RTH;     return (void)__isr;
 	movwf	TOSH		;    }
 zos_don:
 	retfie			;    //if this point is reached, search wrapped:
