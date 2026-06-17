@@ -132,6 +132,7 @@ zOS_MEM	macro	fsrnum,job,offset
 	else
 	 movwf	FSR0L		; *fsrnum = (((job + 1) & 0x07) << 4) + offset;
 	 clrf	FSR0H		;} // zOS_MEM()
+	endif
 	endm
 
 ;;; macro to wind the circular stack around from the running job# to the new job
