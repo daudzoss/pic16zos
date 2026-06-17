@@ -107,11 +107,11 @@ zOS_LAU	macro	stash		;inline void zOS_LAU(int8_t* stash) {
 	local retry
 retry:
 	zOS_SWI	zOS_NEW
-	bcf	INTCON,GIE	; do {  w = zOS_SWI(zOS_NEW);
+	bcf	GIE		; do {  w = zOS_SWI(zOS_NEW);
 #ifdef CAUTIOUS
 	movf	BSR,f		;  INTCON &= ~(1<<GIE); // prevent deadlock
 	btfss	STATUS,Z	;  if (bsr)             // arising from an
-	bsf	INTCON,GIE	;   INTCON &= 1<<GIE;   // interrupt right now
+	bsf	GIE		;   INTCON &= 1<<GIE;   // interrupt right now
 #endif
 	movf	WREG,w		;
 	btfsc	STATUS,Z	;
@@ -175,18 +175,18 @@ fsrn	 set 0
 	zOS_MEM	FSR&fsrn&,job,zOS_HDH	; *fsr = 0x10 * (1+job) + zOS_HDH;//priv
 	 btfsc	INDF&fsrn&,zOS_PRB	; if (**fsr & (1<<zOS_PRB))
 	endif
-	bcf	INTCON,GIE	;  INTCON &= ~(1<<GIE);
+	bcf	GIE		;  INTCON &= ~(1<<GIE);
 	endm			;} // zOS_DIS()
 	
 zOS_ENA	macro			;inline void zOS_ENA(void) {
-	bsf	INTCON,GIE	; INTCON |= 1<<GIE;
+	bsf	GIE		; INTCON |= 1<<GIE;
 	endm			;} // zOS_ENA()
 
 zOS_ARG	macro	arg
 	local num
 num set (arg and 0x03)
 	if (num == 0)
-	 bcf	INTCON,GIE	;inline void zOS_ARG(const int8_t arg, int8_t w)
+	 bcf	GIE		;inline void zOS_ARG(const int8_t arg, int8_t w)
 	endif
 	movwf	zOS_AR&num&	;{if (!arg) INTCON &=~(1<<GIE); zOS_AR0[arg]=w;}
 	endm
@@ -221,7 +221,7 @@ zOS_T0F	equ	t0flags
 	pagesel	boot		;} // zOS_RUN()
 	call	boot		;
 boot	
-	bsf	INTCON,GIE	;void boot(void) { INTCON |= 1<<GIE; zOS_RFI();}
+	bsf	GIE		;void boot(void) { INTCON |= 1<<GIE; zOS_RFI();}
 	zOS_RFI
 	endm
 
@@ -293,7 +293,7 @@ k<<=1
 	endw
 
 busy:
-	bcf	INTCON,GIE	; while (1) { // begin critical section
+	bcf	GIE		; while (1) { // begin critical section
 	btfss	INDF1,enb	;  INTCON &= ~(1 << GIE); // interrupts off!
 	bra	notbusy		;  if (*fsr1 & (1<<PID1EN) == 0) break;
 	if (scratch)
@@ -303,12 +303,12 @@ busy:
 	 zOS_SWI zOS_YLD
 	 movf	scratch,w	;  WREG = scratch;
 	else
-	 bsf	INTCON,GIE	;  INTCON |= 1 << GIE; // interrupts back on!
+	 bsf	GIE		;  INTCON |= 1 << GIE; // interrupts back on!
 	endif
 	bra	busy		; } // wait for timer to fire for context switch
 notbusy:
 	bsf	INDF1,enb	; *fsr1 |= 1<<PID1EN; // seize PID1EN as a mutex
-	bsf	INTCON,GIE	; INTCON |= 1 << GIE; // end critical section
+	bsf	GIE		; INTCON |= 1 << GIE; // end critical section
 	
 	if (mem1<STATUS)
 	else
@@ -627,7 +627,7 @@ done:
 task:
 	local	iniarry,coalesc,coaloop,coscoot
 	
-	bcf	INTCON,GIE	;task:
+	bcf	GIE		;task:
 	zOS_LOC	FSR0L,BSR,0x70
 iniarry:
 	clrw			; INTCON &= ~(1<<GIE);
@@ -654,7 +654,7 @@ coalesc:
 	zOS_LOC	FSR0L,BSR,adrarry+1
 	zOS_LOC	FSR1L,BSR,sizarry
 coaloop:
-	bcf	INTCON,GIE	;  zOS_ARG(0, bsr);
+	bcf	GIE		;  zOS_ARG(0, bsr);
 	moviw	++FSR0		;  zOS_SWI(zOS_YLD); // only 1 pass per schedule
 	btfsc	STATUS,Z	;  INTCON &= ~(1<<GIE); // critical section (
 	bra	coalesc		;  for (fsr0 = &adrarry[1], fsr1 = &sizarry[0];
@@ -775,7 +775,7 @@ setup:
 
 zOS_PSH	macro	reg
 	movf	zOS_ME		;inline void zOS_PSH(uint8_t* reg) {
-	;; bcf	INTCON,GIE
+	;; bcf	GIE	
 	banksel	TOSH
 	incf	STKPTR,f	; STKPTR++;// caller should've masked interrupts
 	movwf	TOSH		; TOSH = bsr;// must store bsr so we can go back
@@ -785,11 +785,11 @@ zOS_PSH	macro	reg
 	 movf	TOSH,w		; bsr = TOSH;
 	endif
 	movwf	BSR		;} // zOS_PSH()
-	;; bsf	INTCON,GIE
+	;; bsf	GIE	
 	endm
 
 zOS_POP	macro	reg
-	;; bcf	INTCON,GIE
+	;; bcf	GIE	
 	banksel	STKPTR
 	if (reg-BSR)
 	 movf	TOSL,w		;inline void zOS_POP(uint8_t* reg) {
@@ -798,7 +798,7 @@ zOS_POP	macro	reg
 	movf	TOSH,w		; bsr = TOSH;
 	decf	STKPTR,f	; STKPTR--;// caller should've masked interrupts
 	movwf	BSR		;} // zOS_POP()
-	;; bsf	INTCON,GIE
+	;; bsf	GIE	
 	endm
 	
 zOS_RDF macro
@@ -896,7 +896,7 @@ start_w:
 	
 zOS_STR	macro	swinum
 	local loop,done
-	bcf	INTCON,GIE	;inline void zOS_STR(const char* fsr0,
+	bcf	GIE		;inline void zOS_STR(const char* fsr0,
 	zOS_PSH	BSR
 	banksel	zOS_ADL
 	movf	FSR0L,w		;                    uint8_t swinum) {
@@ -912,7 +912,7 @@ loop
 	movwf	zOS_AR0		;   zOS_ARG(0, w);
 	zOS_POP	BSR
 	zOS_OUT	swinum,"",zOS_AR0
-	bcf	INTCON,GIE	;   zOS_POP(&bsr); // back to the expected bank
+	bcf	GIE		;   zOS_POP(&bsr); // back to the expected bank
 	zOS_PSH	BSR
 	banksel	zOS_RDL
 	movf	zOS_RDL,w	;   zOS_OUT(swinum,"",zOS_AR0); // print ASCII
@@ -922,7 +922,7 @@ loop
 	movwf	zOS_AR0		;    zOS_ARG(0, w);
 	zOS_POP	BSR
 	zOS_OUT	swinum,"",zOS_AR0
-	bcf	INTCON,GIE	;    zOS_POP(&bsr); // back to the expected bank
+	bcf	GIE		;    zOS_POP(&bsr); // back to the expected bank
 	zOS_PSH	BSR
 	banksel	zOS_ADL
 	incfsz	zOS_ADL,f	;    zOS_SWI(swinum,"",zOS_AR0); // print ASCII
@@ -931,7 +931,7 @@ loop
 	bra	loop		;   } else break;
 done:
 	zOS_POP	BSR		;  } else break;
-	bsf	INTCON,GIE	; } zOS_POP(&bsr); INTCON |= 1<<GIE;
+	bsf	GIE		; } zOS_POP(&bsr); INTCON |= 1<<GIE;
 	endm			;} // zOS_STR()
 
 zOS_PUT	macro	fsrnum,max,wrap,p
@@ -2702,7 +2702,7 @@ manchr1:
 	movlw	zOS_NUM-1	;
 	addlw	0x01		;
 	movwf	accumul		;   accumul = zOS_NUM;
-	bcf	INTCON,GIE	;  INTCON &= ~(1<<GIE); // to keep p0==p1 atomic
+	bcf	GIE		;  INTCON &= ~(1<<GIE); // to keep p0==p1 atomic
 	pagesel	jobinfo
 	movf	p0,w		;
 	xorwf	p1,w		;  if (p0 == p1)
@@ -2860,7 +2860,7 @@ manchr8:
 	movlw	zOS_NUM-1	;
 	addlw	0x01		;
 	movwf	accumul		;   accumul = zOS_NUM;
-	bcf	INTCON,GIE	;  INTCON &= ~(1<<GIE); // to keep p0==p1 atomic
+	bcf	GIE		;  INTCON &= ~(1<<GIE); // to keep p0==p1 atomic
 	pagesel	stkinfo
 	movf	p0,w		;
 	xorwf	p1,w		;  if (p0 == p1)

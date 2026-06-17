@@ -506,7 +506,7 @@ zos_skp:
 	bra	zos_sk2		;
 zos_swj:
 	;; save the shadow registers (for the ones that have them) to use retfie
-	bcf	INTCON,GIE	; INTCON &= ~(1<<GIE); // interrupt would be bad
+	bcf	GIE	; INTCON &= ~(1<<GIE); // interrupt would be bad
 	movwf	zOS_MSK		; zOS_MSK = WREG; // the software interrupt type
 	movf	STATUS,w	;
 	movwf	zOS_JOB		; // only convenient temporary global for STATUS
