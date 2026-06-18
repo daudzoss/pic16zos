@@ -384,7 +384,7 @@ spinmul
 	  moviw	out2[FSR1]	;  if (mem1 != INDF1) { // not FSR0[2] shorthand
 	  movwf	fact1		;   *fact1 = fsr1[0x1f & PID1OUTHL];
 	  moviw	out3[FSR1]	;   *fact1 |= fsr1[0x1f & PID1OUTHH] << 8;
-	  movwi	1+fact1		;  } else {
+	  movwf	1+fact1		;  } else {
 	 else
 	  moviw	out0[FSR1]	;   fsr0[0] = fsr1[0x1f & PID1OUTLL];
 	  movwi	0[FSR0]		;   fsr0[1] = fsr1[0x1f & PID1OUTLH];
