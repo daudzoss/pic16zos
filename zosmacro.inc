@@ -1473,6 +1473,7 @@ zOS_PCT	macro	reg
 	rrf	reg,f		; reg = ((w&1)*256 + reg)/2; // 0 <= reg <= 250
 	endm
 
+;;;vvv this macro causes error 427 vvv
 zOS_SEL	macro	adr0,adr1,file,b
 	addlw	low adr0	;inline int zOS_SEL(char* adr0, char* adr1,
 	clrf	FSR0L		;                   uint8_t file, uint3_t b,
@@ -1485,6 +1486,7 @@ zOS_SEL	macro	adr0,adr1,file,b
 	clrw			; return 0;
 	addwfc	FSR0H,f		;} // zOS_SEL()
 	endm
+;;;^^^ this macro causes error 427 ^^^
 
 zOS_DEC	macro	putch,puts,enc,retadr
 
@@ -2071,6 +2073,7 @@ max	set	0x70
 #ifdef zOS_MIN
 #else
 	local	monout,loop,done,disasmb,disasmr,monpack
+;;;^^^^^this line causes error 798^^^^^
 
 monpack:
 #ifdef CAUTIOUS
@@ -3187,6 +3190,7 @@ manh	set	optadrh-vars
 
 zOS_CLC	macro	p,ra,rt,h,pi,isr;inline void zOS_CLC(int8_t p, int8_t ra, int8_t
 	local	endclc,clcisr,clcprmp,endclc
+;;;^^^^^this line causes error 798^^^^^
 
 	pagesel	endclc
 	goto	endclc		;      rt, int8_t* h, int8_t pi, void(*isr)()) {
