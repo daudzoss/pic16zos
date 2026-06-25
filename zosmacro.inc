@@ -1475,18 +1475,18 @@ zOS_PCT	macro	reg
 
 ;;;/*
 ;;;vvv this macro causes error 427 vvv
-zOS_SEL	macro	adr0,adr1,file,b
-	addlw	low adr0	;inline int zOS_SEL(char* adr0, char* adr1,
-	clrf	FSR0L		;                   uint8_t file, uint3_t b,
-	addwfc	FSR0L,f		;                   uint8_t w, char** fsr0) {
-	movlw	adr1 - adr0	;
-	btfsc	file,b		;
-	addwfc	FSR0L,f		;
-	movlw	high adr0	;
-	movwf	FSR0H		; fsr0 = w + ((file & (1<<b)) ? adr1 : adr0);
-	clrw			; return 0;
-	addwfc	FSR0H,f		;} // zOS_SEL()
-	endm
+;;;zOS_SEL	macro	adr0,adr1,file,b
+;;;	addlw	low adr0	;inline int zOS_SEL(char* adr0, char* adr1,
+;;;	clrf	FSR0L		;                   uint8_t file, uint3_t b,
+;;;	addwfc	FSR0L,f		;                   uint8_t w, char** fsr0) {
+;;;	movlw	adr1 - adr0	;
+;;;	btfsc	file,b		;
+;;;	addwfc	FSR0L,f		;
+;;;	movlw	high adr0	;
+;;;	movwf	FSR0H		; fsr0 = w + ((file & (1<<b)) ? adr1 : adr0);
+;;;	clrw			; return 0;
+;;;	addwfc	FSR0H,f		;} // zOS_SEL()
+;;;	endm
 ;;;^^^ this macro causes error 427 ^^^
 ;;;*/
 
