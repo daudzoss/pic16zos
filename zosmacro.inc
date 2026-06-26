@@ -17,7 +17,7 @@ zOS_GLO	macro	fsrnum,job
 	if (job)
 	 lslf	job,w		;inline void zOS_GLO(int8_t**fsrnum,int8_t*job){
 	else
-	 lslf	zOS_ME		;             
+	 lslf	zOS_ME		;        
 	endif
 	andlw	0x0e		; int8_t w = 0x70 | ((job ? *job : bsr) << 1);
 	iorlw	0x70		;
@@ -525,7 +525,7 @@ isr:
 	movf	zOS_JOB,w	; isr:
 	movwf	BSR		; bsr = zOS_JOB;
 
-	zOS_MY2	FSR1		; fsr1 = 0x70|(bsr<<1);
+	zOS_MY2	FSR1L		; fsr1 = 0x70|(bsr<<1);
 	moviw	FSR1++		;
 	iorwf	INDF1,w		;
 	btfsc	ZERO		; if (0[fsr1] | 1[fsr1])
@@ -665,7 +665,7 @@ iniarry:
 	btfss	ZERO		;
 	bra	iniarry		;
 
-	zOS_MY2	FSR1
+	zOS_MY2	FSR1L
 
 	movlw	membase		; // except first address entry is start of heap
 	movwi	[0]fsr1		; (0x70|(bsr<<1))[0] =
@@ -851,9 +851,9 @@ zOS_ADH	equ	EEADRH
 zOS_RDL	equ	EEDATL
 zOS_RDH	equ	EEDATH
 	banksel	EECON1
-	bcf	EECON1,CFGS	;inline void zOS_RDF(void) { // for EEADR micros
-	bsf	EECON1,EEPGD	; EECON1 &= ~(1<<CFGS);
-	bsf	EECON1,RD	; EECON1 |= 1<<EEPGD;
+	bcf	CFGS		;inline void zOS_RDF(void) { // for EEADR micros
+	bsf	EEPGD		; EECON1 &= ~(1<<CFGS);
+	bsf	RD		; EECON1 |= 1<<EEPGD;
 	nop			; EECON1 |= 1<<RD;
 	nop			;} // zOS_RDF()
 #else
@@ -863,8 +863,8 @@ zOS_ADH	equ	NVMADRH
 zOS_RDL	equ	NVMDATL
 zOS_RDH	equ	NVMDATH
 	banksel	NVMCON1
-	bcf	NVMCON1,NVMREGS	;inline void zOS_RDF(void) { // for NVM micros
-	bsf	NVMCON1,RD	; NVMCON1 &= ~(1<<CFGS); NVMCON1 |= 1<<RD;
+	bcf	NVMREGS		;inline void zOS_RDF(void) { // for NVM micros
+	bsf	RD		; NVMCON1 &= ~(1<<CFGS); NVMCON1 |= 1<<RD;
 #else
 #ifdef PMCON1
 zOS_ADL	equ	PMADRL
@@ -872,8 +872,8 @@ zOS_ADH	equ	PMADRH
 zOS_RDL	equ	PMDATL
 zOS_RDH	equ	PMDATH
 	banksel	PMCON1
-	bcf	PMCON1,CFGS	;inline void zOS_RDF(void) { // for PMADR micros
-	bsf	PMCON1,RD	; PMCON1 &= ~(1<<CFGS);
+	bcf	CFGS		;inline void zOS_RDF(void) { // for PMADR micros
+	bsf	RD		; PMCON1 &= ~(1<<CFGS);
 	nop			; PMCON1 |= 1<<RD;
 	nop			;} // zOS_RDF()
 #endif
@@ -889,20 +889,20 @@ zOS_RWF	macro
 	movwf	PMADRL		; // "ReWrite Flash" row, caller must clear GIE
 	movf	FSR1H,w		; // 32 flash locations at a time, loop for more
 	movwf	PMADRH		; PMADR = fsr1 & 0x7fe0;
-	bcf	PMCON1,CFGS	; PMCON1 &= ~(1<<CFGS); // "Not configuration"
-	bsf	PMCON1,FREE	; PMCON1 |= 1<<FREE; // "Specify an erase oper"
-	bsf	PMCON1,WREN	; PMCON1 |= 1<<WREN; // "Enable writes"
+	bcf	CFGS		; PMCON1 &= ~(1<<CFGS); // "Not configuration"
+	bsf	FREE		; PMCON1 |= 1<<FREE; // "Specify an erase oper"
+	bsf	WREN		; PMCON1 |= 1<<WREN; // "Enable writes"
 	movlw	0x55		;
 	movwf	PMCON2		; PMCON2 = 0x55; // "required sequence..."
 	movlw	0xaa		;
 	movwf	PMCON2		; PMCON2 = 0xaa; // "...to initiate erase"
-	bsf	PMCON1,WR	; PMCON1 |= 1<<WR; // "begin erase"
+	bsf	WR		; PMCON1 |= 1<<WR; // "begin erase"
 	nop			; // "the processor stalls until...erase process
 	nop			; // is complete", meanwhile WR bit gets cleared
-;	bcf	PMCON1,WREN
-;	bcf	PMCON1,CFGS
-;	bsf	PMCON1,WREN
-	bsf	PMCON1,LWLO	; for (PMCON1 |= 1<<LWLO; PMADR&0x1f; PMADR++){
+;	bcf	WREN
+;	bcf	CFGS
+;	bsf	WREN
+	bsf	LWLO		; for (PMCON1 |= 1<<LWLO; PMADR&0x1f; PMADR++){
 nextcol:
 	moviw	FSR0++		;  // "Load Write Latches Only"
 	movwf	PMDATL		;  PMDATL = *(*fsr0)++; // little-endian
@@ -917,18 +917,18 @@ nextcol:
 	movwf	PMCON2		;  PMCON2 = 0x55; // "required sequence..."
 	movlw	0xaa		;
 	movwf	PMCON2		;  PMCON2 = 0xaa; // "...to load write latches"
-	bsf	PMCON1,WR	;  PMCON1 |= 1<<WR; // "begin write"
+	bsf	WR		;  PMCON1 |= 1<<WR; // "begin write"
 	nop			;
 	nop			;
 	incf	PMADRL,f	;
 	bra	nextcol		; } // PMADRL is now at a multiple of 0x0020
 start_w:
-	bcf	PMCON1,LWLO	; PMCON1 &= ~(1<<LWLO); // "actually start"
+	bcf	LWLO		; PMCON1 &= ~(1<<LWLO); // "actually start"
 	movlw	0x55		; PMCON2 = 0x55; // "required sequence..."
 	movwf	PMCON2		;
 	movlw	0xaa		;
 	movwf	PMCON2		; PMCON2 = 0xaa; // "...to write using latches"
-	bsf	PMCON1,WR	; PMCON1 |= 1<<WR; // "set WR bit to begin"
+	bsf	WR	 	; PMCON1 |= 1<<WR; // "set WR bit to begin"
 	nop			;
 	nop			;
 	movlw	0x20		;
@@ -1047,8 +1047,8 @@ done:
 	endm
 
 zOS_NUL	macro	hwflag		;void zOS_NUL(void) { // replacement for zOS_CON
-	bra	decl		; goto decl;
-	local	task,isr,decl	; task: do {
+	local	task,isr,decl	; goto decl;
+	bra	decl		; task: do {
 task:
 	movf	zOS_ME		;  zOS_ARG(0, bsr);
 	zOS_ARG	0
@@ -1057,7 +1057,7 @@ task:
 
 isr:
 	banksel	zOS_T0F		; isr:
-	bcf	zOS_T0F,T0IF	;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
+	bcf	T0IF		;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
 	zOS_RFI			;  zOS_RFI(); // and go back to scheduler
 
 decl:
@@ -1127,11 +1127,11 @@ rtsflag	 set	TX&p&IF
 contask:
 	movlw	high uatbase	; goto decl;
 	movwf	FSR0H		;task:// all init that requires knowledge of BSR
-	zOS_MY2	FSR0
+	zOS_MY2	FSR0L
 	moviw	[t0div]fsr0	; do {
 	btfss	ZERO		;  fsr0 = (uatbase & 0xff00) | 0x0070 |(bsr<<1);
 	bra	inited		;  if (1[fsr0] == 0) { // not initialized yet
-	zOS_DIS	GIE,0
+	zOS_DIS	0,0
 	movlw	0xff		;  zOS_DIS(&fsr0, zOS_JOB); // interrupts off!
 	movwi	[t0div]fsr0	;  0[fsr0] = 0xff;//live TMR0 postscaler divider
 	movlw	0x00		;
@@ -1159,7 +1159,7 @@ inited:
 	bra	conloop		;   continue; //yield (still sending or no char)
 	lsrf	zOS_ME 		;
 	movwf	FSR1H		;  // READY TO SEND, AND...
-	zOS_DIS	GIE,0
+	zOS_DIS	0,0
 	movf	p0,w		;  // begin critical section (freeze pointers)
 	movwf	FSR1L		;
 	xorwf	p1,w		;  fsr1 = (bsr<<7) | p0;
@@ -1195,9 +1195,9 @@ conisr:
 
 	;; if it's a simple and frequent timer overflow interrupt finish quickly
 	banksel	zOS_T0F
-	btfss	zOS_T0F,T0IF	; if (/*presumed true:(zOS_T0E & (1<<T0IE)) &&*/
+	btfss	T0IF		; if (/*presumed true:(zOS_T0E & (1<<T0IE)) &&*/
 	bra	nottmr		;     (zOS_T0F & (1<<T0IF))) { // timer overflow
-	bcf	zOS_T0F,T0IF	;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
+	bcf	T0IF		;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
 
 	;; get fsr0 pointing to tmr0 postscaler/reset value
 	movf	zOS_JOB,w	;isr:
@@ -1242,53 +1242,53 @@ done:
 	;; intialize the UART peripheral, job handle and first three arguments
 condecl:
 	banksel	uatbase
-	bcf	RCSTA,SPEN	;decl: // all init that is BSR independent here
-	bcf	RCSTA,CREN	; RCSTA &= ~((1<<SPEN)|(1<<CREN));
-	bcf	TXSTA,TXEN	; TXSTA &= ~(1<<TXEN);
+	bcf	SPEN		;decl: // all init that is BSR independent here
+	bcf	CREN		; RCSTA &= ~((1<<SPEN)|(1<<CREN));
+	bcf	TXEN		; TXSTA &= ~(1<<TXEN);
 	local brgval,brgvalm,brgvalh,brgvall
 #ifdef BRG16
 brgval	set	rat>>2
 brgvalm	set	brgval-1
 brgvalh	set	high brgvalm
 brgvall	set	low brgvalm
-	bsf	BAUDCON,BRG16	; // section 26.1.2.8 of 16F1847 steps below:
+	bsf	BRG16		; // section 26.1.2.8 of 16F1847 steps below:
 #ifdef SYNC
-	bcf	TXSTA,SYNC	; // (1) "Initialize..the desired baud rate"
+	bcf	SYNC		; // (1) "Initialize..the desired baud rate"
 #else
-	bcf	TXSTA,SYNC_TXSTA
+	bcf	SYNC_TXSTA
 #endif
-	bsf	TXSTA,BRGH	; BAUDCON |= 1<<BRG16; // 16-bit generator
+	bsf	BRGH		; BAUDCON |= 1<<BRG16; // 16-bit generator
 	movlw	brgvall		; TXSTA &= ~(1<<SYNC); // async mode
 	movwf	SPBRGL		; TXSTA |= 1<<BRGH;    // high speed
 	movlw	brgvalh		;
 	movwf	SPBRGH		; SPBRG = (rat/4) - 1;
-	bcf	BAUDCON,SCKP	; BAUDCON &= ~(1<<SCKP); // "SCKP..if inverted"
+	bcf	SCKP		; BAUDCON &= ~(1<<SCKP); // "SCKP..if inverted"
 #else
 brgval	set	rat>>4
 brgvalm	set	brgval-1
 brgvalh	set	0
 brgvall	set	low brgvalm
-	bsf	TXSTA,BRGH	; TXSTA |= 1<<BRGH; // (1) the desired baud rate
+	bsf	BRGH		; TXSTA |= 1<<BRGH; // (1) the desired baud rate
 	movlw	brgvall		;
 	movwf	SPBRG		; SPBRG = (rat/16) - 1;
 #endif
-	bsf	RCSTA,SPEN	; // (3) "Enable..by setting..SPEN"
-	bcf	RCSTA,RX9	; RCSTA &= ~(1<<RX9);  // (5) "9-bit..set..RX9"
-	bsf	RCSTA,CREN	; RCSTA |= (1<<SPEN) | (1<<CREN); // (6) "CREN"
-	bsf	TXSTA,TXEN	; TXSTA |= 1<<TXEN; // (5) "Enable..by..TXEN"
+	bsf	SPEN		; // (3) "Enable..by setting..SPEN"
+	bcf	RX9		; RCSTA &= ~(1<<RX9);  // (5) "9-bit..set..RX9"
+	bsf	CREN		; RCSTA |= (1<<SPEN) | (1<<CREN); // (6) "CREN"
+	bsf	TXEN		; TXSTA |= 1<<TXEN; // (5) "Enable..by..TXEN"
 	if (p eq 0)
 	banksel	PIE1
-	 bsf	PIE1,RCIE	; PIE1 |= 1<<RCIE; //(4) "Set..RCIE..and..PEIE"
+	 bsf	RCIE		; PIE1 |= 1<<RCIE; //(4) "Set..RCIE..and..PEIE"
 	else
 	banksel	PIE3
-	 bsf	PIE3,RC&p&IE	; PIE3 |= 1<<RCIE; // dual-UART parts have moved
+	 bsf	RC&p&IE		; PIE3 |= 1<<RCIE; // dual-UART parts have moved
 	endif
 	zOS_ADR	contask,zOS_PRB	; fsr0 = contask & 0x7fff;// MSB 1 => privileged
 	movlw	low conisr	; w = zOS_ARG(0, conisr & 0x00ff);
 	zOS_ARG	0
 	movlw	high conisr	; w = zOS_ARG(1, conisr>>8);
 	zOS_ARG	1		; w = zOS_ARG(2, (0<<TXIF)|(1<<T0IF));
-	movlw   (1<<T0IF)
+	movlw   INTCON_T0IF_MASK
 	zOS_ARG	2
 	movlb	0		; // still in job "0": don't forget this!!!!
 	endm			;} // zOS_CON()
@@ -1370,7 +1370,7 @@ rxisr:
 	movwf	PCL		; else {
 	bcf	rt,rxflag	;  rt &= ~(1<<RCIF);
 #ifdef CAUTIOUS
-	btfss	RCSTA,OERR	;
+	btfss	OERR		;
 	bra	noovrrn		;  if ((uarbase | RCSTA) & (1<<OERR)) {
 	movlw	'!'		;   zOS_AR0 = '!';
 	movwf	zOS_AR0		;   zOS_BUF(zOS_JOB, p0);
@@ -1380,9 +1380,9 @@ noovrrn:
 	banksel	uarbase
 	movf	uarecv,w	;  // this read removes it from the FIFO
 #ifdef CAUTIOUS
-	btfss	RCSTA,OERR	;  if (RCSTA & (1<<OERR)) // rx overrun
-	bcf	RCSTA,CREN	;   RCSTA &= ~(1<<CREN); // cleared by disable
-	bsf	RCSTA,CREN	;  RCSTA |= 1<<CREN; // (re-)enable reception
+	btfss	OERR		;  if (RCSTA & (1<<OERR)) // rx overrun
+	bcf	CREN		;   RCSTA &= ~(1<<CREN); // cleared by disable
+	bsf	CREN		;  RCSTA |= 1<<CREN; // (re-)enable reception
 #endif
 	if (isr)
 	 movwf	zOS_AR0		;  zOS_AR0 = RCREG;
@@ -1410,7 +1410,7 @@ chio	set	char_io-vars
 rxdecl:
 	zOS_CON	p,ra,rt,h,pi
 	zOS_LAU	zOS_JOB
-	zOS_ACT	FSR1
+	zOS_ACT	FSR1L
 	zOS_LOC	FSR1L,zOS_JOB,vars
 	movf	zOS_AR0,w	;rxdecl:
 	movwi	[arg0]fsr1	; zOS_CON(p,rat,rts,hb,pin);// extend zOS_CON()
@@ -2888,7 +2888,7 @@ manchr6:
 	bra	manchr7		; case 'Q': // Quit without wake (off)
 	clrf	char_io		;  char_io = 0;
 
-	bcf	WDTCON,SWDTEN	;  WDTCON &= ~(1<<SWDTEN);
+	bcf	SWDTEN		;  WDTCON &= ~(1<<SWDTEN);
 	movf	accumul,f	;
 	btfss	ZERO		;  if (accumul)
 	sleep			;   sleep(); // never wakes up
@@ -2950,11 +2950,11 @@ manchr9:
 	bra	mannone		; case 'Z': // go to low-power Zz mode for time
 	clrf	char_io		;  char_io = 0;
 
-	bsf	WDTCON,SWDTEN	;  if (w = accumul<<1) { // WDT prescaler
+	bsf	SWDTEN		;  if (w = accumul<<1) { // WDT prescaler
 	lslf	accumul,w	;   w |= 1<<SWDTEN; // enable the wakeup
 	btfsc	ZERO		;
 	bra	mannone		;
-	iorlw	1<<SWDTEN	;
+	iorlw	1<<WDTCON_SWDTEN_POSN	;
 	movwf	WDTCON		;
 	sleep			;  break;  // wakes up according to prescaler
 
@@ -3410,7 +3410,7 @@ clcexp0:
 	zOS_LOC	FSR0L,zOS_JOB,char_io
 	pagesel	zos_mac
 	call	zos_mac		;   fsr0 = &char_io; // temp register (as INDF0)
-	movf	zOS_AR0,w	;   zos_mac(&zOS_AR0 /* += */,  
+	movf	zOS_AR0,w	;   zos_mac(&zOS_AR0 /* += */,
 	decfsz	accumul,f	;           &zOS_AR2 /* * */, &zOS_AR3, fsr0);
 	bra	clcexp0		;   w = zOS_AR0;
 clcexp1:
