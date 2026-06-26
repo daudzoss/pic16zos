@@ -33,7 +33,7 @@ prev=0-1
 temp=code32
 i=0
 	while (i < 0x20)
-curr=temp & 1
+curr=temp and 1
 #ifdef MDCON
 	if (curr - prev)
 	 if (curr)
@@ -69,7 +69,7 @@ i+=1
 	
 zOS_PLC	macro	fsrnum,seed,temp1,temp2
 	local	fsrn,H0,H1,H2,H3,nocrc
-	if (fsrnum & 3)
+	if (fsrnum and 3)
 fsrn	set	1
 	else
 fsrn	set	0
@@ -104,7 +104,7 @@ H3	set	0xb
 
 zOS_SFD	macro	fsrnum
 	local	fsrn
-	if (fsrnum & 3)
+	if (fsrnum and 3)
 fsrn	set	1
 	else
 fsrn	set	0
@@ -132,7 +132,7 @@ fsrn	set	0
 
 zOS_WHT	macro	fsrnum,len,bits,temp,seed32
 	local	fsrn,nextbyt,nextbit
-	if (fsrnum & 3)
+	if (fsrnum and 3)
 fsrn	set	1
 	else
 fsrn	set	0
@@ -186,7 +186,7 @@ nextbit:
 
 zOS_CRC	macro	fsrnum,len,bits,reg
 	local	fsrn,nextbyt,nextbit
-	if (fsrnum & 3)
+	if (fsrnum and 3)
 fsrn	set	1
 	else
 fsrn	set	0
@@ -253,12 +253,13 @@ nextbit:
 	endm
 	
 zOS_HBC	macro	shfdir,size,buf,table,gcount,gtemp,gbank
-	if (table & 0x07ff)
+#if 0
+	if (table and 0x07ff)
 	 error	"lookup table not aligned to 2KiW boundary"
 	endif
-	local	i,usable,myoffst,limit
-	local	p_init,p_final
-	local	prstart,prend,plcpcsize,postart,restore,postend,macroend
+;FIXME;	local	i,usable,myoffst,limit
+;FIXME;	local	p_init,p_final
+;FIXME;	local	prstart,prend,plcpcsize,postart,restore,postend,macroend
 prstart	
 p_init=prstart>>0xb
 	
@@ -271,9 +272,9 @@ p_init=prstart>>0xb
 	if (buf < 0x2000)
 	zOS_LOC	FSR1,BSR,buf
 	else
-	 movlw	low buf		;
+;FIXME;	 movlw	low buf		;
 	 movwf	FSR1L		;
-	 movlw	high buf	;
+;FIXME;	 movlw	high buf	;
 	 movwf	FSR1H		;
 	endif
 
@@ -305,8 +306,8 @@ limit=(usable + prstart-prend + 9 + plcpsize - 1)/(0x25)
 
 i=limit-1
 	 while (i+1)
-	  local	looptop#v(i)
-	  goto	looptop#v(i)	; // jumps into middle of loop (limit maybe 90?)
+	  local	looptop&i
+	  goto	looptop&i	; // jumps into middle of loop (limit maybe 90?)
 i-=1
 	 endw
 	else
@@ -329,7 +330,7 @@ do0nops#v(i)
 #else
 	 nop			;
 #endif
-	 if (shfdir & 0x80)
+	 if (shfdir and 0x80)
 	  rlf	gtemp,f		;     c = gtemp & 0x80; gtemp <<= 1;
 	 else
 	  rrf	gtemp,f		;    } else { c = gtemp & 0x01; gtemp >>= 1; }
@@ -412,4 +413,5 @@ p_final=macroend>>0x0b
 	if (p_final - p_init)
 	 error	"macro straddles a flash page boundary; anomalous behavior would result!"
 	endif
+#endif
 	endm

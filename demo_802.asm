@@ -10,28 +10,30 @@
 ;;;  app if no input within TBD sec (preferable TBD is also the tx interval)
 ;;; modes (rates, dual channel vs. product) selectable through mailbox
 
-	processor 16f1619
-	include p16f1619.inc
+	list
+	expand
 
-C_UART	equ	.000009600;GHz
+#include <pic16f1619.inc>
+
+C_UART	equ	000009600;GHz
 #ifdef EX21MHZ
-C_SYSTM	equ	.021000000;GHz
-	__CONFIG _CONFIG1,_CLKOUTEN_OFF & _BOREN_NSLEEP & _CP_OFF & _MCLRE_ON & _PWRTE_ON & _FOSC_ECH
-	__CONFIG _CONFIG2,_LVP_OFF & _DEBUG_ON & _LPBOR_ON & BORV_LO & _STVREN_OFF & _PLLEN_OFF & _ZCD_OFF & _PPS1WAY_OFF & _WRT_OFF
+C_SYSTM	equ	021000000;GHz
+;FIXME;	__CONFIG _CONFIG1,_CLKOUTEN_OFF & _BOREN_NSLEEP & _CP_OFF & _MCLRE_ON & _PWRTE_ON & _FOSC_ECH
+;FIXME;	__CONFIG _CONFIG2,_LVP_OFF & _DEBUG_ON & _LPBOR_ON & BORV_LO & _STVREN_OFF & _PLLEN_OFF & _ZCD_OFF & _PPS1WAY_OFF & _WRT_OFF
 #else
 #ifdef  IN32MHZ
-C_SYSTM	equ	.032000000;GHz
-	__CONFIG _CONFIG1,_CLKOUTEN_OFF & _BOREN_NSLEEP & _CP_OFF & _MCLRE_ON & _PWRTE_ON & _FOSC_INTOSC
-	__CONFIG _CONFIG2,_LVP_OFF & _DEBUG_ON & _LPBOR_ON & BORV_LO & _STVREN_OFF & _PLLEN_ON & _ZCD_OFF & _PPS1WAY_OFF & _WRT_OFF
+C_SYSTM	equ	032000000;GHz
+;FIXME;	__CONFIG _CONFIG1,_CLKOUTEN_OFF & _BOREN_NSLEEP & _CP_OFF & _MCLRE_ON & _PWRTE_ON & _FOSC_INTOSC
+;FIXME;	__CONFIG _CONFIG2,_LVP_OFF & _DEBUG_ON & _LPBOR_ON & BORV_LO & _STVREN_OFF & _PLLEN_ON & _ZCD_OFF & _PPS1WAY_OFF & _WRT_OFF
 #else
-C_SYSTM	equ	.016000000;GHz
-	__CONFIG _CONFIG1,_CLKOUTEN_OFF & _BOREN_NSLEEP & _CP_OFF & _MCLRE_ON & _PWRTE_ON & _FOSC_INTOSC
-	__CONFIG _CONFIG2,_LVP_OFF & _DEBUG_ON & _LPBOR_ON & _BORV_LO & _STVREN_OFF & _PLLEN_OFF & _ZCD_OFF & _PPS1WAY_OFF & _WRT_OFF
+C_SYSTM	equ	016000000;GHz
+;FIXME;	__CONFIG _CONFIG1,_CLKOUTEN_OFF & _BOREN_NSLEEP & _CP_OFF & _MCLRE_ON & _PWRTE_ON & _FOSC_INTOSC
+;FIXME;	__CONFIG _CONFIG2,_LVP_OFF & _DEBUG_ON & _LPBOR_ON & _BORV_LO & _STVREN_OFF & _PLLEN_OFF & _ZCD_OFF & _PPS1WAY_OFF & _WRT_OFF
 #endif
 #endif
 C_RATIO	equ	C_SYSTM/C_UART
 
-	__CONFIG _CONFIG3,_WDTCCS_SWC & _WDTCWS_WDTCWSSW & _WDTE_SWDTEN & _WDTCPS_WDTCPS1F
+;FIXME;	__CONFIG _CONFIG3,_WDTCCS_SWC & _WDTCWS_WDTCWSSW & _WDTE_SWDTEN & _WDTCPS_WDTCPS1F
 
 ;;; MPN    MPN    prog SRAM
 ;;; '1614  '1618  4096 512
@@ -57,9 +59,9 @@ C_RATIO	equ	C_SYSTM/C_UART
 ;;;;       pin 5  AN8  RC6
 ;;;;       pin 6  AN9  RC7
 
-	include	zos.inc
-	include	zosmacro.inc
-	include	zos80215.inc
+#include "zos.inc"
+#include "zosmacro.inc"
+#include "zos80215.inc"
 
 OUTCHAR	equ	zOS_SI3
 ADC4SWI	equ	zOS_SI4
@@ -70,30 +72,30 @@ ADC7SWI	equ	zOS_SI7
 	pagesel	main
 	goto	main
 
-	zOS_NAM	"ADC control, buffer"
-adcmeas
+	zOS_NAM	"ADC control and buffer"
+adcmeas:
 	bra	adcmeas
 
-isr_adc
+isr_adc:
 
-isr_ctx
+isr_ctx:
 
-main
+main:
 	;; clock setup: 16/32MHz internal or 21MHz external
 	banksel	OSCCON
-	movlw	0xf<<IRCF0	;void main(void) {
+	movlw	0xf<<OSCCON_IRCF0_POSITION	;void main(void) {
 	movwf	OSCCON		; OSCCON = 0x38;// 16MHz (32MHz with PLL) if int
 #ifdef EX21MHZ
 #else
 #ifdef IN32MHZ
-	btfss	OSCSTAT,PLLR	; while (OSCSTAT & (1<<PLLR) == 0)
+	btfss	PLLR		; while (OSCSTAT & (1<<PLLR) == 0)
 	bra	$-1		;  ; // 32MHz only: await PLL "ready"
 #endif
-	btfss	OSCSTAT,HFIOFR	; while (OSCSTAT & (1<<HFIOFR) == 0)
+	btfss	HFIOFR		; while (OSCSTAT & (1<<HFIOFR) == 0)
 	bra	$-1		;  ; // 16/32MHz only: await HFINTOSC "ready"
-	btfss	OSCSTAT,HFIOFL	; while (OSCSTAT & (1<<HFIOFL) == 0)
+	btfss	HFIOFL		; while (OSCSTAT & (1<<HFIOFL) == 0)
 	bra	$-1		;  ; // 16/32MHz only: await HFINTOSC "locked"
-	btfss	OSCSTAT,HFIOFS	; while (OSCSTAT & (1<<HFIOFS) == 0)
+	btfss	HFIOFS		; while (OSCSTAT & (1<<HFIOFS) == 0)
 	bra	$-1		;  ; // 16/32MHz only: await HFINTOSC "stable"
 #endif
 	;; pin setup
@@ -104,8 +106,8 @@ main
 	movwf	ANSELC		; ANSELC = 15; // use AN4 to AN7 (on RC0 to RC3)
 
 	banksel	OPTION_REG
-	bcf	OPTION_REG,PSA	; OPTION_REG &= ~(1<<PSA);// max timer0 prescale
-	bcf	OPTION_REG,T0CS	; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
+	bcf	PSA		; OPTION_REG &= ~(1<<PSA);// max timer0 prescale
+	bcf	T0CS		; OPTION_REG &= ~(1<<TMR0CS);// off Fosc not pin
 
 	banksel	TRISA
 	movlw	0x2f		; TRISA = (1<<RA5) | (0<<RA4) | (1<<RA3) |
@@ -115,19 +117,19 @@ main
 	movwf	TRISC		;         (1<<RC2) | (1<<RC1) | (1<<RC0);
 
 	banksel	HIDRVC
-	bsf	HIDRVC,RC4	;
-	bsf	HIDRVC,RC5	; HIDRVC |= (1 << RC5) | (1 << RC4); // 100mA
+	bsf	HIDC4		;
+	bsf	HIDC5		; HIDRVC |= (1 << RC5) | (1 << RC4); // 100mA
 	banksel	SLRCONC
-	bcf	SLRCONC,RC4	;
-	bcf	SLRCONC,RC5	; SLRCONC &= ~((1 << RC5) | (1 << RC4)); // slew
+	bcf	SLRC4		;
+	bcf	SLRC5		; SLRCONC &= ~((1 << RC5) | (1 << RC4)); // slew
 
 	banksel	PPSLOCK
 	movlw	0x55		;
 	movwf	PPSLOCK		; PPSLOCK = 0x55; // magic step 1
 	movlw	0xaa		;
 	movwf	PPSLOCK		; PPSLOCK = 0xaa; // magic step 2
-	bcf	PPSLOCK,PPSLOCKED;PPSLOCK &= ~(1<<PPSLOCKED); // unlock PPS
-	movlw	RA2		;
+	bcf	PPSLOCKED	; PPSLOCK &= ~(1<<PPSLOCKED); // unlock PPS
+	movlw	PORTA_RA2_POSN	;
 	movwf	RXPPS		; RXPPS = (0<<3)|RA2; // HOST_TX input (to PIC)
 
 	banksel	RA4PPS
@@ -143,7 +145,7 @@ main
 	movwf	PPSLOCK		; PPSLOCK = 0x55; // magic step 1
 	movlw	0xaa		;
 	movwf	PPSLOCK		; PPSLOCK = 0xaa; // magic step 2
-	bsf	PPSLOCK,PPSLOCKED;PPSLOCK |= 1<<PPSLOCKED; // re-lock PPS
+	bsf	PPSLOCKED	; PPSLOCK |= 1<<PPSLOCKED; // re-lock PPS
 
 	;; SSP setup (as modulation bitstream)
 	banksel	SSP1CON1
@@ -181,20 +183,20 @@ main
 	clrf    TMR1H	   	;
 	clrf    TMR1L		; TMR1 = 0x0000; // longest console timeout
 	banksel PIE1
-	bsf     PIE1,TMR1IE	; PIE1 |= 1<<TMR1IE;
-	zOS_CLC	0,C_RATIO,PIR1,LATA,RA3,isr_ctx
+	bsf     TMR1IE		; PIE1 |= 1<<TMR1IE;
+;FIXME;	zOS_CLC	0,C_RATIO,PIR1,LATA,RA3,isr_ctx
 	movlw	OUTCHAR		; fsr0=zOS_CLC(0,C_RATIO,PIR1,LATA,RA3,isr_ctx);
 	movwi   FSR0--		; *fsr0-- = OUTCHAR;
 	moviw   0[FSR0]		; *fsr0 |= 1<<TMR1IF;
-	iorlw   1<<TMR1IF	; for (int i = 4; i < 8; i++) { /* adcmeas */ }
+	iorlw   1<<PIR1_TMR1IF_POSN	; for (int i=4; i<8; i++) {/*adcmeas*/}
 	movwi	0[FSR0]		;} // main()
 i=4
 	while i < 8
 	zOS_ADR	isr_adc,zOS_FLA
-	zOS_INT	0/ADIF,ADC#v(i)SWI
+	zOS_INT	0/ADIF,ADC&i&SWI
 	zOS_ADR	adcmeas,zOS_UNP
 	zOS_LAU	WREG
-	zOS_ACT	FSR0
+	zOS_ACT	FSR0L
 i+=1
 	endw
 	zOS_RUN	INTCON,INTCON
