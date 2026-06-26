@@ -204,29 +204,27 @@ zOS_ENA	macro			;inline void zOS_ENA(void) {
 zOS_ARG	macro	arg
 	local num
 num set (arg and 0x03)
-	if (num == 0)
+	if (num eq 0)
 	 bcf	GIE		;inline void zOS_ARG(const int8_t arg, int8_t w)
+	 movwf	zOS_AR0		;{if (!arg) INTCON &=~(1<<GIE); zOS_AR0[arg]=w;}
+	elsif (num eq 1)
+	 movwf	zOS_AR1		;{if (!arg) INTCON &=~(1<<GIE); zOS_AR0[arg]=w;}
+	elsif (num eq 2)
+	 movwf	zOS_AR2		;{if (!arg) INTCON &=~(1<<GIE); zOS_AR0[arg]=w;}
+	elsif (num eq 3)
+	 movwf	zOS_AR3		;{if (!arg) INTCON &=~(1<<GIE); zOS_AR0[arg]=w;}
 	endif
-	movwf	zOS_AR&num&	;{if (!arg) INTCON &=~(1<<GIE); zOS_AR0[arg]=w;}
 	endm
 
-#ifdef T0IE
-#else
-T0IE	equ	TMR0IE
-#endif
-#ifdef T0IF
-#else
-T0IF	equ	TMR0IF
-#endif
 zOS_RUN	macro	t0enable,t0flags
         ;; start a TMR0 interrupt since none found (most in INTCON, others PIE0)
 zOS_T0E	equ	t0enable
 zOS_T0F	equ	t0flags
 	if (zOS_T0E)
 	 banksel zOS_T0E
-	 bsf	zOS_T0E,T0IE	;inline void zOS_RUN(uint8_t* t0enable) {
-	 if (zOS_T0E - INTCON)
-	  bsf	INTCON,PEIE	; if (t0enable) { *t0enable |= 1<<T0IE;
+	 bsf	T0IE		;inline void zOS_RUN(uint8_t* t0enable) {
+	 if (zOS_T0E ne INTCON)
+	  bsf	PEIE		; if (t0enable) { *t0enable |= 1<<T0IE;
 	 endif
 	endif
 	;; advance the stack pointer to allow 5 stacks of 3 each (+1 if running)
@@ -419,28 +417,28 @@ spinmul:
 	endif
 	bcf	INDF1,enb	;} // zOS_MUL()
 
-	if (mem0 == INDF1)
+	if (mem0 eq INDF1)
 	 error	"illegal use of special register INDF1 as multiplicand"
 	endif
-	if (mem0 == FSR0H)
+	if (mem0 eq FSR0H)
 	 error	"illegal use of special register FSR0H as multiplicand"
 	endif
-	if (mem0 == FSR1L)
+	if (mem0 eq FSR1L)
 	 error	"illegal use of special register FSR1L as multiplicand"
 	endif
-	if (mem0 == FSR1H)
+	if (mem0 eq FSR1H)
 	 error	"illegal use of special register FSR1H as multiplicand"
 	endif
-;	if (mem1 == 1) //"zOS_MUL INDF0,1" is shorthand for FSR0[0] thru FSR0[3]
+;	if (mem1 eq 1) //"zOS_MUL INDF0,1" is shorthand for FSR0[0] thru FSR0[3]
 ;	 error	"illegal use of special register INDF1 as multiplicand"
 ;	endif
-	if (mem1 == FSR0H)
+	if (mem1 eq FSR0H)
 	 error	"illegal use of special register FSR0H as multiplicand"
 	endif
-	if (mem1 == FSR0L)
+	if (mem1 eq FSR0L)
 	 error	"illegal use of special register FSR0L as multiplicand"
 	endif
-	if (mem1 == FSR1H)
+	if (mem1 eq FSR1H)
 	 error	"illegal use of special register FSR1H as multiplicand"
 	endif
 	endm
@@ -769,7 +767,7 @@ zOS_OUT	macro	swinum,str,temp
 agent:
 	brw			;                    uint8_t* temp) { // no '\0'
 pre
-	dt	str
+	db	str
 post:
 len	set	post-pre
 	if (len > 254)
@@ -1113,7 +1111,7 @@ max	set	0x70
 ;until expansion and would throw an undefined-var error during the processing
 
 	local	uatbase,uatxmit
-	if (p == 0)
+	if (p eq 0)
 uatbase	 set	TXREG and 0xff80
 uatxmit	 set	TXREG and 0x001f ; mask off just the SFR space
 rtsflag	 set	TXIF
@@ -1275,7 +1273,7 @@ brgvall	set	low brgvalm
 	bcf	RCSTA,RX9	; RCSTA &= ~(1<<RX9);  // (5) "9-bit..set..RX9"
 	bsf	RCSTA,CREN	; RCSTA |= (1<<SPEN) | (1<<CREN); // (6) "CREN"
 	bsf	TXSTA,TXEN	; TXSTA |= 1<<TXEN; // (5) "Enable..by..TXEN"
-	if (p == 0)
+	if (p eq 0)
 	banksel	PIE1
 	 bsf	PIE1,RCIE	; PIE1 |= 1<<RCIE; //(4) "Set..RCIE..and..PEIE"
 	else
@@ -1330,7 +1328,7 @@ max	set	0x70
 ;until expansion and would throw an undefined-var error during the processing
 
 	local	uarbase,uarecv,rxflag
-	if (p == 0)
+	if (p eq 0)
 uarbase	 set	RCREG and 0xff80
 uarecv	 set	RCREG and 0x7f
 rxflag	 set	RCIF
@@ -2622,9 +2620,9 @@ endmon:
 zOS_NAM	macro	str
 	local	start
 start:
-	dt	str
-	dt	0
-	dt	start-$
+	db	str
+	db	0
+	db	start-$
 	endm
 
 zOS_MAN	macro	p,rat,rts,hb,pin,isr ;inline void zOS_MAN(int8_t p, int8_t rat,
