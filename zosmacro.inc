@@ -207,11 +207,14 @@ num set (arg and 0x03)
 	if (num eq 0)
 	 bcf	GIE		;inline void zOS_ARG(const int8_t arg, int8_t w)
 	 movwf	zOS_AR0		;{if (!arg) INTCON &=~(1<<GIE); zOS_AR0[arg]=w;}
-	elsif (num eq 1)
+	endif
+	if (num eq 1)
 	 movwf	zOS_AR1		;{if (!arg) INTCON &=~(1<<GIE); zOS_AR0[arg]=w;}
-	elsif (num eq 2)
+	endif
+	if (num eq 2)
 	 movwf	zOS_AR2		;{if (!arg) INTCON &=~(1<<GIE); zOS_AR0[arg]=w;}
-	elsif (num eq 3)
+	endif
+	if (num eq 3)
 	 movwf	zOS_AR3		;{if (!arg) INTCON &=~(1<<GIE); zOS_AR0[arg]=w;}
 	endif
 	endm

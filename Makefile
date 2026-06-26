@@ -1,4 +1,4 @@
-INSTALLDIr=/opt/microchip/xc8/v3.00
+INSTALLDIR=/opt/microchip/xc8/v3.00
 INCPATH=$(INSTALLDIR)/pic/include/proc
 ASSEMBLER=$(INSTALLDIR)/pic-as/bin/pic-as
 ASMFLAGS=-Wa,-a -save-temps -xassembler-with-cpp

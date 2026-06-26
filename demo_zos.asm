@@ -13,7 +13,9 @@
 ;;; the max allowed value to 4 or lower will waste less time in the scheduler:
 ;zOS_NUM	equ	4
 
-	processor 16f1719
+	list
+	expand
+
 #include <pic16f1719.inc>
 
 ;FIXME;	__CONFIG _CONFIG1,_FOSC_INTOSC & _WDTE_OFF & _PWRTE_OFF & _CP_OFF & _BOREN_ON & _CLKOUTEN_ON & _IESO_ON & _FCMEN_ON
@@ -22,8 +24,10 @@
 ;;; uncomment to reduce zOS footprint by 100 words (at cost of zOS_FRK/EXE/FND):
 ;zOS_MIN	equ	1
 
-#include <zos.inc>
-#include <zosmacro.inc>
+PSECT resetVec,abs,ovrld,delta=2
+	org	0
+#include "zos.inc"
+#include "zosmacro.inc"
 
 OUTCHAR	equ	zOS_SI3
 
@@ -106,5 +110,4 @@ dummy2:
 	zOS_ARG	0
 	zOS_SWI	zOS_YLD
 	bra	dummy2
-
 	end			;}
