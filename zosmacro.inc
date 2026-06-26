@@ -2625,7 +2625,7 @@ zOS_NAM	macro	str
 start:
 	db	str
 	db	0
-	db	start-$
+	db	(start-$) and 0xff
 	endm
 
 zOS_MAN	macro	p,rat,rts,hb,pin,isr ;inline void zOS_MAN(int8_t p, int8_t rat,
