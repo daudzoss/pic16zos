@@ -1768,9 +1768,9 @@ brapos:
 	movlw	0xff		;
 	bra	onelit		;
 opc_bpo:
-	da	"bra   +"
+	db	"bra   +"
 opc_bng:
-	da	"bra   -"
+	db	"bra   -"
 #else
 braneg:
 	movlw	0xff		;
@@ -1789,7 +1789,7 @@ brapos:
 	movlw	0x7f		;
 	bra	bradest		;
 opc_bra:
-	da	"bra    0x"
+	db	"bra    0x"
 #endif
 
 overld3:
@@ -1913,129 +1913,129 @@ putmovi:
 	goto	puts		;} // putmovi()
 
 zero:
-	da	"0"
+	db	"0"
 offset0:
-	da	"[FSR0]",0
+	db	"[FSR0]",0
 offset1:
-	da	"[FSR1]",0
+	db	"[FSR1]",0
 fsrprei:
-	da	"++FSR0",0
-	da	"++FSR1",0
+	db	"++FSR0",0
+	db	"++FSR1",0
 fsrpred:
-	da	"--FSR0",0
-	da	"--FSR1",0
+	db	"--FSR0",0
+	db	"--FSR1",0
 
 fsrposi:
-	da	"FSR0++",0
-	da	"FSR1++",0
+	db	"FSR0++",0
+	db	"FSR1++",0
 fsrposd:
-	da	"FSR0--",0
-	da	"FSR1--",0
+	db	"FSR0--",0
+	db	"FSR1--",0
 opc_miw:
-	da	"moviw  "
+	db	"moviw  "
 opc_mwi:
-	da	"movwi  "
+	db	"movwi  "
 opc_lit:
-	da	"addlw  "
-	da	"sublw  "
-	da	"xorlw  "
-	da	"andlw  "
-	da	"iorlw  "
-	da	"retlw  "
-	da	"movlw  "
+	db	"addlw  "
+	db	"sublw  "
+	db	"xorlw  "
+	db	"andlw  "
+	db	"iorlw  "
+	db	"retlw  "
+	db	"movlw  "
 opc_mlb:
-	da	"movlb  "
+	db	"movlb  "
 opc_mlp:
-	da	"movlp  "
+	db	"movlp  "
 opc_af0:
-	da	"addfsr FSR0,",0
+	db	"addfsr FSR0,",0
 opc_af1:
-	da	"addfsr FSR1,",0
+	db	"addfsr FSR1,",0
 
 opc_reg:
-	da	"addwfc "
-	da	"subwfb "
-	da	"asrf   "
-	da	"lsrf   "
-	da	"lslf   "
-	da	"incfsz "
-	da	"swapf  "
-	da	"rlf    "
-	da	"rrf    "
-	da	"decfsz "
-	da	"incf   "
-	da	"comf   "
-	da	"movf   "
-	da	"addwf  "
-	da	"xorwf  "
-	da	"andwf  "
-	da	"iorwf  "
-	da	"decf   "
-	da	"subwf  "
+	db	"addwfc "
+	db	"subwfb "
+	db	"asrf   "
+	db	"lsrf   "
+	db	"lslf   "
+	db	"incfsz "
+	db	"swapf  "
+	db	"rlf    "
+	db	"rrf    "
+	db	"decfsz "
+	db	"incf   "
+	db	"comf   "
+	db	"movf   "
+	db	"addwf  "
+	db	"xorwf  "
+	db	"andwf  "
+	db	"iorwf  "
+	db	"decf   "
+	db	"subwf  "
 opc_mov:
-	da	"movwf  "
+	db	"movwf  "
 
 opc_bit:
-	da	"bcf    "
-	da	"bsf    "
-	da	"btfsc  "
-	da	"btfss  "
+	db	"bcf    "
+	db	"bsf    "
+	db	"btfsc  "
+	db	"btfss  "
 
 opccall:
-	da	"call   0x"
+	db	"call   0x"
 opcgoto:
-	da	"goto   0x"
+	db	"goto   0x"
 
 opcclrw:
-	da	"clrw   "
-	da	"clrf   "
+	db	"clrw   "
+	db	"clrf   "
 
 opcomni:
-	da	"nop    "
-	da	"reset  "
-	da	"option "
-	da	"sleep  "
-	da	"clrwdt "
-	da	"tris A "
-	da	"tris B "
-	da	"tris C "
-	da	"return "
-	da	"retfie "
-	da	"callw  "
-	da	"brw    "
-	da	"invalid"
-	da	"invalid"
-	da	"invalid"
-	da	"invalid"
+	db	"nop    "
+	db	"reset  "
+	db	"option "
+	db	"sleep  "
+	db	"clrwdt "
+	db	"tris A "
+	db	"tris B "
+	db	"tris C "
+	db	"return "
+	db	"retfie "
+	db	"callw  "
+	db	"brw    "
+	db	"invalid"
+	db	"invalid"
+	db	"invalid"
+	db	"invalid"
 
 hexpref:
-	da	"0x",0
+	db	"0x",0
 hex_neg:
-	da	"-0x"
+	db	"-0x"
 regnam0:
-	da	"INDF0"
+	db	"INDF0"
 regnam1:
-	da	"INDF1"
+	db	"INDF1"
 regnam2:
-	da	"PCL"
+	db	"PCL"
 regnam3:
-	da	"STATUS",0
+	db	"STATUS",0
 regnam4:
-	da	"FSR0L"
+	db	"FSR0L"
 regnam5:
-	da	"FSR0H"
+	db	"FSR0H"
 regnam6:
-	da	"FSR1L"
+	db	"FSR1L"
 regnam7:
-	da	"FSR1H"
+	db	"FSR1H"
 regnam8:
-	da	"BSR"
+	db	"BSR"
 regnam9:
-	da	"WREG",0
+	db	"WREG",0
 regnamA:
-	da	"PCLATH",0
+	db	"PCLATH",0
 regnamB:
-	da	"INTCON",0
+	db	"INTCON",0
 nameoff:
 	brw			;
 	retlw	regnam0-regnam0	;
