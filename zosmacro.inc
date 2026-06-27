@@ -1113,20 +1113,17 @@ max	set	0x70
 ;zOS_MON()-derived macros referring to these local variables wouldn't open it
 ;until expansion and would throw an undefined-var error during the processing
 	local	uatbase,uatxmit
-	if (p eq 0)
-uatbase	 set	TXREG and 0xff80
-uatxmit	 set	TXREG and 0x001f ; mask off just the SFR space
-rtsflag	 set	PIR1_TXIF_POSN
-/*
-	else
+	if p
 uatbase	 set	TX&p&REG and 0xff80
 uatxmit	 set	TX&p&REG and 0x001f ; mask off just the sfr SFR
 rtsflag	 set	PIR1_TX&p&IF_POSN
-*/	
+	else
+uatbase	 set	TXREG and 0xff80
+uatxmit	 set	TXREG and 0x001f ; mask off just the SFR space
+rtsflag	 set	PIR1_TXIF_POSN
 	endif
 
 	zOS_NAM	"console (output-only)"
-#if 0
 contask:
 	movlw	high uatbase	; goto decl;
 	movwf	FSR0H		;task:// all init that requires knowledge of BSR
@@ -1147,7 +1144,9 @@ contask:
 	movwf	p0		;  zOS_ENA(); // interrupts on after init done
 	movwf	p1		;  puts("\r\nWelcome to zOS\r\n");
 	zOS_ENA	;//FIXME: superfluous due to subsequent SWI
+#if 0
 	zOS_OUT	0xff,"\r\nWelcome to zOS\r\n",char_io
+#endif
 inited:
 	movf	zOS_ME		;  zOS_ARG(0, bsr);
 	zOS_ARG	0
@@ -1242,7 +1241,6 @@ do_swi:
 done:
 	zOS_RFI
 
-#endif
 
 	;; Intialize the UART peripheral, job handle and first three arguments
 condecl:
