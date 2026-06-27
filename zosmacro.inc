@@ -772,50 +772,46 @@ agent:
 pre:
 	db	str
 post:
-#if 0
 len	set	post-pre
-	if (len > 254)
+#if (len > 254)
 	 error "string too long"
-	endif
-
-	if (len)
 #endif
+
 setup:
-#if 0
-	 movlw	len		; zOS_SWI(zOS_YLD); // get buffer empty as poss.
-	 movwf	temp		; for (*temp = strlen(str); *temp; --*temp) {
-sloop:
-	 movf	zOS_ME		;
-	zOS_ARG	0
-	zOS_SWI	zOS_YLD
-loop:
-	 movf	temp,w		;  zOS_ARG(0, w = str[strlen(str) - *temp]);
-	 sublw	len		;  while (zOS_SWI(swinum) != 1) { // buffer full
-	pagesel	agent
-	 call	agent		;   zOS_SWI(zOS_YLD); // flush buffer, retry
-	zOS_ARG 0
-	else
+	movlw	len		; zOS_SWI(zOS_YLD); // get buffer empty as poss.
+	movwf	temp		; for (*temp = strlen(str); *temp; --*temp) {
 sloop:
 	movf	zOS_ME		;
 	zOS_ARG	0
 	zOS_SWI	zOS_YLD
-setup:
-	 if (temp - zOS_AR0)
-	  if (temp - WREG)
-	   movf	temp,w		;
-	  endif
-	  zOS_ARG 0
-	 endif
-	endif
+loop:
+	movf	temp,w		;  zOS_ARG(0, w = str[strlen(str) - *temp]);
+	sublw	len		;  while (zOS_SWI(swinum) != 1) { // buffer full
+	pagesel	agent
+	call	agent		;   zOS_SWI(zOS_YLD); // flush buffer, retry
+	zOS_ARG 0
 	zOS_SWI	swinum
 	decfsz	WREG		;   zOS_ARG(0, w = str[strlen(str) - *temp]);
 	bra	sloop		;  }
 
-	if (len)
-	 decfsz	temp,f		; }
-	 bra	loop		;} // zOS_OUT()
-	endif
-#endif
+	decfsz	temp,f		; }
+	bra	loop		;} // zOS_OUT()
+	endm
+
+zOS_CHR	macro	swinum,chr
+	local	setup,sloop
+	bra	setup		;inline void zOS_CHR(uint8_t swinum,
+	brw			;FIXME:deleteable, just mimicking old zOS_OUT ""
+sloop:
+	movf	zOS_ME		;                    uint8_t* chr) {
+	zOS_ARG	0
+	zOS_SWI	zOS_YLD
+setup:
+	movf	chr,w		; while (zOS_SWI(swinum) != 1) // buffer full
+        zOS_ARG 0
+	zOS_SWI	swinum
+	decfsz	WREG		;  zOS_SWI(zOS_YLD); // flush buffer, retry
+	bra	sloop		;}
 	endm
 
 zOS_PSH	macro	reg
@@ -956,21 +952,21 @@ loop:
 	bra	done		;  if ((w = (zOS_RDH<<1)|(zOS_RDL>>7)) != '\0'){
 	movwf	zOS_AR0		;   zOS_ARG(0, w);
 	zOS_POP	BSR
-	zOS_OUT	swinum,"",zOS_AR0
+	zOS_CHR	swinum,zOS_AR0
 	bcf	GIE		;   zOS_POP(&bsr); // back to the expected bank
 	zOS_PSH	BSR
 	banksel	zOS_RDL
-	movf	zOS_RDL,w	;   zOS_OUT(swinum,"",zOS_AR0); // print ASCII
+	movf	zOS_RDL,w	;   zOS_CHR(swinum,zOS_AR0); // print ASCII
 	andlw	0x7f		;   INTCON &= ~(1<<GIE); // undo SWI GIE toggle
 	btfsc	ZERO		;   zOS_PSH(&bsr);
 	bra	done		;   if ((w = zOS_RDL & 0x7f) != '\0') {
 	movwf	zOS_AR0		;    zOS_ARG(0, w);
 	zOS_POP	BSR
-	zOS_OUT	swinum,"",zOS_AR0
+	zOS_CHR	swinum,zOS_AR0
 	bcf	GIE		;    zOS_POP(&bsr); // back to the expected bank
 	zOS_PSH	BSR
 	banksel	zOS_ADL
-	incfsz	zOS_ADL,f	;    zOS_SWI(swinum,"",zOS_AR0); // print ASCII
+	incfsz	zOS_ADL,f	;    zOS_CHR(swinum,zOS_AR0); // print ASCII
 	bra	loop		;    INTCON &= ~(1<<GIE); // undo SWI GIE toggle
 	incf	zOS_ADH,f	;    zOS_PSH(&bsr);
 	bra	loop		;   } else break;
