@@ -2645,11 +2645,15 @@ endmon:
 	endm
 
 zOS_NAM	macro	str
-	local	start
+	local	start,finish,len,neglen,masklen
 start:
 	db	str
 	db	0
-	db	(start-$) and 0xff
+finish:
+len	set	finish-start
+neglen	set	0-len
+masklen	set	0xff and neglen
+	db	masklen ;(start-$) and 0xff
 	endm
 
 zOS_MAN	macro	p,rat,rts,hb,pin,isr ;inline void zOS_MAN(int8_t p, int8_t rat,
