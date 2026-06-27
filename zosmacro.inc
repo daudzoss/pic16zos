@@ -1112,18 +1112,21 @@ max	set	0x70
 ;copy the preceding lines rather than including this file, as definitions for
 ;zOS_MON()-derived macros referring to these local variables wouldn't open it
 ;until expansion and would throw an undefined-var error during the processing
-
 	local	uatbase,uatxmit
 	if (p eq 0)
 uatbase	 set	TXREG and 0xff80
 uatxmit	 set	TXREG and 0x001f ; mask off just the SFR space
-rtsflag	 set	TXIF
+rtsflag	 set	PIR1_TXIF_POSN
+/*
 	else
 uatbase	 set	TX&p&REG and 0xff80
 uatxmit	 set	TX&p&REG and 0x001f ; mask off just the sfr SFR
-rtsflag	 set	TX&p&IF
+rtsflag	 set	PIR1_TX&p&IF_POSN
+*/	
 	endif
+
 	zOS_NAM	"console (output-only)"
+#if 0
 contask:
 	movlw	high uatbase	; goto decl;
 	movwf	FSR0H		;task:// all init that requires knowledge of BSR
@@ -1239,12 +1242,15 @@ do_swi:
 done:
 	zOS_RFI
 
-	;; intialize the UART peripheral, job handle and first three arguments
+#endif
+
+	;; Intialize the UART peripheral, job handle and first three arguments
 condecl:
 	banksel	uatbase
 	bcf	SPEN		;decl: // all init that is BSR independent here
 	bcf	CREN		; RCSTA &= ~((1<<SPEN)|(1<<CREN));
 	bcf	TXEN		; TXSTA &= ~(1<<TXEN);
+#if 0
 	local brgval,brgvalm,brgvalh,brgvall
 #ifdef BRG16
 brgval	set	rat>>2
@@ -1258,10 +1264,29 @@ brgvall	set	low brgvalm
 	bcf	SYNC_TXSTA
 #endif
 	bsf	BRGH		; BAUDCON |= 1<<BRG16; // 16-bit generator
+
 	movlw	brgvall		; TXSTA &= ~(1<<SYNC); // async mode
-	movwf	SPBRGL		; TXSTA |= 1<<BRGH;    // high speed
+	if (p eq 0)
+#ifdef SPBRGL
+	 movwf	SPBRGL		; TXSTA |= 1<<BRGH;    // high speed
+#else
+	 movwf	SP1BRGL		; TXSTA |= 1<<BRGH;    // high speed
+#endif
+	else
+	 movwf	SP&p&BRGL
+	endif
+
 	movlw	brgvalh		;
-	movwf	SPBRGH		; SPBRG = (rat/4) - 1;
+	if (p eq 0)
+#ifdef SPBRGH
+	 movwf	SPBRGH		; TXSTA |= 1<<BRGH;    // high speed
+#else
+	 movwf	SP1BRGH		; TXSTA |= 1<<BRGH;    // high speed
+#endif
+	else
+	 movwf	SP&p&BRGH	; SPBRG = (rat/4) - 1;
+	endif
+
 	bcf	SCKP		; BAUDCON &= ~(1<<SCKP); // "SCKP..if inverted"
 #else
 brgval	set	rat>>4
@@ -1291,6 +1316,7 @@ brgvall	set	low brgvalm
 	movlw   INTCON_T0IF_MASK
 	zOS_ARG	2
 	movlb	0		; // still in job "0": don't forget this!!!!
+#endif
 	endm			;} // zOS_CON()
 
 ;;; like zOS_CON, but also accepts console input for command-line interaction
