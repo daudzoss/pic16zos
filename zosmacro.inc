@@ -769,16 +769,19 @@ zOS_OUT	macro	swinum,str,temp
 	bra	setup		;inline void zOS_OUT(uint8_t swinum, char* str,
 agent:
 	brw			;                    uint8_t* temp) { // no '\0'
-pre
+pre:
 	db	str
 post:
+#if 0
 len	set	post-pre
 	if (len > 254)
 	 error "string too long"
 	endif
 
 	if (len)
+#endif
 setup:
+#if 0
 	 movlw	len		; zOS_SWI(zOS_YLD); // get buffer empty as poss.
 	 movwf	temp		; for (*temp = strlen(str); *temp; --*temp) {
 sloop:
@@ -791,7 +794,6 @@ loop:
 	pagesel	agent
 	 call	agent		;   zOS_SWI(zOS_YLD); // flush buffer, retry
 	zOS_ARG 0
-
 	else
 sloop:
 	movf	zOS_ME		;
@@ -805,7 +807,6 @@ setup:
 	  zOS_ARG 0
 	 endif
 	endif
-
 	zOS_SWI	swinum
 	decfsz	WREG		;   zOS_ARG(0, w = str[strlen(str) - *temp]);
 	bra	sloop		;  }
@@ -814,6 +815,7 @@ setup:
 	 decfsz	temp,f		; }
 	 bra	loop		;} // zOS_OUT()
 	endif
+#endif
 	endm
 
 zOS_PSH	macro	reg
@@ -1144,9 +1146,7 @@ contask:
 	movwf	p0		;  zOS_ENA(); // interrupts on after init done
 	movwf	p1		;  puts("\r\nWelcome to zOS\r\n");
 	zOS_ENA	;//FIXME: superfluous due to subsequent SWI
-#if 0
 	zOS_OUT	0xff,"\r\nWelcome to zOS\r\n",char_io
-#endif
 inited:
 	movf	zOS_ME		;  zOS_ARG(0, bsr);
 	zOS_ARG	0
