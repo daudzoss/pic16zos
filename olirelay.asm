@@ -6,11 +6,14 @@
 #include <pic16f1847.inc>
 
 #ifdef __DEBUG
-;FIXME;	__CONFIG _CONFIG1,_FOSC_INTOSC & _WDTE_OFF & _PWRTE_OFF & _MCLRE_ON & _CP_OFF & _CPD_OFF & _BOREN_ON & _CLKOUTEN_ON & _IESO_ON & _FCMEN_ON
+	config "FOSC" = "INTOSC", "WDTE" = "OFF", "PWRTE" = "OFF", "MCLRE" = "ON", "CP" = "OFF", "CPD" = "OFF", "BOREN" = "ON", "CLKOUTEN" = "OFF", "IESO" = "ON", "FCMEN" = "ON"
+;	__CONFIG _CONFIG1,_FOSC_INTOSC & _WDTE_OFF & _PWRTE_OFF & _MCLRE_ON & _CP_OFF & _CPD_OFF & _BOREN_ON & _CLKOUTEN_OFF & _IESO_ON & _FCMEN_ON
 #else
-;FIXME;	__CONFIG _CONFIG1,_FOSC_HS & _WDTE_ON & _PWRTE_OFF & _MCLRE_ON & _CP_OFF & _CPD_OFF & _BOREN_ON & _CLKOUTEN_OFF & _IESO_ON & _FCMEN_ON
+	config "FOSC" = "HS", "WDTE" = "ON", "PWRTE" = "OFF", "MCLRE" = "ON", "CP" = "OFF", "CPD" = "OFF", "BOREN" = "ON", "CLKOUTEN" = "OFF", "IESO" = "ON", "FCMEN" = "ON"
+;	__CONFIG _CONFIG1,_FOSC_HS & _WDTE_ON & _PWRTE_OFF & _MCLRE_ON & _CP_OFF & _CPD_OFF & _BOREN_ON & _CLKOUTEN_OFF & _IESO_ON & _FCMEN_ON
 #endif
-;FIXME;	__CONFIG _CONFIG2,_WRT_ALL & _PLLEN_OFF & _STVREN_ON & _BORV_LO & _LVP_ON
+	config "WRT" = "ALL", "PLLEN" = "OFF", "STVREN" = "ON", "BORV" = "LO", "LVP" = "ON"
+;	__CONFIG _CONFIG2,_WRT_ALL & _PLLEN_OFF & _STVREN_ON & _BORV_LO & _LVP_ON
 
 ;;; example program to control the Olimex PIC-IO relay/optoisolator board loaded
 ;;; with a PIC16F1847 microcontroller, the schematic for which may be found at
