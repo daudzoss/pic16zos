@@ -560,7 +560,7 @@ mcandid:
 	btfsc	STATUS,2	;    if (w == 0)
 	bra	invalid		;     goto invalid; // past the highest address
 
-	bsf	CARRY		;   // temp is now the address of this candidate
+	bsf	STATUS,0	;   // temp is now the address of this candidate
 	comf	temp,f		;   // w is now the next address past candidate
 	addwfc	temp,w		;
 	movwf	temp		;
@@ -1499,10 +1499,10 @@ zOS_PCT	macro	reg
 	andwf	reg,w		; w = reg & 0x7e; // 0 <= w <= reg (even, trunc)
 	lslf	reg,f 		;
 	lslf	reg,f		; uint16_t c = reg *= 4; // 0 <= reg <= 400
-	btfsc	CARRY		; if (c > 0xff)
+	btfsc	STATUS,0	; if (c > 0xff)
 	iorlw	0x01		;  w |= 1;
 	addwf	reg,f		; c = reg += w;
-	btfsc	CARRY		; if (c > 0xff)
+	btfsc	STATUS,0	; if (c > 0xff)
 	iorlw	0x01		;  w |= 1;
 	rrf	WREG		; // 0 <= (w&1)*256 + reg <= 500
 	rrf	reg,f		; reg = ((w&1)*256 + reg)/2; // 0 <= reg <= 250
@@ -1522,7 +1522,7 @@ zOS_SEL	macro	adr0,adr1,fyleb
 	endm
 
 zOS_DEC	macro	putch,puts,enc,retadr
-
+#if 0 // debugging zOS_DEC
 	local	ophi_0X,ophi_11,bitops,literal,onelit,litbyte,calllit,bradest
 	local	destreg,onedest,nametst,namereg,flagreg,regarg2,endopc
 	local	overld0,nodest,overld1,overld2,braneg,brapos,overld3,omnibus
@@ -1625,12 +1625,12 @@ onelit:
 litbyte:
 	movf	enc,w		; litbyte:
 	pagesel	putch
-	bsf	CARRY		;  putch(enc & 0xff, c = 1); // as hexadecimal
+	bsf	STATUS,0	;  putch(enc & 0xff, c = 1); // as hexadecimal
 	call	putch		;  return;
 	bra	endopc		; }
 calllit:
 	movlw	low opccall	;
-	bcf	CARRY		;
+	bcf	STATUS,0	;
 	btfsc	1+enc,3		;
 	addlw	opcgoto-opccall	;
 	movwf	FSR0L		;
@@ -1644,7 +1644,7 @@ calllit:
 bradest:
 	andwf	1+enc,w		;
 	pagesel	putch
-	bsf	CARRY		;
+	bsf	STATUS,0	;
 	call	putch		; putch((enc&0x700) >> 8,c=1); // as hexadecimal
 	bra	litbyte		; goto litbyte; // lsb above, to save space
 
@@ -1691,7 +1691,7 @@ nametst:
 	movf	enc,w		;
 	andlw	0x7f		;
 	pagesel	putch
-	bsf	CARRY		;
+	bsf	STATUS,0	;
 	call	putch		;
 	bra	flagreg		;
 namereg:
@@ -1713,10 +1713,10 @@ flagreg:
 	bra	endopc		;  return;
 	movlw	','		;
 	pagesel	putch
-	bcf	CARRY		;
+	bcf	STATUS,0	;
 	call	putch		;
 	lsrf	1+enc,w		;
-	btfsc	CARRY		;
+	btfsc	STATUS,0	;
 	bra	regarg2		;
 	movlw	'f'		;
 	btfss	enc,7		;
@@ -1733,7 +1733,7 @@ overld0:
 	movlw	low opc_mov	;
 	movwf	FSR0L		;
 	movlw	high opc_mov	;
-	bcf	CARRY		;
+	bcf	STATUS,0	;
 	btfsc	enc,7		;
 	bra	onedest		;
 	bra	omnibus		;
@@ -1747,7 +1747,7 @@ nodest:
 	goto	retadr		;
 overld1:
 	movlw	low opcclrw	;
-	bcf	CARRY		;
+	bcf	STATUS,0	;
 	btfsc	enc,7		;
 	addlw	4		; // carry handled in onedest
 	movwf	FSR0L		;
@@ -1848,7 +1848,7 @@ printof:
 	call	puts		;   puts(fsr0);
 	pagesel	putch
 	movf	1+enc,w		;
-	bsf	CARRY		;
+	bsf	STATUS,0	;
 	call	putch		;   putch(enc[1], c = 1); // hexadecimal value
 printfn:
 	swapf	enc,w		;  }
@@ -2060,6 +2060,7 @@ nameoff:
 	retlw	regnam9-regnam0	;
 	retlw	regnamA-regnam0	;
 	retlw	regnamB-regnam0	;
+#endif // debugging zOS_DEC
 	endm
 
 
@@ -2113,7 +2114,6 @@ monpack:
 	movf	BSR,w
 	movwf	zOS_JOB
 #endif
-#if 0 // debugging #define zOS_MIN
 	lsrf	zOS_JOB,w	;void monpack(char w, uint14t* fsr0) {
 	movwf	FSR1H		; // zos_job = bsr;
 	movf	1+p0,w		;
@@ -2123,6 +2123,7 @@ monpack:
 	movwf	zOS_ADL		; zOS_ADL = fsr0 & 0x00ff;
 	movf	FSR0H,w		; zOS_ADH = fsr0 >> 8;
 	movwf	zOS_ADH		; while (1) {
+
 loop:
 	zOS_RDF
 	rlf	zOS_RDL,w	;  zOS_RDF(); // read packed 14-bit contents
@@ -2161,19 +2162,16 @@ done:
 
 monout:
 	pagesel	monbufs
-	btfss	CARRY		;void monout(char w, uint1_t c) { // zOS_DEC arg
+	btfss	STATUS,0	;void monout(char w, uint1_t c) { // zOS_DEC arg
 	goto	monbufs		; if (c == 0) monbufs(w); else monlsb(w);
 	pagesel	monlsb
 	goto	monlsb		;} // monout()
 
-#endif // debugging #define zOS_MIN
 disasmb:
 	movlw	' '		;
 	pagesel	monbufs
 	call	monbufs		;
-#if 0 // debugging #define zOS_MIN
 	zOS_DEC	monout,monpack,accumul,disasmr
-#endif // debugging #define zOS_MIN
 #endif // def zOS_MIN
 
 monback:
@@ -3129,7 +3127,7 @@ manlive:
 	movwf	char_io		;    char_io = 0xe0 | *--fsr0; // max 32? chars
 #if 1 // pre-existing
 	addwf	FSR0L,f		;
-	btfss	CARRY		;
+	btfss	STATUS,0	;
 	decf	FSR0H,f		;   for (fsr0 -= char_io; ++char_io; fsr1++) {
 #else // pre-existing
 	local	manbit0,manbit1
