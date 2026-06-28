@@ -1113,15 +1113,20 @@ max	set	0x70
 ;zOS_MON()-derived macros referring to these local variables wouldn't open it
 ;until expansion and would throw an undefined-var error during the processing
 	local	uatbase,uatxmit
-	if p
+#if p
 uatbase	 set	TX&p&REG and 0xff80
 uatxmit	 set	TX&p&REG and 0x001f ; mask off just the sfr SFR
 rtsflag	 set	PIR1_TX&p&IF_POSN
-	else
+#else
+#ifdef TXREG
 uatbase	 set	TXREG and 0xff80
 uatxmit	 set	TXREG and 0x001f ; mask off just the SFR space
+#else
+uatbase	 set	TX1REG and 0xff80
+uatxmit	 set	TX1REG and 0x001f ; mask off just the SFR space
+#endif
 rtsflag	 set	PIR1_TXIF_POSN
-	endif
+#endif
 
 	zOS_NAM	"console (output-only)"
 contask:
@@ -1352,15 +1357,23 @@ max	set	0x70
 ;zOS_MON()-derived macros referring to these local variables wouldn't open it
 ;until expansion and would throw an undefined-var error during the processing
 	local	uarbase,uarecv,rxflag
-	if (p eq 0)
-uarbase	 set	RCREG and 0xff80
-uarecv	 set	RCREG and 0x7f
-rxflag	 set	RCIF
-	else
+#if p
 uarbase	 set	RC&p&REG and 0xff80
 uarecv	 set	RC&p&REG and 0x7f
-rxflag	 set	RC&p&IF
-	endif
+rxflag	 set	PIR1_RC&p&IF_POSN
+#else
+
+#ifdef RCREG
+uarbase	 set	RCREG and 0xff80
+uarecv	 set	RCREG and 0x7f
+#else
+uarbase	 set	RC1REG and 0xff80
+uarecv	 set	RC1REG and 0x7f
+#endif
+rxflag	 set	PIR1_RCIF_POSN
+
+#endif
+
 
 	zOS_NAM	"console I/O"
 ;;; FIXME: haven't actually written the var init code for zOS_MON et al yet
