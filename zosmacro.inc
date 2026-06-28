@@ -1508,12 +1508,12 @@ zOS_PCT	macro	reg
 	rrf	reg,f		; reg = ((w&1)*256 + reg)/2; // 0 <= reg <= 250
 	endm
 
-zOS_SEL	macro	adr0,adr1,fyleb
+zOS_SEL	macro	adr0,adr1,fyle,b
 	addlw	low adr0	;inline int zOS_SEL(char* adr0, char* adr1,
-	clrf	FSR0L		;                   uint8_t fyle uint3_t b,
+	clrf	FSR0L		;                   uint8_t fyle, uint3_t b,
 	addwfc	FSR0L,f		;                   uint8_t w, char** fsr0) {
 	movlw	adr1 - adr0	;
-	btfsc	fyleb		;
+	btfsc	fyle,b		;
 	addwfc	FSR0L,f		;
 	movlw	high adr0	;
 	movwf	FSR0H		; fsr0 = w + ((fyle & (1<<b)) ? adr1 : adr0);
@@ -1522,7 +1522,6 @@ zOS_SEL	macro	adr0,adr1,fyleb
 	endm
 
 zOS_DEC	macro	putch,puts,enc,retadr
-#if 0 // debugging zOS_DEC
 	local	ophi_0X,ophi_11,bitops,literal,onelit,litbyte,calllit,bradest
 	local	destreg,onedest,nametst,namereg,flagreg,regarg2,endopc
 	local	overld0,nodest,overld1,overld2,braneg,brapos,overld3,omnibus
@@ -1738,6 +1737,7 @@ overld0:
 	bra	onedest		;
 	bra	omnibus		;
 nodest:
+
 	movwf	FSR0H		;
 	clrw			;
 	addwfc	FSR0H,f		;
@@ -2060,7 +2060,6 @@ nameoff:
 	retlw	regnam9-regnam0	;
 	retlw	regnamA-regnam0	;
 	retlw	regnamB-regnam0	;
-#endif // debugging zOS_DEC
 	endm
 
 
