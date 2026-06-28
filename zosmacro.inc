@@ -2113,6 +2113,7 @@ monpack:
 	movf	BSR,w
 	movwf	zOS_JOB
 #endif
+#if 0 // debugging #define zOS_MIN
 	lsrf	zOS_JOB,w	;void monpack(char w, uint14t* fsr0) {
 	movwf	FSR1H		; // zos_job = bsr;
 	movf	1+p0,w		;
@@ -2165,11 +2166,14 @@ monout:
 	pagesel	monlsb
 	goto	monlsb		;} // monout()
 
+#endif // debugging #define zOS_MIN
 disasmb:
 	movlw	' '		;
 	pagesel	monbufs
 	call	monbufs		;
+#if 0 // debugging #define zOS_MIN
 	zOS_DEC	monout,monpack,accumul,disasmr
+#endif // debugging #define zOS_MIN
 #endif // def zOS_MIN
 
 monback:
@@ -2399,7 +2403,7 @@ mondest:
 	call	monlsb		;    moncrlf(zos_job, p0);          //     \r\n
 #ifdef zOS_MIN
 #else
-	local	disasmb,disasmr
+;	local	disasmb,disasmr
 	pagesel	disasmb
 	goto	disasmb		;    goto disasmb; disasmr:
 disasmr:
