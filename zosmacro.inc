@@ -770,7 +770,9 @@ zOS_OUT	macro	swinum,str,temp
 agent:
 	brw			;                    uint8_t* temp) { // no '\0'
 pre:
-	db	str
+	irpc	c,str
+	 retlw	'c'
+	endm
 post:
 len	set	post-pre
 #if (len > 254)
@@ -1140,9 +1142,9 @@ contask:
 	iorlw	buf		;  const char* wrap = ((bsr&1)<<7) | buf;
 	movwf	wrap		;  p0 = p1 = wrap; //reset value if they max out
 	movwf	p0		;  zOS_ENA(); // interrupts on after init done
-	movwf	p1		;  puts("\r\nWelcome to zOS\r\n");
+	movwf	p1		;  puts("__Welcome_to_zOS__");
 	zOS_ENA	;//FIXME: superfluous due to subsequent SWI
-	zOS_OUT	0xff,"\r\nWelcome to zOS\r\n",char_io
+	zOS_OUT	0xff,__Welcome_to_zOS__,char_io
 inited:
 	movf	zOS_ME		;  zOS_ARG(0, bsr);
 	zOS_ARG	0
