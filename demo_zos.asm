@@ -83,8 +83,11 @@ main:
 ;;; while SWI handlers normally know what line the interrupts will come in on,
 ;;; for flexibility of incorporation into any application this choice is not
 ;;; hardwired into zosmacro.inc library and any available line may be chosen:
-;	zOS_MAN	0,.32000000/.9600,PIR1,LATA,RA4,0
-;FIXME;	zOS_CLC	0,.32000000/.9600,PIR1,LATA,RA4,0
+#if 1
+	zOS_MAN	0,32000000/9600,PIR1,LATA,4,0
+#else
+	zOS_CLC	0,32000000/9600,PIR1,LATA,4,0
+#endif
 	movlw	OUTCHAR		;void main(void) {
 	movwi	0[FSR0]		; zOS_xxx(/*UART*/1,32MHz/9600bps,PIR1,LATA,4);
 
