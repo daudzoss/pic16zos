@@ -1496,22 +1496,18 @@ zOS_PCT	macro	reg
 	rrf	reg,f		; reg = ((w&1)*256 + reg)/2; // 0 <= reg <= 250
 	endm
 
-;;;/*
-;;;vvv this macro causes error 427 vvv
-;;;zOS_SEL	macro	adr0,adr1,file,b
-;;;	addlw	low adr0	;inline int zOS_SEL(char* adr0, char* adr1,
-;;;	clrf	FSR0L		;                   uint8_t file, uint3_t b,
-;;;	addwfc	FSR0L,f		;                   uint8_t w, char** fsr0) {
-;;;	movlw	adr1 - adr0	;
-;;;	btfsc	file,b		;
-;;;	addwfc	FSR0L,f		;
-;;;	movlw	high adr0	;
-;;;	movwf	FSR0H		; fsr0 = w + ((file & (1<<b)) ? adr1 : adr0);
-;;;	clrw			; return 0;
-;;;	addwfc	FSR0H,f		;} // zOS_SEL()
-;;;	endm
-;;;^^^ this macro causes error 427 ^^^
-;;;*/
+zOS_SEL	macro	adr0,adr1,fyleb
+	addlw	low adr0	;inline int zOS_SEL(char* adr0, char* adr1,
+	clrf	FSR0L		;                   uint8_t fyle uint3_t b,
+	addwfc	FSR0L,f		;                   uint8_t w, char** fsr0) {
+	movlw	adr1 - adr0	;
+	btfsc	fyleb		;
+	addwfc	FSR0L,f		;
+	movlw	high adr0	;
+	movwf	FSR0H		; fsr0 = w + ((fyle & (1<<b)) ? adr1 : adr0);
+	clrw			; return 0;
+	addwfc	FSR0H,f		;} // zOS_SEL()
+	endm
 
 zOS_DEC	macro	putch,puts,enc,retadr
 
@@ -1881,33 +1877,13 @@ omnibus:
 	andwf	enc,w		;  w = enc & 0x04; // 0 for FSR0, 4 for FSR1
 	btfsc	enc,1		;
 	bra	post		; if (enc & (1<<1) == 0) // pre incr/decrement
-;;;	zOS_SEL	fsrprei,fsrpred,enc,0
-	addlw	low fsrprei
-	clrf	FSR0L
-	addwfc	FSR0L,f
-	movlw	fsrpred - fsrprei
-	btfsc	enc,0
-	addwfc	FSR0L,f
-	movlw	high fsrprei
-	movwf	FSR0H
-	clrw
-	addwfc	FSR0H,f
+	zOS_SEL	fsrprei,fsrpred,enc,0
 ;;;	pagesel	puts
 	call	puts		;  puts(fsr0);
 	pagesel	retadr
 	goto	retadr		; else // post incr/decrement
 post:
-;;;	zOS_SEL	fsrposi,fsrposd,enc,0
-	addlw	low fsrposd
-	clrf	FSR0L
-	addwfc	FSR0L,f
-	movlw	fsrposd - fsrposi
-	btfsc	enc,0
-	addwfc	FSR0L,f
-	movlw	high fsrposi
-	movwf	FSR0H
-	clrw
-	addwfc	FSR0H,f
+	zOS_SEL	fsrposi,fsrposd,enc,0
 ;;;	pagesel	puts
 	call	puts		;  puts(fsr0);
 	pagesel	retadr

@@ -83,7 +83,7 @@ TMP_IOC	equ	0x7b		; scratch var (globals for init loop then job 5)
 
 
 ;;; uncomment to reduce zOS footprint by 100 words (at cost of zOS_FRK/EXE/FND):
-;zOS_MIN	equ	1
+;#define zOS_MIN
 
 PSECT resetVec,abs,ovrld,delta=2
 	org	0
@@ -115,7 +115,7 @@ w2port	macro
 	btfss	ZERO		;        PORTB;
 	movlw	low PORTB	;}
 	endm
-#if 1
+
 w2bit	macro	foobar
 	andlw	0x07		;inline uint8_t w2bit(uint8_t* foobar,
 	bsf	CARRY		;                     uint8_t w) {
@@ -130,7 +130,7 @@ w2bit	macro	foobar
 	rrf	foobar,f		; return w;
 	rrf	foobar,f		;}
 	endm
-#endif
+
 myopto1:
 	addlw	0-1		;uint8_t myopto1(uint8_t w) { switch (w) {
 myopto:
