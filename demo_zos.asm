@@ -22,7 +22,7 @@
 ;FIXME;	__CONFIG _CONFIG2,_WRT_OFF & _PPS1WAY_OFF & _ZCDDIS_ON & _PLLEN_ON & _STVREN_ON & _BORV_LO & _LPBOR_OFF & _LVP_ON
 
 ;;; uncomment to reduce zOS footprint by 100 words (at cost of zOS_FRK/EXE/FND):
-;zOS_MIN	equ	1
+#define zOS_MIN
 
 PSECT resetVec,abs,ovrld,delta=2
 	org	0

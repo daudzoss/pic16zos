@@ -155,7 +155,7 @@ zOS_ROL	macro	old,new,temp,fsrnum,base
 	endif
 	movf	new,w		;                    int8_t* base) {
 	subwf	old,w		; //responsibility of caller to banksel STKPTR
-	btfsc	ZERO		; if (*new == *old) // nothing to do
+	btfsc	STATUS,2	; if (*new == *old) // nothing to do
 	bra	done		;  return;
 	decf	WREG,w		; w = new - old - 1;
 	btfsc	WREG,7		; // set STKPTR to the current location of the
@@ -185,7 +185,7 @@ loop1:
 	movwf	STKPTR		;
 	movf	temp,w		;
 	xorwf	STKPTR,w	;
-	btfss	ZERO		; // now rebuild the unrolled stack
+	btfss	STATUS,2	; // now rebuild the unrolled stack
 	bra	loop1		;
 	clrf	STKPTR		; for (STKPTR = 0;
 loop2:
@@ -275,7 +275,7 @@ loop:
 	 btfss	WREG,7		;
 	else
 	 decf	job,f		;   goto unf; // Z was set
-	 btfsc	ZERO		;  } else if (zOS_PCH[fsrnum]) // found runnable
+	 btfsc	STATUS,2	;  } else if (zOS_PCH[fsrnum]) // found runnable
 	endif
 	bra	unf		;   return w = zOS_PCH[fsrnum]; // Z was cleared
 	if fsrnum and 3
@@ -283,7 +283,7 @@ loop:
 	else
 	 moviw	[zOS_PCH]fsr0
 	endif
-	btfsc	ZERO		; } while (1); // job is runnable (or unf was 0)
+	btfsc	STATUS,2	; } while (1); // job is runnable (or unf was 0)
 	bra	loop		;} // zOS_LIV()
 	endm
 
@@ -319,64 +319,64 @@ zos_nhw:
 	clrwdt			; do { // until serviceable by running ISR since
 	banksel	zOS_PIE
 	moviw	[zOS_HIM]fsr0	;  int8_t w = 0;  // no runnable job schedulable
-	btfsc	ZERO		;  while (zOS_LIV(&fsr0, &zOS_JOB, 0)) {
+	btfsc	STATUS,2	;  while (zOS_LIV(&fsr0, &zOS_JOB, 0)) {
 	bra	zos_nhw		;   clrwdt();
 	andwf	zOS_PIE,w	;   if (zOS_HIM[fsr0] == 0)
-	btfss	ZERO		;    continue; // non-HWI job, no match possible
+	btfss	STATUS,2	;    continue; // non-HWI job, no match possible
 	bra	zos_cmp		;  //match enabled interrupts against HIM fields
 	banksel	PIE1
 #ifdef PIE1
 	moviw	[zOS_HIM]fsr0	;   if ((w = zOS_HIM[fsr0] & zOS_PIE))
 	andwf	PIE1,w		;    break;
-	btfss	ZERO		;   if ((w = zOS_HIM[fsr0] & zOS_PIE1))
+	btfss	STATUS,2	;   if ((w = zOS_HIM[fsr0] & zOS_PIE1))
 	bra	zos_cmp		;    break;
 #endif
 #ifdef PIE2
 	moviw	[zOS_HIM]fsr0	;
 	andwf	PIE2,w		;
-	btfss	ZERO		;   if ((w = zOS_HIM[fsr0] & zOS_PIE2))
+	btfss	STATUS,2	;   if ((w = zOS_HIM[fsr0] & zOS_PIE2))
 	bra	zos_cmp		;    break;
 #endif
 #ifdef PIE3
 	moviw	[zOS_HIM]fsr0	;
 	andwf	PIE3,w		;
-	btfss	ZERO		;   if ((w = zOS_HIM[fsr0] & zOS_PIE3))
+	btfss	STATUS,2	;   if ((w = zOS_HIM[fsr0] & zOS_PIE3))
 	bra	zos_cmp		;    break;
 #endif
 #ifdef PIE4
 	moviw	[zOS_HIM]fsr0	;
 	andwf	PIE4,w		;
-	btfss	ZERO		;   if ((w = zOS_HIM[fsr0] & zOS_PIE4))
+	btfss	STATUS,2	;   if ((w = zOS_HIM[fsr0] & zOS_PIE4))
 	bra	zos_cmp		;    break;
 #endif
 #ifdef PIE5
 	moviw	[zOS_HIM]fsr0	;
 	andwf	PIE5,w		;
-	btfss	ZERO		;   if ((w = zOS_HIM[fsr0] & zOS_PIE5))
+	btfss	STATUS,2	;   if ((w = zOS_HIM[fsr0] & zOS_PIE5))
 	bra	zos_cmp		;    break;
 #endif
 #ifdef PIE6
 	moviw	[zOS_HIM]fsr0	;
 	andwf	PIE6,w		;
-	btfss	ZERO		;   if ((w = zOS_HIM[fsr0] & zOS_PIE6))
+	btfss	STATUS,2	;   if ((w = zOS_HIM[fsr0] & zOS_PIE6))
 	bra	zos_cmp		;    break;
 #endif
 #ifdef PIE7
 	moviw	[zOS_HIM]fsr0	;
 	andwf	PIE7,w		;
-	btfss	ZERO		;   if ((w = zOS_HIM[fsr0] & zOS_PIE7))
+	btfss	STATUS,2	;   if ((w = zOS_HIM[fsr0] & zOS_PIE7))
 	bra	zos_cmp		;    break;
 #endif
 #ifdef PIE8
 	moviw	[zOS_HIM]fsr0	;
 	andwf	PIE8,w		;
-	btfss	ZERO		;   if ((w = zOS_HIM[fsr0] & zOS_PIE8))
+	btfss	STATUS,2	;   if ((w = zOS_HIM[fsr0] & zOS_PIE8))
 	bra	zos_cmp		;    break;
 #endif
 #ifdef PIE9
 	moviw	[zOS_HIM]fsr0	;
 	andwf	PIE9,w		;
-	btfss	ZERO		;   if ((w = zOS_HIM[fsr0] & zOS_PIE9))
+	btfss	STATUS,2	;   if ((w = zOS_HIM[fsr0] & zOS_PIE9))
 	bra	zos_cmp		;    break; // found a potential handler for any
 #endif
 	bra	zos_nhw		;  }      // interrupt flag in this bit position
@@ -394,7 +394,7 @@ zos_sch:
 zos_noc:
 	banksel	WREG_SHAD
 	movf	BSR_SHAD,w	;  WREG_SHAD = w;zos_noc://lobber from zOS_RFI()
-	btfsc	ZERO		;  // stay in _SHAD/STKPTR/TOS bank until retfie
+	btfsc	STATUS,2	;  // stay in _SHAD/STKPTR/TOS bank until retfie
 	bra	zos_don		;  if ((zOS_JOB = BSR_SHAD)!= 0)//2x max or '004
 	movwf	zOS_JOB		;   for (zOS_MSK = 2; zOS_MSK; zOS_MSK--) {
 	movlw	3		;
@@ -410,7 +410,7 @@ zos_itr:
 	;; (but we skip a whole bunch of trivial copies if zOS_JOB==BSR_SHAD)
 	movf	BSR_SHAD,w	;
 	xorwf	zOS_JOB,w	;
-	btfsc	ZERO		;
+	btfsc	STATUS,2	;
 	bra	zos_don		;    if (zOS_JOB != BSR_SHAD) {
 
 	;; copy the interrupted job's (BSR_SHAD) criticals into its bank 0 slot;
@@ -440,7 +440,7 @@ zos_itr:
 	;; by pure chance this clobbers the "unused" range 0x72~0x7b on 1st run!
 	movlw	0x7c		;
 	xorwf	FSR0L,f		;
-	btfss	ZERO		;
+	btfss	STATUS,2	;
 	bra	zos_no0		;     if (fsr0 == 0x007c) {
 	movlw	0x0a		;
 	movwf	FSR0H		;
@@ -525,18 +525,18 @@ zos_sk2:
 	pagesel	zos_swh
 	movf	zOS_MSK,w	;
 	andlw	0xf8		; if (0 == /* call-type number: */ WREG_SHAD &
-	btfss	ZERO		;   (zOS_SI7|zOS_SI6|zOS_SI5|zOS_SI4|zOS_SI3)) {
+	btfss	STATUS,2	;   (zOS_SI7|zOS_SI6|zOS_SI5|zOS_SI4|zOS_SI3)) {
 	goto	zos_swh		;  // handle a system zOS_SWI call:
 	movf	zOS_MSK,w	;
 	xorlw	zOS_YLD		;
-	btfsc	ZERO		;  if (zOS_MSK == zOS_YLD /*==4*/) // no job arg
+	btfsc	STATUS,2	;  if (zOS_MSK == zOS_YLD /*==4*/) // no job arg
 	bra	zos_sw4		;   goto zos_sw4; // for YieLDing processor fast
 
 	;; zOS_NEW requires us to search for a BSR value first among empty slots
 	movf	BSR_SHAD,w	;
 	movwf	BSR		;  // BSR unchanged from what it had been at call
 	movf	zOS_MSK,f	;
-	btfss	ZERO		;  if (zOS_MSK == zOS_NEW /*==0*/) {
+	btfss	STATUS,2	;  if (zOS_MSK == zOS_NEW /*==0*/) {
 	bra	zos_swp		;  zos_cre:
 zos_cre:
 	clrf	zOS_JOB		;   zos_job = 0;
@@ -547,10 +547,10 @@ zos_emp:
 	incf	zOS_JOB,f	;        zos_job++ <= zOS_NUM;
 	movlw	0xff-zOS_NUM	;
 	addwf	zOS_JOB,w	;
-	btfsc	ZERO		;        fsr1 += 0x10) {
+	btfsc	STATUS,2	;        fsr1 += 0x10) {
 	bra	zos_err		;    if (zOS_PCH]fsr1 == 0)
 	moviw	[zOS_PCH]fsr1	;     break;
-	btfss	ZERO		;   }
+	btfss	STATUS,2	;   }
 	bra	zos_emp		;   if (zos_job <= zOS_NUM) {
 zos_dup:
 	movf	FSR0L,w		;    // save handle now so we can re-use fsr0
@@ -558,7 +558,7 @@ zos_dup:
 	movf	FSR0H,w		;    zOS_HDL[fsr1] = fsr0 & 0x00ff;
 	movwi	[zOS_HDH]fsr1	;    zOS_HDH[fsr1] = fsr0 >> 8;
 	movf	BSR,f		;    if (bsr == 0)
-	btfsc	ZERO		;     goto zos_swk; // job#0 (launcher) has perm
+	btfsc	STATUS,2	;     goto zos_swk; // job#0 (launcher) has perm
 	bra	zos_swk		;    fsr0 = 0x10 * (1+bsr); // struct for caller
 	zOS_MEM	FSR0L,BSR,0
 	moviw	[zOS_HDH]fsr0	;    if (zOS_HDH[fsr0] & (1<<zOS_PRB))
@@ -575,7 +575,7 @@ zos_err:
 zos_swp:
 	movf	BSR,w		;  } else {
 	movwf	zOS_JOB		;   zos_job = bsr;
-	btfsc	ZERO		;   if (bsr != 0) {
+	btfsc	STATUS,2	;   if (bsr != 0) {
 	bra	zos_elv		;    fsr1 = 0x10 * (1+bsr); // struct for job
 	zOS_MEM	FSR1L,BSR,0
 	moviw	[zOS_HDH]fsr1	;    if (zOS_HDH[fsr1] & (1<<zOS_PRB) == 0)
@@ -618,7 +618,7 @@ zos_sw2:
 	movf	BSR,w		;  case zOS_END:
 	banksel	PCLATH_SHAD	;
 	xorwf	BSR_SHAD,w	;
-	btfsc	ZERO		;   if (bsr == BSR_SHAD) // if killing self wipe
+	btfsc	STATUS,2	;   if (bsr == BSR_SHAD) // if killing self wipe
 	clrf	TOSH		;    TOSH = 0; // stack so PC can't get restored
 	xorwf	BSR_SHAD,w	;
 	movwf	BSR		;
@@ -667,12 +667,12 @@ zos_cp1:
 	incf	zOS_JOB,f	;
 	movlw	0xff-zOS_NUM	;
 	addwf	zOS_JOB,w	;
-	btfsc	ZERO		;
+	btfsc	STATUS,2	;
 	bra	zos_cpd		;
 
 	zOS_MEM	FSR0L,zOS_JOB,0
 	moviw	[zOS_PCH]fsr0	;    fsr0 = 0x10 * (1+zOS_JOB);
-	btfss	ZERO		;    if (zOS_PCH[fsr0] == 0)
+	btfss	STATUS,2	;    if (zOS_PCH[fsr0] == 0)
 	bra	zos_cp1		;     continue; // can't touch a running job
 
 	lsrf	BSR,w		;
@@ -687,7 +687,7 @@ zos_cp2:
 	movwi	fsr1--		;         *fsr1-- = *fsr0--)
 	movlw	0x60		;
 	andwf	FSR0L,w		;
-	btfss	ZERO		;
+	btfss	STATUS,2	;
 	bra	zos_cp2		;     ;
 	bra	zos_cp1		;   }
 zos_cpd:
@@ -698,7 +698,7 @@ zos_cpd:
 	movwf	zOS_JOB		;   zOS_JOB = BSR;
 	zOS_MEM	FSR1L,zOS_JOB,0
 	moviw	[zOS_PCH]fsr1	;   fsr1 = zOS_MEM(&fsr1, zOS_JOB, 0);
-	btfsc	ZERO		;
+	btfsc	STATUS,2	;
 	bra	zos_sw4		;   if ((w = zOS_PCH[fsr1]) != 0) {
 	moviw	[zOS_HDL]fsr1	;
 	movwf	FSR0L		;
@@ -727,7 +727,7 @@ zos_sw6:
 	bra	zos_dup		;   goto zos_dup;
 zos_sw7:
 	movf	zOS_AR2,w	;  case zOS_FND:
-	btfss	ZERO		;
+	btfss	STATUS,2	;
 	movlw	zOS_NUM		;
 	addlw	1		;
 	movwf	zOS_JOB		;
@@ -740,12 +740,12 @@ zos_nxt:
 	zOS_LIV	FSR1L,zOS_JOB,0,zos_bad
 	moviw	[zOS_HDL]fsr1	;   while (zOS_LIV(&fsr1, &zOS_JOB, 0)) {
 	xorwf	zOS_AR0,w	;
-	btfss	ZERO		;
+	btfss	STATUS,2	;
 	bra	zos_nxt		;
 	moviw	[zOS_HDH]fsr1	;    void (*a)() = (zOS_AR1<<8)|zOS_AR0;
 	xorwf	zOS_AR1,w	;    void (*b)() = (zOS_HDH[fsr1]<<8)|zOS_HDL[fsr1];
 	andlw	0x7f		;
-	btfss	ZERO		;    if (a & 0x7f == b & 0x7f)
+	btfss	STATUS,2	;    if (a & 0x7f == b & 0x7f)
 	bra	zos_nxt		;     zOS_RFS(zOS_JOB);
 	zOS_RFS	zOS_JOB		;   }
 zos_bad:
@@ -767,7 +767,7 @@ zos_swl:
 	zOS_LIV	FSR0L,zOS_JOB,0,zos_swm
 	moviw	[zOS_SIM]fsr0	;
 	andwf	zOS_MSK,w	;
-	btfsc	ZERO		;
+	btfsc	STATUS,2	;
 	bra	zos_swl		;  if ((zos_msk & zOS_SIM[fsr0]) != 0) { //found
 	movwf	zOS_MSK		;   zos_msk &= zOS_SIM[fsr0];
 	moviw	[zOS_ISH]fsr0	;   goto (void*)(zOS_ISR[fsr0]); // will zOS_RFS
@@ -790,7 +790,7 @@ zos_zer:
 	movwi	fsr0--		;  *fsr = 0; // only zOS_PCH is critical
 	movlw	0x60		;
 	andwf	FSR0L,w		;
-	btfss	ZERO		;
+	btfss	STATUS,2	;
 	bra	zos_zer		;
 
 	;; your program starts here, with a series of launcher instructions for

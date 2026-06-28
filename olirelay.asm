@@ -83,7 +83,7 @@ TMP_IOC	equ	0x7b		; scratch var (globals for init loop then job 5)
 
 
 ;;; uncomment to reduce zOS footprint by 100 words (at cost of zOS_FRK/EXE/FND):
-;#define zOS_MIN
+#define zOS_MIN
 
 PSECT resetVec,abs,ovrld,delta=2
 	org	0
