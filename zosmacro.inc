@@ -2216,7 +2216,7 @@ monspc:
 	movlw	' '		;void monspc(void) { zOS_AR0 = ' '; monbufs(ptr);
 	bra	monbufs		;} // monscp()
 monlf:
-	movlw	'\n'		; return zOS_BUF(zos_job, ptr, w);
+	movlw	0x0a ;'\n'	; return zOS_BUF(zos_job, ptr, w);
 monbufs:
 	movwf	zOS_AR0		;} // moncrlf() monlf()
 monbufd:
@@ -2272,7 +2272,7 @@ monchr1:
 	xorlw	0x7f		;
 	btfss	ZERO		;  case '\0177':
 	bra	monchr2		;
-	movlw	'\r'		;
+	movlw	0x0d ;'\r'	;
 	pagesel	monbufs
 	call	monbufs		;   monbuf(zos_job, p0, '\r');
 	pagesel	monprmp
@@ -2289,7 +2289,7 @@ monchr2:
 	xorlw	0x0d		;
 	btfss	ZERO		;  case '\r':
 	bra	monchr3		;   monbuf(zos_job, p0, '\n');// follows the \r
-	movlw	'\r'		;
+	movlw	0x0d ;'\r'	;
 	pagesel	monbufs		;
 	call	monbufs		;
 	pagesel	monlf		;
@@ -2391,9 +2391,9 @@ mondest:
 	goto	disasmb		;    goto disasmb; disasmr:
 disasmr:
 #endif
-	movlw	'\r'
+	movlw	0x0d ; '\r'	;
 	pagesel	monbufs
-	call	monbufs
+	call	monbufs		;
 	pagesel	monlf
 	call	monlf		;    goto monprmp;
 	pagesel	monprmp
@@ -2421,7 +2421,7 @@ monram:
 	movwf	destreg		;
 	movf	FSR0H,w		;
 	movwf	1+destreg	;    destreg = fsr0;
-	movlw	'\r'		;    monbufs('\r');
+	movlw	0x0d ;'\r'	;    monbufs('\r');
 	pagesel	monbufs
 	call	monbufs		;    monbufs('\n');
 	pagesel	monlf
@@ -2631,8 +2631,6 @@ masklen	set	0xff and neglen
 	endm
 
 zOS_MAN	macro	p,rat,rts,hb,pin,isr ;inline void zOS_MAN(int8_t p, int8_t rat,
-	pagesel	endman
-	goto	endman		;                      int8_t* hb, int8_t pin) {
 
 	local	mantask,manisr,manchr,manchr0,reenable,manchr1,manchr2,manchr3
 	local	manchr4,manchr5,manchr6,manchr7,manchr8,manchr9,mannone,jobinfo
@@ -2640,6 +2638,9 @@ zOS_MAN	macro	p,rat,rts,hb,pin,isr ;inline void zOS_MAN(int8_t p, int8_t rat,
 
 	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,optadrl
 	local	optadrh,accumul,accumuh,numbase,destreg,destreh,char_io,buf,max
+
+	pagesel	endman
+	goto	endman		;                      int8_t* hb, int8_t pin) {
 
 	;; 0x20~24 reserved for zOS_CON
 p0	set	0x20
@@ -2675,10 +2676,10 @@ max	set	0x70
 #endif
 
 mantask:
-#if 0
+#if 0 //preexisting
 	movf	zOS_JOB,w	;int8_t mantask(void) {//destreg,accumul,char_io
 	movwf	BSR		; bsr = zos_job; // to access char_io
-#endif
+#endif //preexisting
 	movf	char_io,w	; if (char_io == 0)
 	btfsc	ZERO		;  return 0; // back to zOS_CON task
 	return			; switch (char_io) {
@@ -2745,22 +2746,22 @@ manchr0:
 	movlp	0		;   INTCON &= ~(1<<GIE);// for zOS_AR and _BUF()
 	call	0x02		;   zOS_ARG(1, w);
 	zOS_ARG	0		;   zOS_ARG(0, 0);
-#if 0
+#if 0 // preexisting
 	clrf	zOS_AR1		;   zOS_BUF(zos_job, p0); //print hex SWI result
 	xorwf	zOS_AR1,f	;   zOS_ENA();
 	xorwf	zOS_AR0,f	;   goto caseJ;
 	zOS_BUF	FSR0L,max,p0
-#else
+#else // preexisting
 	zOS_ARG	1		;
 	xorwf	zOS_AR0,f	;
 	zOS_SWI	0xff
-	movlw	'\r'		;
+	movlw	0x0d ;'\r'	;
 	zOS_ARG	0		;
 	zOS_SWI	0xff		;
-	movlw	'\n'		;
+	movlw	0x0a ;'\n'	;
 	zOS_ARG	0		;
 	zOS_SWI	0xff		;
-#endif
+#endif // preexisting
 
 reenabl:
 	zOS_ENA
@@ -2922,7 +2923,7 @@ manchr7:
 	clrf	char_io		;   break;
 
 manchr8:
-#if 0
+#if 0 // pre-existing
 	movf	char_io,w	;  }
 	xorlw	'S'		;
 	btfss	ZERO		;
@@ -2943,7 +2944,7 @@ manchr8:
 	goto	stkinfo		;  zOS_ENA(); // re-enable interrupts if p0!=p1
 	zOS_ENA
 	retlw	0		;  return 0;//try again after caller advances p0
-#endif
+#endif // pre-existing
 
 manchr9:
 	movf	char_io,w	;
@@ -2963,7 +2964,7 @@ manchr9:
 mannone:
 	retlw	0		; } return 0; //naught to do }
 
-#if 0
+#if 0 // pre-existing
 	;guaranteed to arrive with p0=p1, interrupts off and in the correct bank
 stkinfo:
 	movf	wrap,f		;int8_t stkinfo(void) {
@@ -2980,9 +2981,9 @@ stkinfo:
 	addfsr	FSR0,6		;
 	addfsr	FSR0,6		; fsr0 = zOS_STK + 6 * (5 - accumul);
 	zOS_LOC	FSR1L,zOS_JOB,buf
-	movlw	'\r'		; fsr1 = (zOS_JOB << 7) + buf;
+	movlw	0x0d ;'\r'	; fsr1 = (zOS_JOB << 7) + buf;
 	movwi	FSR1++		;
-	movlw	'\n'		;
+	movlw	0x0a ;'\n'	;
 	movwi	FSR1++		;
 	movlw	'-'		;
 	movwi	FSR1++		;
@@ -3010,7 +3011,7 @@ stkloop:
 	clrf	char_io		; return w;
 	zOS_ENA
 	return			;} // stkinfo()
-#endif
+#endif // pre-existing
 	;guaranteed to arrive with p0=p1, interrupts off and in the correct bank
 jobinfo:
 	movf	wrap,w		;int8_t jobinfo(void) {
@@ -3018,9 +3019,9 @@ jobinfo:
 	movwf	p1		; fsr0 = 0x10 * (1 + accumul); //FIXME: 2+
 	zOS_MEM	FSR0L,accumul,0
 	zOS_LOC	FSR1L,zOS_JOB,buf
-	movlw	'\r'		; fsr1 = (zOS_JOB << 7) + buf;
+	movlw	0x0d ;'\r'	; fsr1 = (zOS_JOB << 7) + buf;
 	movwi	FSR1++		;
-	movlw	'\n'		;
+	movlw	0x0a ;'\n'	;
 	movwi	FSR1++		;
 	movf	accumul,w	; // print this job number 5/4/3/2/1
 	zOS_HEX
@@ -3052,6 +3053,7 @@ jobinfo:
 	zOS_IHF	zOS_PCH,FSR0L,FSR1L
 	moviw	[zOS_PCH]fsr0	; // drop out after PCH if 0 (job is deleted)
 	btfsc	ZERO		; p1 += sprintf(p1, "%02X", zOS_PCH[fsr0]);
+
 	bra	manname		; if (zOS_PCH[fsr0] & 0xff00) {
 	zOS_IHF	zOS_PCL,FSR0L,FSR1L
 	movlw	' '		;  // print the low byte of program counter
@@ -3065,7 +3067,7 @@ jobinfo:
 	movwi	FSR1++		;
 	movlw	'R'		;
 	movwi	FSR1++		;
-	movlw	'@'		;
+	movlw	0x40 ;'@'	;
 	movwi	FSR1++		;   // print ISR@ then 4-hex-digit routine addr
 	zOS_IHF	zOS_ISH,FSR0L,FSR1L
 	zOS_IHF	zOS_ISR,FSR0L,FSR1L
@@ -3107,11 +3109,11 @@ manlive:
 	moviw	--FSR0		;
 	iorlw	0xe0		;
 	movwf	char_io		;    char_io = 0xe0 | *--fsr0; // max 32? chars
-#if 1
+#if 1 // pre-existing
 	addwf	FSR0L,f		;
 	btfss	CARRY		;
 	decf	FSR0H,f		;   for (fsr0 -= char_io; ++char_io; fsr1++) {
-#else
+#else // pre-existing
 	local	manbit0,manbit1
 	movf	FSR0L,w		;
 	addwf	char_io,w	;
@@ -3125,7 +3127,7 @@ manbit0:
 	decf	FSR0H,f		;
 manbit1:
 	movwf	FSR0L		;   for (fsr0 -= char_io; ++char_io; fsr1++) {
-#endif
+#endif // pre-existing
 manloop:
 	moviw	FSR0++		;    char w = *fsr0++ ;
 	btfsc	WREG,7		;
@@ -3140,9 +3142,9 @@ manloop:
 crlf:
 	movlw	0x22 ;'"'	;
 	movwi	FSR1++		;
-	movlw	'\r'		;  }
+	movlw	0x0d ;'\r'	;  }
 	movwi	FSR1++		; }
-	movlw	'\n'		; // print a second \r\n, double-spacing table
+	movlw	0x0a ;'\n'	; // print a second \r\n, double-spacing table
 	movwi	FSR1++		; p1 += sprintf(p1, "\r\n");
 
 	movlw	'J'		;
@@ -3161,7 +3163,9 @@ vars	set	0x20
 manl	set	optadrl-vars
 manh	set	optadrh-vars
 
+#if 0
 	zOS_MON	p,rat,rts,hb,pin,isr
+#endif
 	movlw	low mantask	; zOS_MON(p,ra,rt,h,pi,manisr); //fsr0=swi,1=adr
 	movwi	[manl]fsr1	; optadrl = mantask & 0x00ff;
 	movlw	high mantask	; optadrh = mantask >> 8;
@@ -3316,7 +3320,7 @@ clctbl:
 	retlw	'Y'
 	retlw	'Z'		; 0 to disable entry into low-power sleep mode
 	retlw	'[' ; '{'	;
-	retlw	'\\' ; '|'	;
+	retlw	'\' ; '|'	;
 	retlw	']' ; '}'	;
 	retlw	'^' ; '~'	; 0 to disable command-line zos_mac() exponents
 clcsize	equ	$-clctbl
@@ -3460,10 +3464,10 @@ clcchr7:
 	endif
 
 clcprmp:
-	movlw	'\r'		;
+	movlw	0x0d ;'\r'	;
 	pagesel	monbufs
 	call	monbufs		;
-	movlw	'\n'		;
+	movlw	0x0a ;'\n'	;
 	pagesel	monbufs
 	call	monbufs		;
 	movlw	'0'
@@ -3480,10 +3484,10 @@ clcprmp:
 	movwf	accumuh		;clclast:
 	pagesel	monlsb
 	call	monlsb		; zOS_ACC(&accumul,&numbase); zOS_RFI();
-	movlw	'\r'		;
+	movlw	0x0d ;'\r'	;
 	pagesel	monbufs
 	call	monbufs		;
-	movlw	'\n'		;
+	movlw	0x0a ;'\n'	;
 	pagesel	monbufs
 	call	monbufs		; char_io = 0;
 	zOS_ACC	accumul,numbase
