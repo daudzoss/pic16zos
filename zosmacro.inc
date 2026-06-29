@@ -3093,7 +3093,7 @@ manname:
 	moviw	[zOS_PCH]fsr0	;
 	btfss	STATUS,2	;
 	bra	manlive		;   if (zOS_PCH[fsr0] == 0) {
-	movlw 	low mandead	;    static char mandead = "<not running>";
+	movlw 	low mandead	;    static char mandead = "(not running)";
 	movwf	FSR0L		;
 	movlw	high mandead	;
 	movwf	FSR0H		;    fsr0 = mandead;
@@ -3101,7 +3101,7 @@ manname:
 	movwf	char_io		;    char_io = strlen(mandead);
 	bra	manloop		;
 mandead:
-	zOS_NAM	"<not running>"
+	zOS_NAM	"(not running)"
 manlive:
 	moviw	[zOS_HDL]fsr0	;   } else {
 	movwf	char_io		;
