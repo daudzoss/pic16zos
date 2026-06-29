@@ -81,7 +81,7 @@ TMP_IOC	equ	0x7b		; scratch var (globals for init loop then job 5)
 
 
 ;;; uncomment to reduce zOS footprint by 100 words (at cost of zOS_FRK/EXE/FND):
-;zOS_MIN	equ	1
+zOS_MIN	equ	1
 	
 	include zos.inc
 	include zosmacro.inc
@@ -365,8 +365,6 @@ CLKRAT	equ	.020000000/.000009600
 #endif
 	
 #ifdef zOS_MIN
-	zOS_CON	0,CLKRAT,PIR1,PORTB,RB5,0
-#else
 	zOS_MAN	0,CLKRAT,PIR1,PORTB,RB5,0
 	movlw	OUTCHAR		; zOS_MON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
 	movwi	0[FSR0]		; zOS_ARG(3, OUTCHAR/*only 1 SWI*/);
