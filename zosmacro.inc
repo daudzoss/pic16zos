@@ -21,7 +21,7 @@ zOS_GLO	macro	fsrnum,job
 	endif
 	andlw	0x0e		; int8_t w = 0x70 | ((job ? *job : bsr) << 1);
 	iorlw	0x70		;
-	if (fsrnum and 3)
+	if (fsrnum and 2)
 	 movwf	FSR1L		;// documentation suggests 5 but BSR now 6 bits!
 	 movlw	0x1f		; *fsrnum = (*fsrnum & 0x1f00) | w;
 	 andwf	FSR1H,f		;} // zOS_GLO()
@@ -37,7 +37,7 @@ zOS_MY2	macro	fsrnum		;inline int8_t zOS_MY2(int8_t**fsrnum){
 	endm			;} // zOS_MY2()
 
 zOS_LOC macro	fsrnum,job,offset
-	if (fsrnum and 3)
+	if (fsrnum and 2)
 	 if (offset)
 	  movlw	offset<<1	;inline int8_t zOS_LOC(int8_t* *fsrnum,
 	  movwf	FSR1L		;        int8_t* job, uint8_t offset) {
@@ -141,7 +141,7 @@ zOS_ACT	macro	fsrnum
 	bra	proceed		;   (*fsrn)[zOS_PCH] &= 0x7f; // allowed to run
 	bra	endact		;  } // else w was > 5
 proceed:
-	if (fsrnum and 3)
+	if (fsrnum and 2)
 	 zOS_MEM FSR1H,WREG,zOS_PCH
 	 movlw	0x7f		; } // else w was < 1
 	 andwf	INDF1,f		;
@@ -159,7 +159,7 @@ endact:
 
 zOS_INI	macro	fsrnum,val0,val1
 ;after:	zOS_LAU	FSR&fsrnum&L
-	if (fsrnum and 3)
+	if (fsrnum and 2)
 	 lslf	FSR1L,f		;inline void zOS_INI(uint8_t* fsrnum, uint8_t
 	 movlw	0x70		;                    val0, uint8_t val1) {
 	 iorwf	FSR1L,f		; //fsrnum starts and ends as a launched job#
@@ -186,7 +186,7 @@ zOS_INI	macro	fsrnum,val0,val1
 
 zOS_DIS	macro	fsrnum,job	;inline void zOS_DIS(int8_t* *fsr, int8_t job) {
 	if (job)
-	 if (fsrnum and 3)
+	 if (fsrnum and 2)
 	  zOS_MEM FSR1L,job,zOS_HDH	; *fsr = 0x10 * (1+job) + zOS_HDH;//priv
 	  btfsc	INDF1,zOS_PRB	; if (**fsr & (1<<zOS_PRB))
 	 else
@@ -448,7 +448,7 @@ spinmul:
 #endif
 
 zOS_PAG	macro	fsrnum
-	if (fsrnum and 3)
+	if (fsrnum and 2)
 	 swapf	FSR1L,w		;uint8_t zOS_PAG(void* fsrnum) {
 	 andlw	0x0f		;
 	 bcf	FSR1H,5		;
@@ -468,7 +468,7 @@ zOS_PAG	macro	fsrnum
 	endm
 
 zOS_PTR	macro	fsrnum
-	if (fsrnum and 3)
+	if (fsrnum and 2)
 	 swapf	WREG,w			;void zOS_PTR(void** fsrnum, uint8_t w) {
 	 movwf	FSR1H		;
 	 movwf	FSR1L		;
@@ -722,25 +722,25 @@ zOS_HEX	macro
 
 zOS_IHF	macro	ofs,fsrsrc,fsrdst
 
-	if (fsrsrc and 3)
+	if (fsrsrc and 2)
 	 moviw	[ofs]fsr1	;inline void zOS_IHF(int8_t ofs, int fsrnum,
 	else
 	 moviw	[ofs]fsr0	;inline void zOS_IHF(int8_t ofs, int fsrnum,
 	endif
 	swapf	WREG,w		;                                char* file) {
 	zOS_HEX
-	if (fsrdst and 3)
+	if (fsrdst and 2)
 	 movwi	FSR1++		; file[0] = zOS_HEX(ofs[fsrnum] >> 4);
 	else
 	 movwi	FSR0++		; file[0] = zOS_HEX(ofs[fsrnum] >> 4);
 	endif
-	if (fsrsrc and 3)
+	if (fsrsrc and 2)
 	 moviw	[ofs]fsr1	; file[1] = zOS_HEX(ofs[fsrnum]);
 	else
 	 moviw	[ofs]fsr0	; file[1] = zOS_HEX(ofs[fsrnum]);
 	endif
 	zOS_HEX
-	if (fsrdst and 3)
+	if (fsrdst and 2)
 	 movwi	FSR1++		;} // zOS_IHF()
 	else
 	 movwi	FSR0++		;} // zOS_IHF()
@@ -967,7 +967,7 @@ done:
 	endm			;} // zOS_STR()
 
 zOS_PUT	macro	fsrnum,max,wrap,p
-	if (fsrnum and 3)
+	if (fsrnum and 2)
 	 movwi	FSR1++		;inline int8_t zOS_PUT(char**fsrnum,uint7_t max,
 	 movf	FSR1L,w		;                 char* wrap, char* p, char w) {
 	else
@@ -978,7 +978,7 @@ zOS_PUT	macro	fsrnum,max,wrap,p
 	xorlw	max		; // w gets put in buffer regardless, but caller
 	swapf	wrap,w		; // only updates the local pointer if not full
 	btfss	STATUS,2	; // (i.e. Z not set) by xor return value with p
-	if (fsrnum and 3)
+	if (fsrnum and 2)
 	 swapf	FSR1L,w		; *fsrnum = (*fsrnum&0x7f==max) ? wrap :*fsrnum;
 	 swapf	WREG		; return (*fsrnum & 0x00ff) ^ p; //0 if full, or
 	 movwf	FSR1L		;              // new pointer value xor p if not
@@ -993,7 +993,7 @@ zOS_PUT	macro	fsrnum,max,wrap,p
 zOS_BUF	macro	fsrnum,max,ptr
 	local	ascii,err1,done
 	lsrf	zOS_ME		;inline int8_t zOS_BUF(char**fsrnum,uint7_t max,
-	if (fsrnum and 3)
+	if (fsrnum and 2)
 	 movwf	FSR1H		;          char** ptr, char w) { // p0, p1, wrap
 	 movf	1+ptr,w		; // must be in job bank already, interrupts off
 	 movwf	FSR1L		; fsr0 = (bsr<<7) | ptr[1]; // insertion pointer
