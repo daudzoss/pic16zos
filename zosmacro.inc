@@ -2550,9 +2550,9 @@ endmon
 zOS_NAM	macro	str
 	local	start
 start
-	db	str
-	db	0
-	db	start-$
+	de	str
+	de	0
+	de	start-$
 	endm
 
 zOS_MAN	macro	p,rat,rts,hb,pin,isr ;inline void zOS_MAN(int8_t p, int8_t rat,
