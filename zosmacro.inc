@@ -15,7 +15,7 @@
 
 zOS_GLO	macro	fsrnum,job
 	local	fsrn
-	if (fsrnum & 3)
+	if (fsrnum & 2)
 fsrn set 1
 	else
 fsrn set 0
@@ -38,7 +38,7 @@ zOS_MY2	macro	fsrnum		;inline int8_t zOS_MY2(int8_t**fsrnum){
 
 zOS_LOC macro	fsrnum,job,offset
 	local	fsrn
-	if (fsrnum & 3)
+	if (fsrnum & 2)
 fsrn set 1
 	else
 fsrn set 0
@@ -123,7 +123,7 @@ retry
 
 zOS_ACT	macro	fsrnum
 	local	proceed,endact
-	if (fsrnum & 3)
+	if (fsrnum & 2)
 fsrn	 set 1
 	else
 fsrn	 set 0
@@ -146,7 +146,7 @@ endact
 	endm
 	
 zOS_INI	macro	fsrnum,val0,val1
-	if (fsrnum & 3)
+	if (fsrnum & 2)
 fsrn	 set 1
 	else
 fsrn	 set 0
@@ -166,7 +166,7 @@ fsrn	 set 0
 
 
 zOS_DIS	macro	fsrnum,job	;inline void zOS_DIS(int8_t* *fsr, int8_t job) {
-	if (fsrnum & 3)
+	if (fsrnum & 2)
 fsrn	 set 1
 	else
 fsrn	 set 0
@@ -429,7 +429,7 @@ spinmul
 
 zOS_PAG	macro	fsrnum
 	local	fsrn
-	if (fsrnum & 3)
+	if (fsrnum & 2)
 fsrn set 1
 	else
 fsrn set 0
@@ -446,7 +446,7 @@ fsrn set 0
 	
 zOS_PTR	macro	fsrnum
 	local	fsrn
-	if (fsrnum & 3)
+	if (fsrnum & 2)
 fsrn set 1
 	else
 fsrn set 0
@@ -695,12 +695,12 @@ zOS_HEX	macro
 	
 zOS_IHF	macro	ofs,fsrsrc,fsrdst
 	local	src,dst
-	if (fsrsrc & 3)
+	if (fsrsrc & 2)
 src set 1	
 	else
 src set 0
 	endif
-	if (fsrdst & 3)
+	if (fsrdst & 2)
 dst set 1	
 	else
 dst set 0
@@ -936,7 +936,7 @@ done
 
 zOS_PUT	macro	fsrnum,max,wrap,p
 	local	fsrn
-	if (fsrnum & 3)
+	if (fsrnum & 2)
 fsrn set 1
 	else
 fsrn set 0
@@ -956,7 +956,7 @@ fsrn set 0
 zOS_BUF	macro	fsrnum,max,ptr
 	local	ascii,err1,done
 	local	fsrn
-	if (fsrnum & 3)
+	if (fsrnum & 2)
 fsrn set 1
 	else
 fsrn set 0
