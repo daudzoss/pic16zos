@@ -721,37 +721,26 @@ zOS_HEX	macro
 	endm
 
 zOS_IHF	macro	ofs,fsrsrc,fsrdst
-	local	src,dst
-	if (fsrsrc and 3)
-src set 1
-	else
-src set 0
-	endif
-	if (fsrdst and 3)
-dst set 1
-	else
-dst set 0
-	endif
 
-	if src
+	if (fsrsrc and 3)
 	 moviw	[ofs]fsr1	;inline void zOS_IHF(int8_t ofs, int fsrnum,
 	else
 	 moviw	[ofs]fsr0	;inline void zOS_IHF(int8_t ofs, int fsrnum,
 	endif
 	swapf	WREG,w		;                                char* file) {
 	zOS_HEX
-	if dst
+	if (fsrdst and 3)
 	 movwi	FSR1++		; file[0] = zOS_HEX(ofs[fsrnum] >> 4);
 	else
 	 movwi	FSR0++		; file[0] = zOS_HEX(ofs[fsrnum] >> 4);
 	endif
-	if src
+	if (fsrsrc and 3)
 	 moviw	[ofs]fsr1	; file[1] = zOS_HEX(ofs[fsrnum]);
 	else
 	 moviw	[ofs]fsr0	; file[1] = zOS_HEX(ofs[fsrnum]);
 	endif
 	zOS_HEX
-	if dst
+	if (fsrdst and 3)
 	 movwi	FSR1++		;} // zOS_IHF()
 	else
 	 movwi	FSR0++		;} // zOS_IHF()
