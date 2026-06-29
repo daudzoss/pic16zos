@@ -17,7 +17,7 @@ zOS_GLO	macro	fsrnum,job
 	if (job)
 	 lslf	job,w		;inline void zOS_GLO(int8_t**fsrnum,int8_t*job){
 	else
-	 lslf	zOS_ME		;        
+	 lslf	zOS_ME		;   
 	endif
 	andlw	0x0e		; int8_t w = 0x70 | ((job ? *job : bsr) << 1);
 	iorlw	0x70		;
@@ -40,32 +40,32 @@ zOS_LOC macro	fsrnum,job,offset
 	if (fsrnum and 3)
 	 if (offset)
 	  movlw	offset<<1	;inline int8_t zOS_LOC(int8_t* *fsrnum,
-	  movwf	FSR1L	;        int8_t* job, uint8_t offset) {
+	  movwf	FSR1L		;        int8_t* job, uint8_t offset) {
 	 else
-	  clrf	FSR1L	;
+	  clrf	FSR1L		;
 	 endif
 	 if (job - FSR1H)
 	  lsrf	job,w		;
-	  movwf	FSR1H	; return (*fsrnum = (job<<7) | offset) >> 8;
+	  movwf	FSR1H		; return (*fsrnum = (job<<7) | offset) >> 8;
 	 else
 	  lsrf	job,f
 	 endif
-	 rrf	FSR1L,f	;} // zOS_LOC()
+	 rrf	FSR1L,f		;} // zOS_LOC()
 	else
 	 if (offset)
 	  movlw	offset<<1	;inline int8_t zOS_LOC(int8_t* *fsrnum,
-	  movwf	FSR0L	;        int8_t* job, uint8_t offset) {
+	  movwf	FSR0L		;        int8_t* job, uint8_t offset) {
 	 else
-	  clrf	FSR0L	;
+	  clrf	FSR0L		;	
 	 endif
 	 if (job - FSR0H)
 	  lsrf	job,w		;
-	  movwf	FSR0H	; return (*fsrnum = (job<<7) | offset) >> 8;
+	  movwf	FSR0H		; return (*fsrnum = (job<<7) | offset) >> 8;
 	 else
 	  lsrf	job,f
 	 endif
-	 rrf	FSR0L,f	;} // zOS_LOC()
-        endif
+	 rrf	FSR0L,f		;} // zOS_LOC()
+	endif
 	endm
 
 zOS_ADR	macro	adr,msb
@@ -144,13 +144,13 @@ proceed:
 	if (fsrnum and 3)
 	 zOS_MEM FSR1H,WREG,zOS_PCH
 	 movlw	0x7f		; } // else w was < 1
-	 andwf	INDF1,f	;
-	 swapf	FSR1L,w	;
+	 andwf	INDF1,f		;
+	 swapf	FSR1L,w		;
 	else
 	 zOS_MEM FSR0H,WREG,zOS_PCH
 	 movlw	0x7f		; } // else w was < 1
-	 andwf	INDF0,f	;
-	 swapf	FSR0L,w	;
+	 andwf	INDF0,f		;
+	 swapf	FSR0L,w		;
 	endif
 	andlw	0x07		; return w;
 	addlw	0xff		;} // zOS_ACT()
@@ -220,7 +220,7 @@ num set (arg and 0x03)
 	endm
 
 zOS_RUN	macro	t0enable,t0flags
-        ;; start a TMR0 interrupt since none found (most in INTCON, others PIE0)
+	;; start a TMR0 interrupt since none found (most in INTCON, others PIE0)
 zOS_T0E	equ	t0enable
 zOS_T0F	equ	t0flags
 	if (zOS_T0E)
@@ -282,7 +282,7 @@ mem1&=0x7f
 fac1L	set	0x1f and PID1SETL ; "PID1SELT" in table 3-14!
 fac1H 	set	0x1f and PID1SETH
 start	set	0x1f and PID1INL
-zeroH	set     0x1f and PID1INH
+zeroH	set	0x1f and PID1INH
 fac0L	set	0x1f and PID1K1L
 fac0H	set	0x1f and PID1K1H
 out0	set	0x1f and PID1OUTLL
@@ -469,23 +469,23 @@ zOS_PAG	macro	fsrnum
 
 zOS_PTR	macro	fsrnum
 	if (fsrnum and 3)
-	 swapf	WREG,w	     	;void zOS_PTR(void** fsrnum, uint8_t w) {
-	 movwf	FSR1H	;
-	 movwf	FSR1L	;
+	 swapf	WREG,w			;void zOS_PTR(void** fsrnum, uint8_t w) {
+	 movwf	FSR1H		;
+	 movwf	FSR1L		;
 	 movlw	0x0f		;
-	 andwf	FSR1H,f	;
-	 bsf	FSR1H,4	;
+	 andwf	FSR1H,f		;
+	 bsf	FSR1H,4		;
 	 movlw	0xf0		; *fsrnum = 0x2000 | w<<4;
-	 andwf	FSR1L,f	;} // zOS_PTR()
+	 andwf	FSR1L,f		;} // zOS_PTR()
 	else
-	 swapf	WREG,w	     	;void zOS_PTR(void** fsrnum, uint8_t w) {
-	 movwf	FSR0H	;
-	 movwf	FSR0L	;
+	 swapf	WREG,w			;void zOS_PTR(void** fsrnum, uint8_t w) {
+	 movwf	FSR0H		;
+	 movwf	FSR0L		;
 	 movlw	0x0f		;
-	 andwf	FSR0H,f	;
-	 bsf	FSR0H,4	;
+	 andwf	FSR0H,f		;
+	 bsf	FSR0H,4		;
 	 movlw	0xf0		; *fsrnum = 0x2000 | w<<4;
-	 andwf	FSR0L,f	;} // zOS_PTR()
+	 andwf	FSR0L,f		;} // zOS_PTR()
 	endif
 	endm
 
@@ -810,7 +810,7 @@ sloop:
 	zOS_SWI	zOS_YLD
 setup:
 	movf	chr,w		; while (zOS_SWI(swinum) != 1) // buffer full
-        zOS_ARG 0
+	zOS_ARG 0
 	zOS_SWI	swinum
 	decfsz	WREG		;  zOS_SWI(zOS_YLD); // flush buffer, retry
 	bra	sloop		;}
@@ -1070,7 +1070,7 @@ decl:
 	zOS_ARG	2
 	clrw		  	;} // zOS_NUL()
 	zOS_ARG	3
-	movlb   0               ; // still in job "0": don't forget this!!!!
+	movlb   0			; // still in job "0": don't forget this!!!!
 	endm
 
 zOS_CON	macro	p,rat,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t rat,int8_t
@@ -1114,18 +1114,18 @@ max	set	0x70
 ;until expansion and would throw an undefined-var error during the processing
 	local	uatbase,uatxmit
 #if p
-uatbase	 set	TX&p&REG and 0xff80
-uatxmit	 set	TX&p&REG and 0x001f ; mask off just the sfr SFR
-rtsflag	 set	PIR1_TX&p&IF_POSN
+uatbase	set	TX&p&REG and 0xff80
+uatxmit	set	TX&p&REG and 0x001f ; mask off just the sfr SFR
+rtsflag	set	PIR1_TX&p&IF_POSN
 #else
 #ifdef TXREG
-uatbase	 set	TXREG and 0xff80
-uatxmit	 set	TXREG and 0x001f ; mask off just the SFR space
+uatbase	set	TXREG and 0xff80
+uatxmit	set	TXREG and 0x001f ; mask off just the SFR space
 #else
-uatbase	 set	TX1REG and 0xff80
-uatxmit	 set	TX1REG and 0x001f ; mask off just the SFR space
+uatbase	set	TX1REG and 0xff80
+uatxmit	set	TX1REG and 0x001f ; mask off just the SFR space
 #endif
-rtsflag	 set	PIR1_TXIF_POSN
+rtsflag	set	PIR1_TXIF_POSN
 #endif
 
 	zOS_NAM	"console (output-only)"
@@ -1358,19 +1358,19 @@ max	set	0x70
 ;until expansion and would throw an undefined-var error during the processing
 	local	uarbase,uarecv,rxflag
 #if p
-uarbase	 set	RC&p&REG and 0xff80
-uarecv	 set	RC&p&REG and 0x7f
-rxflag	 set	PIR1_RC&p&IF_POSN
+uarbase	set	RC&p&REG and 0xff80
+uarecv	set	RC&p&REG and 0x7f
+rxflag	set	PIR1_RC&p&IF_POSN
 #else
 
 #ifdef RCREG
-uarbase	 set	RCREG and 0xff80
-uarecv	 set	RCREG and 0x7f
+uarbase	set	RCREG and 0xff80
+uarecv	set	RCREG and 0x7f
 #else
-uarbase	 set	RC1REG and 0xff80
-uarecv	 set	RC1REG and 0x7f
+uarbase	set	RC1REG and 0xff80
+uarecv	set	RC1REG and 0x7f
 #endif
-rxflag	 set	PIR1_RCIF_POSN
+rxflag	set	PIR1_RCIF_POSN
 
 #endif
 
@@ -1761,7 +1761,7 @@ overld2:
 	movlw	low opc_mlp	;
 	movwf	FSR0L		;
 	movlw	high opc_mlp	;
-	movwf	FSR0H		;'
+	movwf	FSR0H		;
 	movlw	0x7f		;
 	btfsc	enc,7		;
 	bra	onelit		;
@@ -3204,7 +3204,7 @@ manh	set	optadrh-vars
 ;;;     When handling an interrupt, rxisr either handles a received character or
 ;;;     jumps to the mandatorily nonzero isradrh:isradrl isr address of zOS_CON
 ;;;     and if a received character the ISR in this case jumps to nonzero monisr
-;;; 	Unlike most declarations, rxdecl not only declares but launches, tweaks:
+;;;     Unlike most declarations, rxdecl not only declares but launches, tweaks:
 ;;;     zOS_CON is invoked with the port,rate,rtsflag,heartbeat,pin arguments:
 ;;;      Immediately a near branch to decl over the task and isr code:
 ;;;      When run, task initializes the global pair, circular buffer and greets
