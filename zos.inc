@@ -126,7 +126,7 @@ zOS_MEM	macro	fsrnum,job,offset
 	if offset
 	 addlw	offset		;                    int8_t offset) {
 	endif
-	if fsrnum and 3
+	if fsrnum and 2
 	 movwf	FSR1L		; *fsrnum = (((job + 1) & 0x07) << 4) + offset;
 	 clrf	FSR1H		;} // zOS_MEM()
 	else

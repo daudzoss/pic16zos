@@ -142,12 +142,12 @@ zOS_ACT	macro	fsrnum
 	bra	endact		;  } // else w was > 5
 proceed:
 	if (fsrnum and 2)
-	 zOS_MEM FSR1H,WREG,zOS_PCH
+	 zOS_MEM FSR1L,WREG,zOS_PCH
 	 movlw	0x7f		; } // else w was < 1
 	 andwf	INDF1,f		;
 	 swapf	FSR1L,w		;
 	else
-	 zOS_MEM FSR0H,WREG,zOS_PCH
+	 zOS_MEM FSR0L,WREG,zOS_PCH
 	 movlw	0x7f		; } // else w was < 1
 	 andwf	INDF0,f		;
 	 swapf	FSR0L,w		;
@@ -704,7 +704,7 @@ decl:
 	zOS_ADR	task,zOS_UNP	; fsr0 = task & 0x7fff;// MSB 0 => unprivileged
 	movlw	low isr		; w = zOS_ARG(0, isr & 0x00ff);
 	zOS_ARG	0
-	movlw	high isr	; w = zOS_ARG(1, isr>>8);
+	movlw	0x80|high isr	; w = zOS_ARG(1, isr>>8);
 	zOS_ARG	1
 	movlw	0		; w = zOS_ARG(2, 0); // no hardware interrupts
 	zOS_ARG	2
@@ -1053,7 +1053,7 @@ decl:
 	zOS_ADR	task,zOS_UNP	; fsr0 = task & 0x7fff;// MSB 0 => unprivileged
 	movlw	low isr		; w = zOS_ARG(0, isr & 0x00ff);
 	zOS_ARG	0
-	movlw	high isr	; w = zOS_ARG(1, isr>>8);
+	movlw	0x80|high isr	; w = zOS_ARG(1, isr>>8);
 	zOS_ARG	1		; w = zOS_ARG(2, 1<<T0IF);
 	movlw	hwflag		; w = zOS_ARG(3, 0 /* no SWI */);
 	zOS_ARG	2
@@ -1322,7 +1322,7 @@ brgvall	set	low brgvalm
 	zOS_ADR	contask,zOS_PRB	; fsr0 = contask & 0x7fff;// MSB 1 => privileged
 	movlw	low conisr	; w = zOS_ARG(0, conisr & 0x00ff);
 	zOS_ARG	0
-	movlw	high conisr	; w = zOS_ARG(1, conisr>>8);
+	movlw	0x80|high conisr	; w = zOS_ARG(1, conisr>>8);
 	zOS_ARG	1		; w = zOS_ARG(2, (0<<TXIF)|(1<<T0IF));
 	movlw   INTCON_T0IF_MASK
 	zOS_ARG	2
@@ -1479,14 +1479,14 @@ rxdecl:
 	movlw	low rxtask	; fsr0 = 0x10 + w << 4;
 	movwi	[zOS_HDL]fsr0	;
 	movwi	[zOS_PCL]fsr0	;
-	movlw	high rxtask	;
+	movlw	0x80|high rxtask	;
 	movwi	[zOS_PCH]fsr0	; zOS_PC[fsr0] = rxtask;
 	iorlw	0x80		;
 	movwi	[zOS_HDH]fsr0	; zOS_HD[fsr0] = rxtask | 0x8000;
 	addfsr	FSR0,zOS_ISR	; fsr0 += zOS_ISR; // last 4 bytes of job record
 	movlw	low rxisr	; *fsr0++ = rxisr & 0x00ff;
 	movwi	FSR0++
-	movlw	high rxisr	; *fsr0++ = rxisr >> 8;
+	movlw	0x80|high rxisr	; *fsr0++ = rxisr >> 8;
 	movwi	FSR0++
 	movf	zOS_AR2,w	; *fsr0++ |= (1<<RCIF);// |(0<<TXIF)|(1<<T0IF));
 	iorlw	1<<rxflag	; // still in job "0"; caller sets any SWI value
@@ -1524,7 +1524,7 @@ zOS_SEL	macro	adr0,adr1,fyle,b
 	movlw	adr1 - adr0	;
 	btfsc	fyle,b		;
 	addwfc	FSR0L,f		;
-	movlw	high adr0	;
+	movlw	0x80|high adr0	;
 	movwf	FSR0H		; fsr0 = w + ((fyle & (1<<b)) ? adr1 : adr0);
 	clrw			; return 0;
 	addwfc	FSR0H,f		;} // zOS_SEL()
@@ -1592,7 +1592,7 @@ bitops:
 	andlw	0x0c		; } else if (enc & 0x3000 == 0x1000) { // bit op
 	addlw	low opc_bit	;// fortuitously, opcodes are separated by 4 in
 	movwf	FSR0L		;// enc as well as the opcode strings of 4 words
-	movlw	high opc_bit	;
+	movlw	0x80|high opc_bit	;
 	movwf	FSR0H		;
 	clrw			;
 	addwfc	FSR0H,f		;
@@ -1617,7 +1617,7 @@ literal:
 	lslf	WREG		;
 	addlw	low opc_lit	;
 	movwf	FSR0L		;
-	movlw	high opc_lit	;
+	movlw	0x80|high opc_lit	;
 	movwf	FSR0H		;
 	clrw			;
 	addwfc	FSR0H,f		; fsr0 = opc_lit[w];
@@ -1642,7 +1642,7 @@ calllit:
 	btfsc	1+enc,3		;
 	addlw	opcgoto-opccall	;
 	movwf	FSR0L		;
-	movlw	high opccall	;
+	movlw	0x80|high opccall	;
 	movwf	FSR0H		;
 	clrw			;
 	addwfc	FSR0H,f		;
@@ -1680,7 +1680,7 @@ destreg:
 	lslf	WREG		;
 	addlw	low opc_reg	;
 	movwf	FSR0L		;
-	movlw	high opc_reg	;//FIXME: needs comments
+	movlw	0x80|high opc_reg	;//FIXME: needs comments
 onedest:
 	movwf	FSR0H		;
 	clrw			;
@@ -1709,7 +1709,7 @@ namereg:
 	call	nameoff		;
 	addlw	low regnam0	;
 	movwf	FSR0L		;
-	movlw	high regnam0	;
+	movlw	0x80|high regnam0	;
 	movwf	FSR0H		;
 	clrw			;
 	addwfc	FSR0H,f		;
@@ -1740,7 +1740,7 @@ overld0:
 	movwf	1+enc		; enc |= 0xff00; // special, allows: bra onedest
 	movlw	low opc_mov	;
 	movwf	FSR0L		;
-	movlw	high opc_mov	;
+	movlw	0x80|high opc_mov	;
 	bcf	STATUS,0	;
 	btfsc	enc,7		;
 	bra	onedest		;
@@ -1762,14 +1762,14 @@ overld1:
 	movwf	FSR0L		;
 	movlw	0xff		;
 	movwf	1+enc		;
-	movlw	high opcclrw	;
+	movlw	0x80|high opcclrw	;
 	btfsc	enc,7		;
 	bra	onedest		;
 	bra	nodest		;
 overld2:
 	movlw	low opc_mlp	;
 	movwf	FSR0L		;
-	movlw	high opc_mlp	;
+	movlw	0x80|high opc_mlp	;
 	movwf	FSR0H		;
 	movlw	0x7f		;
 	btfsc	enc,7		;
@@ -1779,7 +1779,7 @@ overld2:
 	movlw	opc_af1-opc_af0	;
 	addlw	low opc_af0	;
 	movwf	FSR0L		;
-	movlw	high opc_af0	;
+	movlw	0x80|high opc_af0	;
 	movwf	FSR0H		;
 	clrw			;
 	addwfc	FSR0H,f		;
@@ -1800,7 +1800,7 @@ brapos:
 	movlw	0		;
 	addlw	low opc_bpo	;
 	movwf	FSR0L		;
-	movlw	high opc_bpo	;
+	movlw	0x80|high opc_bpo	;
 	movwf	FSR0H		;
 	clrw			;
 	addwfc	FSR0H,f		;
@@ -1821,7 +1821,7 @@ brapos:
 	addwfc	1+enc,f		;
 	movlw	low opc_bra	;
 	movwf	FSR0L		;
-	movlw	high opc_bra	;
+	movlw	0x80|high opc_bra	;
 	movwf	FSR0H		;
 	pagesel	puts
 	call	puts		;
@@ -1864,7 +1864,7 @@ printfn:
 	andlw	0x04		;
 	addlw	low offset0	;
 	movwf	FSR0L		;
-	movlw	high offset0	;
+	movlw	0x80|high offset0	;
 	movwf	FSR0H		;
 	clrw			;
 	addwfc	FSR0H,f		;  fsr0 = (enc & 0x40) ? "[FSR1]" : "[FSR0]";
@@ -1876,7 +1876,7 @@ printfn:
 newbank:
 	movlw	low opc_mlb	;
 	movwf	FSR0L		;
-	movlw	high opc_mlb	;
+	movlw	0x80|high opc_mlb	;
 	movwf	FSR0H		;
 	movlw	0x1f		;
 	bra	onelit		;
@@ -1916,7 +1916,7 @@ noargs:
 	andlw	0x3c		; w = (enc & 0x0f) * 4; // uniform string length
 	addlw	low opcomni	;
 	movwf	FSR0L		;
-	movlw	high opcomni	;
+	movlw	0x80|high opcomni	;
 	bra	nodest		;
 
 putmovi:
@@ -1924,7 +1924,7 @@ putmovi:
 	andlw	0x04		;
 	addlw	low opc_miw	;
 	movwf	FSR0L		;
-	movlw	high  opc_miw	;
+	movlw	0x80|high  opc_miw	;
 	movwf	FSR0H		;
 	clrw			; // moviw/wi distinction always at nybble top
 	addwfc	FSR0H,f		; puts((w & (1<<4)) ? "movwi  " : "moviw  ");
@@ -3115,7 +3115,7 @@ manname:
 	bra	manlive		;   if (zOS_PCH[fsr0] == 0) {
 	movlw 	low mandead	;    static char mandead = "(not running)";
 	movwf	FSR0L		;
-	movlw	high mandead	;
+	movlw	0x80|high mandead	;
 	movwf	FSR0H		;    fsr0 = mandead;
 	movlw	mandead-manlive	;
 	movwf	char_io		;    char_io = strlen(mandead);
@@ -3190,7 +3190,7 @@ manh	set	optadrh-vars
 	zOS_MON	p,rat,rts,hb,pin,isr
 	movlw	low mantask	; zOS_MON(p,ra,rt,h,pi,manisr); //fsr0=swi,1=adr
 	movwi	[manl]fsr1	; optadrl = mantask & 0x00ff;
-	movlw	high mantask	; optadrh = mantask >> 8;
+	movlw	0x80|high mantask	; optadrh = mantask >> 8;
 	movwi	[manh]fsr1	;} // zOS_MAN()
 	endm
 
