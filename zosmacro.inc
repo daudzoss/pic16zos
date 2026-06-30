@@ -1298,24 +1298,24 @@ brgvall	set	low brgvalm
 	bsf	TXEN		; TXSTA |= 1<<TXEN; // (5) "Enable..by..TXEN"
 	if (p eq 0)
 
- messg "p is 0"
 	banksel	PIE1
+#ifdef RCIE
 	 bsf	RCIE		; PIE1 |= 1<<RCIE; //(4) "Set..RCIE..and..PEIE"
+#else
+	 bsf	RC1IE
+#endif
 
 	else
 
- messg "p is not 0"
 	banksel	PIE3
 	 if (p eq 1)
- messg "p is 1"
-/*
+#ifdef RC1IE
 	  bsf	RC1IE		; PIE3 |= 1<<RCIE; // dual-UART parts have moved
-*/
+#endif
 	 else
- messg "p is not 1"
-/*
+#ifdef RC2IE
 	  bsf	RC2IE		; PIE3 |= 1<<RCIE; // dual-UART parts have moved
-*/
+#endif
 	 endif
 
 	endif
