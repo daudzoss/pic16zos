@@ -1240,7 +1240,7 @@ condecl:
 	bcf	SPEN		;decl: // all init that is BSR independent here
 	bcf	CREN		; RCSTA &= ~((1<<SPEN)|(1<<CREN));
 	bcf	TXEN		; TXSTA &= ~(1<<TXEN);
-#if 0
+/*
 	local brgval,brgvalm,brgvalh,brgvall
 #ifdef BRG16
 brgval	set	rat>>2
@@ -1306,11 +1306,11 @@ brgvall	set	low brgvalm
 	movlw   INTCON_T0IF_MASK
 	zOS_ARG	2
 	movlb	0		; // still in job "0": don't forget this!!!!
-#endif
+*/
 	endm			;} // zOS_CON()
 
 ;;; like zOS_CON, but also accepts console input for command-line interaction
-zOS_INP	macro	p,ra,rt,h,pi,isr;inline void zOS_INP(int8_t p, int8_t ra, int8_t
+zOS_INP	macro	p,ra,rt,h,pi,isr ;inline void zOS_INP(int8_t p, int8_t ra, int8_t
 	local	rxtask,no_opt,rxisr,rxdecl
 	bra	rxdecl		;      rt, int8_t* h, int8_t pi, void(*isr)()) {
 
@@ -1407,7 +1407,7 @@ noovrrn:
 	bcf	CREN		;   RCSTA &= ~(1<<CREN); // cleared by disable
 	bsf	CREN		;  RCSTA |= 1<<CREN; // (re-)enable reception
 #endif
-#if (isr)
+#if 1 // if (monisr) cannot be tested due to preprocessor before assembly
 	 movwf	zOS_AR0		;  zOS_AR0 = RCREG;
 	pagesel	isr		;  if (zOS_AR0)
 	 btfss	STATUS,2	;   goto isr; // continue with parser
