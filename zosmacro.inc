@@ -1240,21 +1240,19 @@ condecl:
 	bcf	SPEN		;decl: // all init that is BSR independent here
 	bcf	CREN		; RCSTA &= ~((1<<SPEN)|(1<<CREN));
 	bcf	TXEN		; TXSTA &= ~(1<<TXEN);
-/*
 	local brgval,brgvalm,brgvalh,brgvall
-#ifdef BRG16
+#ifdef BRG16 //BAUD1CON_BRG16_POSN
 brgval	set	rat>>2
 brgvalm	set	brgval-1
 brgvalh	set	high brgvalm
 brgvall	set	low brgvalm
 	bsf	BRG16		; // section 26.1.2.8 of 16F1847 steps below:
-#ifdef SYNC
+#ifdef SYNC //TX1STA_SYNC_POSN
 	bcf	SYNC		; // (1) "Initialize..the desired baud rate"
 #else
 	bcf	SYNC_TXSTA
 #endif
 	bsf	BRGH		; BAUDCON |= 1<<BRG16; // 16-bit generator
-
 	movlw	brgvall		; TXSTA &= ~(1<<SYNC); // async mode
 	if (p eq 0)
 #ifdef SPBRGL
@@ -1263,7 +1261,11 @@ brgvall	set	low brgvalm
 	 movwf	SP1BRGL		; TXSTA |= 1<<BRGH;    // high speed
 #endif
 	else
-	 movwf	SP&p&BRGL
+	 if (p eq 1)
+	  movwf	SP1BRGL
+	 else
+	  movwf	SP2BRGL
+	 endif
 	endif
 
 	movlw	brgvalh		;
@@ -1274,9 +1276,12 @@ brgvall	set	low brgvalm
 	 movwf	SP1BRGH		; TXSTA |= 1<<BRGH;    // high speed
 #endif
 	else
-	 movwf	SP&p&BRGH	; SPBRG = (rat/4) - 1;
+	 if (p eq 1)
+	  movwf	SP1BRGH		; SPBRG = (rat/4) - 1;
+	 else
+	  movwf	SP2BRGH		; SPBRG = (rat/4) - 1;
+	 endif
 	endif
-
 	bcf	SCKP		; BAUDCON &= ~(1<<SCKP); // "SCKP..if inverted"
 #else
 brgval	set	rat>>4
@@ -1291,13 +1296,19 @@ brgvall	set	low brgvalm
 	bcf	RX9		; RCSTA &= ~(1<<RX9);  // (5) "9-bit..set..RX9"
 	bsf	CREN		; RCSTA |= (1<<SPEN) | (1<<CREN); // (6) "CREN"
 	bsf	TXEN		; TXSTA |= 1<<TXEN; // (5) "Enable..by..TXEN"
+/*
 	if (p eq 0)
 	banksel	PIE1
 	 bsf	RCIE		; PIE1 |= 1<<RCIE; //(4) "Set..RCIE..and..PEIE"
 	else
 	banksel	PIE3
-	 bsf	RC&p&IE		; PIE3 |= 1<<RCIE; // dual-UART parts have moved
+	 if (p eq 1)
+	  bsf	RC1IE		; PIE3 |= 1<<RCIE; // dual-UART parts have moved
+	 else
+	  bsf	RC2IE		; PIE3 |= 1<<RCIE; // dual-UART parts have moved
+	 endif
 	endif
+*/
 	zOS_ADR	contask,zOS_PRB	; fsr0 = contask & 0x7fff;// MSB 1 => privileged
 	movlw	low conisr	; w = zOS_ARG(0, conisr & 0x00ff);
 	zOS_ARG	0
@@ -1306,7 +1317,6 @@ brgvall	set	low brgvalm
 	movlw   INTCON_T0IF_MASK
 	zOS_ARG	2
 	movlb	0		; // still in job "0": don't forget this!!!!
-*/
 	endm			;} // zOS_CON()
 
 ;;; like zOS_CON, but also accepts console input for command-line interaction
