@@ -225,10 +225,17 @@ zOS_T0E	equ	t0enable
 zOS_T0F	equ	t0flags
 	if (zOS_T0E)
 	 banksel zOS_T0E
+#ifdef T0IE
 	 bsf	T0IE		;inline void zOS_RUN(uint8_t* t0enable) {
 	 if (zOS_T0E ne INTCON)
 	  bsf	PEIE		; if (t0enable) { *t0enable |= 1<<T0IE;
 	 endif
+#else
+	 bsf	TMR0IE		;inline void zOS_RUN(uint8_t* t0enable) {
+	 if (zOS_T0E ne INTCON)
+	  bsf	PEIE		; if (t0enable) { *t0enable |= 1<<TMR0IE;
+	 endif
+#endif
 	endif
 	;; advance the stack pointer to allow 5 stacks of 3 each (+1 if running)
 	banksel	STKPTR		;  if (t0enable !=  INTCON) INTCON |= 1<<PEIE;
@@ -1046,7 +1053,11 @@ task:
 
 isr:
 	banksel	zOS_T0F		; isr:
+#ifdef T0IF
 	bcf	T0IF		;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
+#else
+	bcf	TMR0IF
+#endif
 	zOS_RFI			;  zOS_RFI(); // and go back to scheduler
 
 decl:
@@ -1198,9 +1209,15 @@ conisr:
 
 	;; if it's a simple and frequent timer overflow interrupt finish quickly
 	banksel	zOS_T0F
+#ifdef T0IF
 	btfss	T0IF		; if (/*presumed true:(zOS_T0E & (1<<T0IE)) &&*/
 	bra	nottmr		;     (zOS_T0F & (1<<T0IF))) { // timer overflow
 	bcf	T0IF		;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
+#else
+	btfss	TMR0IF
+	bra	nottmr		;     (zOS_T0F & (1<<T0IF))) { // timer overflow
+	bcf	TMR0IF		;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
+#endif
 
 	;; get fsr0 pointing to tmr0 postscaler/reset value
 	movf	zOS_JOB,w	;isr:
@@ -1341,7 +1358,11 @@ brgvall	set	low brgvalm
 	zOS_ARG	0
 	movlw	0x80|high conisr	; w = zOS_ARG(1, conisr>>8);
 	zOS_ARG	1		; w = zOS_ARG(2, (0<<TXIF)|(1<<T0IF));
+#ifdef PIR0
+	movlw   PIR0_TMR0IF_MASK
+#else
 	movlw   INTCON_T0IF_MASK
+#endif
 	zOS_ARG	2
 	movlb	0		; // still in job "0": don't forget this!!!!
 	endm			;} // zOS_CON()
