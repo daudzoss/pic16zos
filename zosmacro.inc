@@ -1103,10 +1103,13 @@ max	set	0x70
 ;until expansion and would throw an undefined-var error during the processing
 	local	uatbase,uatxmit
 #if p
+
 uatbase	set	TX&p&REG and 0xff80
 uatxmit	set	TX&p&REG and 0x001f ; mask off just the sfr SFR
-rtsflag	set	PIR1_TX&p&IF_POSN
+rtsflag	set	rts&_TX&p&IF_POSN
+
 #else
+
 #ifdef TXREG
 uatbase	set	TXREG and 0xff80
 uatxmit	set	TXREG and 0x001f ; mask off just the SFR space
@@ -1114,7 +1117,13 @@ uatxmit	set	TXREG and 0x001f ; mask off just the SFR space
 uatbase	set	TX1REG and 0xff80
 uatxmit	set	TX1REG and 0x001f ; mask off just the SFR space
 #endif
-rtsflag	set	PIR1_TXIF_POSN
+
+#ifdef TXIF
+rtsflag	set	rts&_TXIF_POSN
+#else
+rtsflag	set	rts&_TX1IF_POSN
+#endif
+
 #endif
 
 	zOS_NAM	"console (output-only)"
@@ -1200,10 +1209,18 @@ conisr:
 
 	;; with fsr0 pointing to global pair, point fsr1 to local mem("t0scale")
 	zOS_LOC	FSR1L,zOS_JOB,t0scale
+#ifdef TMR0
 	banksel	TMR0
+#else
+	banksel	TMR0L
+#endif
 	moviw	[t0rst]fsr0	;  fsr1 = (zOS_JOB << 7) | t0scale;
 	btfss	WREG,7		;  bsr = TMR0 >> 7;//now invalid for this branch
+#ifdef TMR0
 	movwf	TMR0		;  if (t0rst[fsr0] < 128)// max 7 bit TMR0 reset
+#else
+	movwf	TMR0L		;  if (t0rst[fsr0] < 128)// max 7 bit TMR0 reset
+#endif
 	decfsz	INDF1,f		;   TMR0 = t0rst[fsr0]; // or chance of deadlock
 	bra	done		;  if (--*fsr1 == 0) {
 
@@ -1367,9 +1384,11 @@ max	set	0x70
 ;until expansion and would throw an undefined-var error during the processing
 	local	uarbase,uarecv,rxflag
 #if p
+
 uarbase	set	RC&p&REG and 0xff80
 uarecv	set	RC&p&REG and 0x7f
-rxflag	set	PIR1_RC&p&IF_POSN
+rxflag	set	rt&_RC&p&IF_POSN
+
 #else
 
 #ifdef RCREG
@@ -1379,7 +1398,12 @@ uarecv	set	RCREG and 0x7f
 uarbase	set	RC1REG and 0xff80
 uarecv	set	RC1REG and 0x7f
 #endif
-rxflag	set	PIR1_RCIF_POSN
+
+#ifdef RCIF
+rxflag	set	rt&_RCIF_POSN
+#else
+rxflag	set	rt&_RC1IF_POSN
+#endif
 
 #endif
 
