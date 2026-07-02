@@ -56,7 +56,7 @@ zOS_LOC macro	fsrnum,job,offset
 	  movlw	offset<<1	;inline int8_t zOS_LOC(int8_t* *fsrnum,
 	  movwf	FSR0L		;        int8_t* job, uint8_t offset) {
 	 else
-	  clrf	FSR0L		;	
+	  clrf	FSR0L		;
 	 endif
 	 if (job - FSR0H)
 	  lsrf	job,w		;
@@ -225,15 +225,15 @@ zOS_T0E	equ	t0enable
 zOS_T0F	equ	t0flags
 	if (zOS_T0E)
 	 banksel zOS_T0E
-#ifdef T0IE
-	 bsf	T0IE		;inline void zOS_RUN(uint8_t* t0enable) {
-	 if (zOS_T0E ne INTCON)
-	  bsf	PEIE		; if (t0enable) { *t0enable |= 1<<T0IE;
-	 endif
-#else
+#ifdef TMR0IE
 	 bsf	TMR0IE		;inline void zOS_RUN(uint8_t* t0enable) {
 	 if (zOS_T0E ne INTCON)
 	  bsf	PEIE		; if (t0enable) { *t0enable |= 1<<TMR0IE;
+	 endif
+#else
+	 bsf	T0IE		;inline void zOS_RUN(uint8_t* t0enable) {
+	 if (zOS_T0E ne INTCON)
+	  bsf	PEIE		; if (t0enable) { *t0enable |= 1<<T0IE;
 	 endif
 #endif
 	endif
@@ -517,7 +517,7 @@ alloced	set	0x6d
 always0	set	0x6e
 temp	set	0x6f
 adrarry	set	0x20
-tblsize set	0x50
+tblsize	set	0x50
 tblrows	set	tblsize/2
 sizarry	set	adrarry+tblrows
 memroun	set	base+0xf
@@ -1076,7 +1076,6 @@ decl:
 zOS_CON	macro	p,rat,rts,hb,pin;inline void zOS_CON(int8_t p,int8_t rat,int8_t
 	local	contask,conisr,inited,conloop,condecl
 	bra	condecl		;                    rts,int8_t* hb,int8_t pin){
-
 	;; initialize constants and variables
 	local	t0div,t0rst
 t0div	set 0
@@ -1136,7 +1135,6 @@ rtsflag	set	rts&_TX1IF_POSN
 #endif
 
 #endif
-
 	zOS_NAM	"console (output-only)"
 contask:
 	movlw	high uatbase	; goto decl;
@@ -1159,6 +1157,7 @@ contask:
 	movwf	p1		;  puts("__Welcome_to_zOS__");
 	zOS_ENA	;//FIXME: superfluous due to subsequent SWI
 	zOS_OUT	0xff,__Welcome_to_zOS__,char_io
+
 inited:
 	movf	zOS_ME		;  zOS_ARG(0, bsr);
 	zOS_ARG	0
@@ -1189,6 +1188,7 @@ inited:
 	bra	conloop		;  if (p0 & 0x7f == max) // ignore low bank bit
 	movf	wrap,w		;   p0 = wrap; // =buf xor the lowest bank bit
 	movwf	p0		;  // end critical section
+
 conloop:
 	zOS_ENA
 	zOS_MEM	FSR0L,BSR,0
@@ -1204,19 +1204,21 @@ conloop:
 	;;  number of characters stored in the buffer
 	;; Note: caller needs to make sure to check status of return value for
 	;; != 0, just in case job is in between sleeps or with a full buffer
+
+
 conisr:
 	local	done,do_swi,nottmr
 
 	;; if it's a simple and frequent timer overflow interrupt finish quickly
 	banksel	zOS_T0F
-#ifdef T0IF
-	btfss	T0IF		; if (/*presumed true:(zOS_T0E & (1<<T0IE)) &&*/
-	bra	nottmr		;     (zOS_T0F & (1<<T0IF))) { // timer overflow
-	bcf	T0IF		;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
-#else
+#ifdef TMR0IF
 	btfss	TMR0IF
 	bra	nottmr		;     (zOS_T0F & (1<<T0IF))) { // timer overflow
 	bcf	TMR0IF		;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
+#else
+	btfss	T0IF		; if (/*presumed true:(zOS_T0E & (1<<T0IE)) &&*/
+	bra	nottmr		;     (zOS_T0F & (1<<T0IF))) { // timer overflow
+	bcf	T0IF		;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
 #endif
 
 	;; get fsr0 pointing to tmr0 postscaler/reset value
@@ -1259,33 +1261,51 @@ nottmr:
 	zOS_RET
 
 	;; point fsr0 to uatbase (again?), point fsr1 to p0
+
 do_swi:
 	movf	zOS_JOB,w	;
 	movwf	BSR		;
 	zOS_BUF	FSR0L,max,p0	; }
 	zOS_RFS	WREG		; zOS_RFI(); // HWI finished
+
 done:
 	zOS_RFI
 
 
 	;; Intialize the UART peripheral, job handle and first three arguments
+
 condecl:
 	banksel	uatbase
 	bcf	SPEN		;decl: // all init that is BSR independent here
 	bcf	CREN		; RCSTA &= ~((1<<SPEN)|(1<<CREN));
 	bcf	TXEN		; TXSTA &= ~(1<<TXEN);
 	local brgval,brgvalm,brgvalh,brgvall
+
 #ifdef BRG16 //BAUD1CON_BRG16_POSN
 brgval	set	rat>>2
 brgvalm	set	brgval-1
 brgvalh	set	high brgvalm
 brgvall	set	low brgvalm
 	bsf	BRG16		; // section 26.1.2.8 of 16F1847 steps below:
+
 #ifdef SYNC //TX1STA_SYNC_POSN
 	bcf	SYNC		; // (1) "Initialize..the desired baud rate"
 #else
+#ifdef SYNC_TXSTA
 	bcf	SYNC_TXSTA
-#endif
+#else
+#if p
+	bcf	TX&p&STA,TX&p&STA_SYNC_POSN
+#else
+#ifdef TX1STA
+	bcf	TX1STA,TX1STA_SYNC_POSN
+#else
+	bcf	TXSTA,TXSTA_SYNC_POSN
+#endif // def TX1STA
+#endif // p
+#endif // def SYNC_TXSTA
+#endif // def SYNC
+
 	bsf	BRGH		; BAUDCON |= 1<<BRG16; // 16-bit generator
 	movlw	brgvall		; TXSTA &= ~(1<<SYNC); // async mode
 	if (p eq 0)
@@ -1317,7 +1337,7 @@ brgvall	set	low brgvalm
 	 endif
 	endif
 	bcf	SCKP		; BAUDCON &= ~(1<<SCKP); // "SCKP..if inverted"
-#else
+#else //def BRG16
 brgval	set	rat>>4
 brgvalm	set	brgval-1
 brgvalh	set	0
@@ -1325,7 +1345,7 @@ brgvall	set	low brgvalm
 	bsf	BRGH		; TXSTA |= 1<<BRGH; // (1) the desired baud rate
 	movlw	brgvall		;
 	movwf	SPBRG		; SPBRG = (rat/16) - 1;
-#endif
+#endif // def BRG16
 	bsf	SPEN		; // (3) "Enable..by setting..SPEN"
 	bcf	RX9		; RCSTA &= ~(1<<RX9);  // (5) "9-bit..set..RX9"
 	bsf	CREN		; RCSTA |= (1<<SPEN) | (1<<CREN); // (6) "CREN"
@@ -1353,6 +1373,7 @@ brgvall	set	low brgvalm
 	 endif
 
 	endif
+
 	zOS_ADR	contask,zOS_PRB	; fsr0 = contask & 0x7fff;// MSB 1 => privileged
 	movlw	low conisr	; w = zOS_ARG(0, conisr & 0x00ff);
 	zOS_ARG	0
@@ -1368,7 +1389,7 @@ brgvall	set	low brgvalm
 	endm			;} // zOS_CON()
 
 ;;; like zOS_CON, but also accepts console input for command-line interaction
-zOS_INP	macro	p,ra,rt,h,pi,isr ;inline void zOS_INP(int8_t p, int8_t ra, int8_t
+zOS_INP	macro	p,ra,rt,h,pi,isr ;inline void zOS_INP(int8_t p, int8_t ra,int8_t
 	local	rxtask,no_opt,rxisr,rxdecl
 	bra	rxdecl		;      rt, int8_t* h, int8_t pi, void(*isr)()) {
 
