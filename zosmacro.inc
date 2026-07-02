@@ -2722,7 +2722,7 @@ masklen	set	0xff and neglen
 
 zOS_MAN	macro	p,rat,rts,hb,pin,isr ;inline void zOS_MAN(int8_t p, int8_t rat,
 
-	local	mantask,manisr,manchr,manchr0,reenable,manchr1,manchr2,manchr3
+	local	mantask,manisr,manchr,manchr0,reenabl,manchr1,manchr2,manchr3
 	local	manchr4,manchr5,manchr6,manchr7,manchr8,manchr9,mannone,jobinfo
 	local	manname,manloop,crlf,stkinfo,stkloop,endman
 
