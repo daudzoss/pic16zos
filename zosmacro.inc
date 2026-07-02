@@ -1600,7 +1600,8 @@ zOS_DEC	macro	putch,puts,enc,retadr
 	local	ophi_0X,ophi_11,bitops,literal,onelit,litbyte,calllit,bradest
 	local	destreg,onedest,nametst,namereg,flagreg,regarg2,endopc
 	local	overld0,nodest,overld1,overld2,braneg,brapos,overld3,omnibus
-	local	noargs,newbank,moviwwi,movoffs,nameoff
+	local	post,putmovi,zero,fsrprei,fsrpred,fsrposi,fsrposd,hex_neg
+	local	printof,printfn,opc_bra,noargs,newbank,moviwwi,movoffs,nameoff
 	local	offset0,offset1,minfsr,minmin,plufsr,pluplu,opc_miw,opc_mwi
 	local	opc_lit,opc_mlp,opc_af0,opc_af1,opc_reg,opc_mov,opc_bit,opccall
 	local	opcgoto,opcclrw,opc_bpo,opc_bng,opcomni,opc_mlb,hexpref
@@ -2180,7 +2181,9 @@ max	set	0x70
 
 #ifdef zOS_MIN
 #else
-;;;;;;;	local	monout,loop,done,disasmb,disasmr,monpack
+	local	monout,loop,done,disasmb,disasmr,monpack,monback,monloop,monhex
+	local	monlsb,mon0,monx,monspc,monlf,monbufs,monbufd,monramd,monsave
+	local	monempty,monzero
 ;;;^^^^^this line causes error 798^^^^^
 
 monpack:
