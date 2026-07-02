@@ -17,7 +17,7 @@ zOS_GLO	macro	fsrnum,job
 	if (job)
 	 lslf	job,w		;inline void zOS_GLO(int8_t**fsrnum,int8_t*job){
 	else
-	 lslf	zOS_ME		;   
+	 lslf	zOS_ME		;
 	endif
 	andlw	0x0e		; int8_t w = 0x70 | ((job ? *job : bsr) << 1);
 	iorlw	0x70		;
@@ -1276,11 +1276,38 @@ done:
 
 condecl:
 	banksel	uatbase
+#ifdef SPEN
 	bcf	SPEN		;decl: // all init that is BSR independent here
-	bcf	CREN		; RCSTA &= ~((1<<SPEN)|(1<<CREN));
-	bcf	TXEN		; TXSTA &= ~(1<<TXEN);
-	local brgval,brgvalm,brgvalh,brgvall
+#else
+	if (p eq 0)|(p eq 1)
+	 bcf	BANKMASK(RC1STA),7 ; copied from #define SPEN in pic16f18013.inc
+	else
+	 bcf	BANKMASK(RC2STA),7
+	endif
+#endif
 
+#ifdef CREN
+	bcf	CREN		; RCSTA &= ~((1<<SPEN)|(1<<CREN));
+#else
+	if (p eq 0)|(p eq 1)
+	 bcf	BANKMASK(RC1STA),4 ; copied from #define CREN in pic16f18013.inc
+	else
+	 bcf	BANKMASK(RC2STA),4
+	endif
+#endif
+
+#ifdef TXEN
+	bcf	TXEN		; TXSTA &= ~(1<<TXEN);
+	
+#else
+	if (p eq 0)|(p eq 1)
+	 bcf	BANKMASK(TX1STA),4 ; copied from #define TXEN in pix16f18013.inc
+	else
+	 bcf	BANKMASK(TX2STA),4
+	endif
+#endif
+
+	local brgval,brgvalm,brgvalh,brgvall
 #ifdef BRG16 //BAUD1CON_BRG16_POSN
 brgval	set	rat>>2
 brgvalm	set	brgval-1
@@ -1338,6 +1365,7 @@ brgvall	set	low brgvalm
 	endif
 	bcf	SCKP		; BAUDCON &= ~(1<<SCKP); // "SCKP..if inverted"
 #else //def BRG16
+#if 0 //
 brgval	set	rat>>4
 brgvalm	set	brgval-1
 brgvalh	set	0
@@ -1345,11 +1373,14 @@ brgvall	set	low brgvalm
 	bsf	BRGH		; TXSTA |= 1<<BRGH; // (1) the desired baud rate
 	movlw	brgvall		;
 	movwf	SPBRG		; SPBRG = (rat/16) - 1;
+#endif //
 #endif // def BRG16
+#if 0 //
 	bsf	SPEN		; // (3) "Enable..by setting..SPEN"
 	bcf	RX9		; RCSTA &= ~(1<<RX9);  // (5) "9-bit..set..RX9"
 	bsf	CREN		; RCSTA |= (1<<SPEN) | (1<<CREN); // (6) "CREN"
 	bsf	TXEN		; TXSTA |= 1<<TXEN; // (5) "Enable..by..TXEN"
+#endif //
 	if (p eq 0)
 
 	banksel	PIE1
