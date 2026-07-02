@@ -1364,23 +1364,68 @@ brgvall	set	low brgvalm
 	 endif
 	endif
 	bcf	SCKP		; BAUDCON &= ~(1<<SCKP); // "SCKP..if inverted"
-#else //def BRG16
-#if 0 //
+#else //def BRG16 // dual-EUSART parts  should have BRG16's, but hard to detect
 brgval	set	rat>>4
 brgvalm	set	brgval-1
 brgvalh	set	0
 brgvall	set	low brgvalm
-	bsf	BRGH		; TXSTA |= 1<<BRGH; // (1) the desired baud rate
-	movlw	brgvall		;
-	movwf	SPBRG		; SPBRG = (rat/16) - 1;
-#endif //
+	if (p eq 0)|(p eq 1)
+	 bsf BANKMASK(TX1STA),2 ; TXSTA |= 1<<BRGH; // (1) the desired baud rate
+	 movlw	brgvall		;
+#ifdef SP1BRGL
+	 movwf	SP1BRGL		; SPBRG = (rat/16) - 1;
+	 clrf	SP1BRGH		;
+#else	
+	 movwf	SPBRG		; SPBRG = (rat/16) - 1;
+#endif
+	else
+	 bsf BANKMASK(TX2STA),2	; TXSTA |= 1<<BRGH; // (1) the desired baud rate
+	 movlw	brgvall		;
+	 movwf	SP2BRGL		; SPBRG = (rat/16) - 1;
+	 clrf	SP2BRGH		;
+	endif
 #endif // def BRG16
-#if 0 //
+
+#ifdef SPEN
 	bsf	SPEN		; // (3) "Enable..by setting..SPEN"
+#else
+	if (p eq 0)|(p eq 1)
+	 bsf	BANKMASK(RC1STA),7 ; copied from #define SPEN in pic16f18013.inc
+	else
+	 bsf	BANKMASK(RC2STA),7
+	endif
+#endif
+
+#ifdef RX9
 	bcf	RX9		; RCSTA &= ~(1<<RX9);  // (5) "9-bit..set..RX9"
+#else
+	if (p eq 0)|(p eq 1)
+	 bcf	BANKMASK(RC1STA),6 ; copied from #define RX9 in pic16f18013.inc
+	else
+	 bcf	BANKMASK(RC2STA),6
+	endif
+#endif
+
+#ifdef CREN
 	bsf	CREN		; RCSTA |= (1<<SPEN) | (1<<CREN); // (6) "CREN"
+#else
+	if (p eq 0)|(p eq 1)
+	 bsf	BANKMASK(RC1STA),4 ; copied from #define CREN in pic16f18013.inc
+	else
+	 bsf	BANKMASK(RC2STA),4
+	endif
+#endif
+
+#ifdef TXEN
 	bsf	TXEN		; TXSTA |= 1<<TXEN; // (5) "Enable..by..TXEN"
-#endif //
+#else
+	if (p eq 0)|(p eq 1)
+	 bsf	BANKMASK(TX1STA),5 ; copied from #define TXEN in pic16f18013.inc
+	else
+	 bsf	BANKMASK(TX2STA),5
+	endif
+#endif
+
 	if (p eq 0)
 
 	banksel	PIE1
@@ -2758,7 +2803,7 @@ zOS_MAN	macro	p,rat,rts,hb,pin,isr ;inline void zOS_MAN(int8_t p, int8_t rat,
 
 	local	mantask,manisr,manchr,manchr0,reenabl,manchr1,manchr2,manchr3
 	local	manchr4,manchr5,manchr6,manchr7,manchr8,manchr9,mannone,jobinfo
-	local	manname,manloop,crlf,stkinfo,stkloop,endman
+	local	mandead,manlive,manname,manloop,crlf,stkinfo,stkloop,endman
 
 	local	p0,p1,wrap,t0scale,isradrl,isradrh,tskadrl,tskadrh,optadrl
 	local	optadrh,accumul,accumuh,numbase,destreg,destreh,char_io,buf,max
