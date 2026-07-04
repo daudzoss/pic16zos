@@ -1676,11 +1676,12 @@ zOS_DEC	macro	putch,puts,enc,retadr
 	local	ophi_0X,ophi_11,bitops,literal,onelit,litbyte,calllit,bradest
 	local	destreg,onedest,nametst,namereg,flagreg,regarg2,endopc
 	local	overld0,nodest,overld1,overld2,braneg,brapos,overld3,omnibus
-	local	post,putmovi,zero,fsrprei,fsrpred,fsrposi,fsrposd,hex_neg
-	local	printof,printfn,opc_bra,noargs,newbank,moviwwi,movoffs,nameoff
-	local	offset0,offset1,minfsr,minmin,plufsr,pluplu,opc_miw,opc_mwi
-	local	opc_lit,opc_mlp,opc_af0,opc_af1,opc_reg,opc_mov,opc_bit,opccall
-	local	opcgoto,opcclrw,opc_bpo,opc_bng,opcomni,opc_mlb,hexpref
+	local	noargs,newbank,nameoff,hexpref
+
+	local	opc_bra,zero,offset0,offset1,fsrprei,fsrpred,fsrposi,fsrposd
+	local	opc_miw,opc_mwi,opc_lit,opc_mlb,opc_mlp,opc_af0,opc_af1,opc_reg
+	local	opc_mov,opc_bit,opccall
+	local	opcgoto,opcclrw,opcomni,hexpref,hex_neg
 	local	regnam0,regnam1,regnam2,regnam3,regnam4,regnam5
 	local	regnam6,regnam7,regnam8,regnam9,regnamA,regnamB
 
