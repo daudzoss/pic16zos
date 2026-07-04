@@ -1685,8 +1685,8 @@ zOS_DEC	macro	putch,puts,enc,retadr
        local   opcgoto,opcclrw,opc_bpo,opc_bng,opcomni,opc_mlb,hexpref
 ;
 ;	local	noargs,newbank,nameoff,hexpref
-
-;	local	opc_bra,zerolit,offset0,offset1,fsrprei,fsrpred,fsrposi,fsrposd
+	local	zerolit
+;	local	opc_bra,offset0,offset1,fsrprei,fsrpred,fsrposi,fsrposd
 ;	local	opc_miw,opc_mwi,opc_lit,opc_mlb,opc_mlp,opc_af0,opc_af1,opc_reg
 ;	local	opc_mov,opc_bit,opccall
 ;	local	opcgoto,opcclrw,opcomni,hexpref,hex_neg
@@ -1983,8 +1983,6 @@ brapos:
 	call	puts		;
 	movlw	0x7f		;
 	bra	bradest		;
-opc_bra:
-	db	"bra    0x"
 #endif
 
 overld3:
