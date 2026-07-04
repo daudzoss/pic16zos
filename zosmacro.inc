@@ -1678,7 +1678,7 @@ zOS_DEC	macro	putch,puts,enc,retadr
 	local	overld0,nodest,overld1,overld2,braneg,brapos,overld3,omnibus
 	local	noargs,newbank,nameoff,hexpref
 
-	local	opc_bra,zero,offset0,offset1,fsrprei,fsrpred,fsrposi,fsrposd
+	local	opc_bra,zerolit,offset0,offset1,fsrprei,fsrpred,fsrposi,fsrposd
 	local	opc_miw,opc_mwi,opc_lit,opc_mlb,opc_mlp,opc_af0,opc_af1,opc_reg
 	local	opc_mov,opc_bit,opccall
 	local	opcgoto,opcclrw,opcomni,hexpref,hex_neg
@@ -1979,7 +1979,7 @@ overld3:
 	swapf	enc,w		;  w = enc >> 4;
 	pagesel	putmovi
 	call	putmovi		;  putmovi(w); // bit3 0/1  => moviw/movwi
-	zOS_ADR	zero,zOS_FLA
+	zOS_ADR	zerolit,zOS_FLA
 	movf	enc,w		;  fsr0 = "0";
 	andlw	0x3f		;
 	movwf	1+enc		;  enc[1] = enc[0] & 0x3f; // enc keeps FSRn's n
@@ -2075,130 +2075,6 @@ putmovi:
 	pagesel	puts
 	goto	puts		;} // putmovi()
 
-zero:
-	db	"0"
-offset0:
-	db	"[FSR0]",0
-offset1:
-	db	"[FSR1]",0
-fsrprei:
-	db	"++FSR0",0
-	db	"++FSR1",0
-fsrpred:
-	db	"--FSR0",0
-	db	"--FSR1",0
-
-fsrposi:
-	db	"FSR0++",0
-	db	"FSR1++",0
-fsrposd:
-	db	"FSR0--",0
-	db	"FSR1--",0
-opc_miw:
-	db	"moviw  "
-opc_mwi:
-	db	"movwi  "
-opc_lit:
-	db	"addlw  "
-	db	"sublw  "
-	db	"xorlw  "
-	db	"andlw  "
-	db	"iorlw  "
-	db	"retlw  "
-	db	"movlw  "
-opc_mlb:
-	db	"movlb  "
-opc_mlp:
-	db	"movlp  "
-opc_af0:
-	db	"addfsr FSR0,",0
-opc_af1:
-	db	"addfsr FSR1,",0
-
-opc_reg:
-	db	"addwfc "
-	db	"subwfb "
-	db	"asrf   "
-	db	"lsrf   "
-	db	"lslf   "
-	db	"incfsz "
-	db	"swapf  "
-	db	"rlf    "
-	db	"rrf    "
-	db	"decfsz "
-	db	"incf   "
-	db	"comf   "
-	db	"movf   "
-	db	"addwf  "
-	db	"xorwf  "
-	db	"andwf  "
-	db	"iorwf  "
-	db	"decf   "
-	db	"subwf  "
-opc_mov:
-	db	"movwf  "
-
-opc_bit:
-	db	"bcf    "
-	db	"bsf    "
-	db	"btfsc  "
-	db	"btfss  "
-
-opccall:
-	db	"call   0x"
-opcgoto:
-	db	"goto   0x"
-
-opcclrw:
-	db	"clrw   "
-	db	"clrf   "
-
-opcomni:
-	db	"nop    "
-	db	"reset  "
-	db	"option "
-	db	"sleep  "
-	db	"clrwdt "
-	db	"tris A "
-	db	"tris B "
-	db	"tris C "
-	db	"return "
-	db	"retfie "
-	db	"callw  "
-	db	"brw    "
-	db	"invalid"
-	db	"invalid"
-	db	"invalid"
-	db	"invalid"
-
-hexpref:
-	db	"0x",0
-hex_neg:
-	db	"-0x"
-regnam0:
-	db	"INDF0"
-regnam1:
-	db	"INDF1"
-regnam2:
-	db	"PCL"
-regnam3:
-	db	"STATUS",0
-regnam4:
-	db	"FSR0L"
-regnam5:
-	db	"FSR0H"
-regnam6:
-	db	"FSR1L"
-regnam7:
-	db	"FSR1H"
-regnam8:
-	db	"BSR"
-regnam9:
-	db	"WREG",0
-regnamA:
-	db	"PCLATH",0
-regnamB:
-	db	"INTCON",0
 nameoff:
 	brw			;
 	retlw	regnam0-regnam0	;
@@ -2213,6 +2089,130 @@ nameoff:
 	retlw	regnam9-regnam0	;
 	retlw	regnamA-regnam0	;
 	retlw	regnamB-regnam0	;
+
+opc_bra:
+	dw	3172, 30A0, 1020, 1030, 3C00	; da      "bra    0x"
+zerolit:
+	dw	1800           			; da      "0"
+offset0:
+	dw	2DC6, 29D2, 185D, 0000		; da      "[FSR0]",0
+offset1:
+	dw	2DC6, 29D2, 18DD, 0000		; da      "[FSR1]",0
+fsrprei:
+	dw	15AB, 2353, 2930, 0000		; da      "++FSR0",0
+	dw	15AB, 2353, 2931, 0000		; da      "++FSR1",0
+fsrpred:
+	dw	16AD, 2353, 2930, 0000		; da      "--FSR0",0
+	dw	16AD, 2353, 2931, 0000		; da      "--FSR1",0
+fsrposi:
+	dw	2353, 2930, 15AB, 0000		; da      "FSR0++",0
+	dw	2353, 2931, 15AB, 0000		; da      "FSR1++",0
+fsrposd:
+	dw	2353, 2930, 16AD, 0000		; da      "FSR0--",0
+	dw	2353, 2931, 16AD, 0000		; da      "FSR1--",0
+opc_miw:
+	dw	36EF, 3B69, 3BA0, 1000		; da      "moviw  "
+opc_mwi:
+	dw	36EF, 3B77, 34A0, 1000		; da      "movwi  "
+opc_lit:
+	dw	30E4, 326C, 3BA0, 1000		; da      "addlw  "
+	dw	39F5, 316C, 3BA0, 1000		; da      "sublw  "
+	dw	3C6F, 396C, 3BA0, 1000		; da      "xorlw  "
+	dw	30EE, 326C, 3BA0, 1000		; da      "andlw  "
+	dw	34EF, 396C, 3BA0, 1000		; da      "iorlw  "
+	dw	3965, 3A6C, 3BA0, 1000		; da      "retlw  "
+	dw	36EF, 3B6C, 3BA0, 1000		; da      "movlw  "
+opc_mlb:
+	dw	36EF, 3B6C, 3120, 1000		; da      "movlb  "
+opc_mlp:
+	dw	36EF, 3B6C, 3820, 1000		; da      "movlp  "
+opc_af0:
+	dw	30E4, 3266, 39F2 		; da      "addfsr FSR0,",0
+	dw	1046, 29D2, 182C, 0000
+opc_af1:
+	dw	30E4, 3266, 39F2 		; da      "addfsr FSR1,",0
+	dw	1046, 29D2, 18AC, 0000 
+opc_reg:
+	dw	30E4, 3277, 3363, 1000		; da      "addwfc "
+	dw	39F5, 3177, 3362, 1000		; da      "subwfb "
+	dw	30F3, 3966, 1020, 1000		; da      "asrf   "
+	dw	3673, 3966, 1020, 1000		; da      "lsrf   "
+	dw	3673, 3666, 1020, 1000		; da      "lslf   "
+	dw	34EE, 31E6, 39FA, 1000		; da      "incfsz "
+	dw	39F7, 30F0, 3320, 1000		; da      "swapf  "
+	dw	396C, 3320, 1020, 1000		; da      "rlf    "
+	dw	3972, 3320, 1020, 1000		; da      "rrf    "
+	dw	3265, 31E6, 39FA, 1000		; da      "decfsz "
+	dw	34EE, 31E6, 1020, 1000		; da      "incf   "
+	dw	31EF, 36E6, 1020, 1000		; da      "comf   "
+	dw	36EF, 3B66, 1020, 1000		; da      "movf   "
+	dw	30E4, 3277, 3320, 1000		; da      "addwf  "
+	dw	3C6F, 3977, 3320, 1000		; da      "xorwf  "
+	dw	30EE, 3277, 3320, 1000		; da      "andwf  "
+	dw	34EF, 3977, 3320, 1000		; da      "iorwf  "
+	dw	3265, 31E6, 1020, 1000		; da      "decf   "
+	dw	39F5, 3177, 3320, 1000		; da      "subwf  "
+opc_mov:
+	dw	36EF, 3B77, 3320, 1000		; da      "movwf  "
+opc_bit:
+	dw	3163, 3320, 1020, 1000		; da      "bcf    "
+	dw	3173, 3320, 1020, 1000		; da      "bsf    "
+	dw	3174, 3373, 31A0, 1000		; da      "btfsc  "
+	dw	3174, 3373, 39A0, 1000		; da      "btfss  "
+opccall:
+	dw	31E1, 366C, 1020, 1030, 3C00	; da      "call   0x"
+opcgoto:
+	dw	33EF, 3A6F, 1020, 1030, 3C00	; da      "goto   0x"
+
+opcclrw:
+	dw	31EC, 3977, 1020, 1000		; da      "clrw   "
+	dw	31EC, 3966, 1020, 1000		; da      "clrf   "
+opcomni:
+	dw	376F, 3820, 1020, 1000		; da      "nop    "
+	dw	3965, 39E5, 3A20, 1000		; da      "reset  "
+	dw	37F0, 3A69, 37EE, 1000		; da      "option "
+	dw	39EC, 32E5, 3820, 1000		; da      "sleep  "
+	dw	31EC, 3977, 3274, 1000		; da      "clrwdt "
+	dw	3A72, 34F3, 1041, 1000		; da      "tris A "
+	dw	3A72, 34F3, 1042, 1000		; da      "tris B "
+	dw	3A72, 34F3, 1043, 1000		; da      "tris C "
+	dw	3965, 3A75, 396E, 1000		; da      "return "
+	dw	3965, 3A66, 34E5, 1000		; da      "retfie "
+	dw	31E1, 366C, 3BA0, 1000		; da      "callw  "
+	dw	3172, 3BA0, 1020, 1000		; da      "brw    "
+	dw	34EE, 3B61, 3669, 3200		; da      "invalid"
+	dw	34EE, 3B61, 3669, 3200		; da      "invalid"
+	dw	34EE, 3B61, 3669, 3200		; da      "invalid"
+	dw	34EE, 3B61, 3669, 3200		; da      "invalid"
+hexpref:
+	dw	1878, 0000      		; da      "0x",0
+hex_neg:
+	dw	16B0, 3C00      		; da      "-0x"
+regnam0:
+	dw	24CE, 2246, 1800 		; da      "INDF0"
+regnam1:
+	dw	24CE, 2246, 1880 		; da      "INDF1"
+regnam2:
+	dw	2843, 2600      		; da      "PCL"
+regnam3:
+	dw	29D4, 20D4, 2AD3, 0000		; da      "STATUS",0
+regnam4:
+	dw	2353, 2930, 2600 		; da      "FSR0L"
+regnam5:
+	dw	2353, 2930, 2400 		; da      "FSR0H"
+regnam6:
+	dw	2353, 2931, 2600 		; da      "FSR1L"
+regnam7:
+	dw	2353, 2931, 2400 		; da      "FSR1H"
+regnam8:
+	dw	2153, 2900      		; da      "BSR"
+regnam9:
+	dw	2BD2, 22C7, 0000 		; da      "WREG",0
+regnamA:
+	dw	2843, 2641, 2A48, 0000		; da      "PCLATH",0
+regnamB:
+	dw	24CE, 2A43, 27CE, 0000		; da      "INTCON",0
+
 	endm
 
 
