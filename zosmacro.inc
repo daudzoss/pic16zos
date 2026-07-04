@@ -1444,12 +1444,7 @@ zOS_DEC	macro	putch,puts,enc,retadr
 	local	ophi_0X,ophi_11,bitops,literal,onelit,litbyte,calllit,bradest
 	local	destreg,onedest,nametst,namereg,flagreg,regarg2,endopc
 	local	overld0,nodest,overld1,overld2,braneg,brapos,overld3,omnibus
-	local	noargs,newbank,moviwwi,movoffs,nameoff
-	local	offset0,offset1,minfsr,minmin,plufsr,pluplu,opc_miw,opc_mwi
-	local	opc_lit,opc_mlp,opc_af0,opc_af1,opc_reg,opc_mov,opc_bit,opccall
-	local	opcgoto,opcclrw,opc_bpo,opc_bng,opcomni,opc_mlb,hexpref
-	local	regnam0,regnam1,regnam2,regnam3,regnam4,regnam5
-	local	regnam6,regnam7,regnam8,regnam9,regnamA,regnamB
+	local	noargs,newbank,nameoff,hexpref
 
 	movlw	0x1f		;void zOS_DEC(uint14_t enc) {
 	andwf	1+enc,w		; uint8_t w = (enc &= 0x1fff) >> 8;
@@ -1736,8 +1731,6 @@ brapos
 	call	puts		;
 	movlw	0x7f		;
 	bra	bradest		;
-opc_bra
-	da	"bra    0x"
 #endif	
 	
 overld3
@@ -1840,6 +1833,30 @@ putmovi
 	pagesel	puts
 	goto	puts		;} // putmovi()
 	
+nameoff
+	brw			;
+	retlw	regnam0-regnam0	;
+	retlw	regnam1-regnam0	;
+	retlw	regnam2-regnam0	;
+	retlw	regnam3-regnam0	;
+	retlw	regnam4-regnam0	;
+	retlw	regnam5-regnam0	;
+	retlw	regnam6-regnam0	;
+	retlw	regnam7-regnam0	;
+	retlw	regnam8-regnam0	;
+	retlw	regnam9-regnam0	;
+	retlw	regnamA-regnam0	;
+	retlw	regnamB-regnam0	;
+
+	local	opc_bra,zero,offset0,offset1,fsrprei,fsrpred,fsrposi,fsrposd
+	local	opc_miw,opc_mwi,opc_lit,opc_mlb,opc_mlp,opc_af0,opc_af1,opc_reg
+	local	opc_mov,opc_bit,opccall
+	local	opcgoto,opcclrw,opcomni,hexpref,hex_neg
+	local	regnam0,regnam1,regnam2,regnam3,regnam4,regnam5
+	local	regnam6,regnam7,regnam8,regnam9,regnamA,regnamB
+
+opc_bra
+	da	"bra    0x"
 zero
 	da	"0"
 offset0
@@ -1964,20 +1981,7 @@ regnamA
 	da	"PCLATH",0
 regnamB
 	da	"INTCON",0
-nameoff
-	brw			;
-	retlw	regnam0-regnam0	;
-	retlw	regnam1-regnam0	;
-	retlw	regnam2-regnam0	;
-	retlw	regnam3-regnam0	;
-	retlw	regnam4-regnam0	;
-	retlw	regnam5-regnam0	;
-	retlw	regnam6-regnam0	;
-	retlw	regnam7-regnam0	;
-	retlw	regnam8-regnam0	;
-	retlw	regnam9-regnam0	;
-	retlw	regnamA-regnam0	;
-	retlw	regnamB-regnam0	;
+
 	endm
 
 
