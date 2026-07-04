@@ -1676,12 +1676,24 @@ zOS_DEC	macro	putch,puts,enc,retadr
 	local	ophi_0X,ophi_11,bitops,literal,onelit,litbyte,calllit,bradest
 	local	destreg,onedest,nametst,namereg,flagreg,regarg2,endopc
 	local	overld0,nodest,overld1,overld2,braneg,brapos,overld3,omnibus
-	local	noargs,newbank,nameoff,hexpref
 
-	local	opc_bra,zerolit,offset0,offset1,fsrprei,fsrpred,fsrposi,fsrposd
-	local	opc_miw,opc_mwi,opc_lit,opc_mlb,opc_mlp,opc_af0,opc_af1,opc_reg
-	local	opc_mov,opc_bit,opccall
-	local	opcgoto,opcclrw,opcomni,hexpref,hex_neg
+; pic-as v3.00 coredumps when we replaced these in
+       local   post,putmovi,zero,fsrprei,fsrpred,fsrposi,fsrposd,hex_neg
+       local   printof,printfn,opc_bra,noargs,newbank,moviwwi,movoffs,nameoff
+       local   offset0,offset1,minfsr,minmin,plufsr,pluplu,opc_miw,opc_mwi
+       local   opc_lit,opc_mlp,opc_af0,opc_af1,opc_reg,opc_mov,opc_bit,opccall
+       local   opcgoto,opcclrw,opc_bpo,opc_bng,opcomni,opc_mlb,hexpref
+;
+;	local	noargs,newbank,nameoff,hexpref
+
+;	local	opc_bra,zerolit,offset0,offset1,fsrprei,fsrpred,fsrposi,fsrposd
+;	local	opc_miw,opc_mwi,opc_lit,opc_mlb,opc_mlp,opc_af0,opc_af1,opc_reg
+;	local	opc_mov,opc_bit,opccall
+;	local	opcgoto,opcclrw,opcomni,hexpref,hex_neg
+
+
+
+
 	local	regnam0,regnam1,regnam2,regnam3,regnam4,regnam5
 	local	regnam6,regnam7,regnam8,regnam9,regnamA,regnamB
 
@@ -2091,127 +2103,127 @@ nameoff:
 	retlw	regnamB-regnam0	;
 
 opc_bra:
-	dw	3172, 30A0, 1020, 1030, 3C00	; da      "bra    0x"
+	dw	0x3172, 0x30A0, 0x1020, 0x1030, 0x3C00	; da      "bra    0x"
 zerolit:
-	dw	1800           			; da      "0"
+	dw	0x1800           			; da      "0"
 offset0:
-	dw	2DC6, 29D2, 185D, 0000		; da      "[FSR0]",0
+	dw	0x2DC6, 0x29D2, 0x185D, 0x0000		; da      "[FSR0]",0
 offset1:
-	dw	2DC6, 29D2, 18DD, 0000		; da      "[FSR1]",0
+	dw	0x2DC6, 0x29D2, 0x18DD, 0x0000		; da      "[FSR1]",0
 fsrprei:
-	dw	15AB, 2353, 2930, 0000		; da      "++FSR0",0
-	dw	15AB, 2353, 2931, 0000		; da      "++FSR1",0
+	dw	0x15AB, 0x2353, 0x2930, 0x0000		; da      "++FSR0",0
+	dw	0x15AB, 0x2353, 0x2931, 0x0000		; da      "++FSR1",0
 fsrpred:
-	dw	16AD, 2353, 2930, 0000		; da      "--FSR0",0
-	dw	16AD, 2353, 2931, 0000		; da      "--FSR1",0
+	dw	0x16AD, 0x2353, 0x2930, 0x0000		; da      "--FSR0",0
+	dw	0x16AD, 0x2353, 0x2931, 0x0000		; da      "--FSR1",0
 fsrposi:
-	dw	2353, 2930, 15AB, 0000		; da      "FSR0++",0
-	dw	2353, 2931, 15AB, 0000		; da      "FSR1++",0
+	dw	0x2353, 0x2930, 0x15AB, 0x0000		; da      "FSR0++",0
+	dw	0x2353, 0x2931, 0x15AB, 0x0000		; da      "FSR1++",0
 fsrposd:
-	dw	2353, 2930, 16AD, 0000		; da      "FSR0--",0
-	dw	2353, 2931, 16AD, 0000		; da      "FSR1--",0
+	dw	0x2353, 0x2930, 0x16AD, 0x0000		; da      "FSR0--",0
+	dw	0x2353, 0x2931, 0x16AD, 0x0000		; da      "FSR1--",0
 opc_miw:
-	dw	36EF, 3B69, 3BA0, 1000		; da      "moviw  "
+	dw	0x36EF, 0x3B69, 0x3BA0, 0x1000		; da      "moviw  "
 opc_mwi:
-	dw	36EF, 3B77, 34A0, 1000		; da      "movwi  "
+	dw	0x36EF, 0x3B77, 0x34A0, 0x1000		; da      "movwi  "
 opc_lit:
-	dw	30E4, 326C, 3BA0, 1000		; da      "addlw  "
-	dw	39F5, 316C, 3BA0, 1000		; da      "sublw  "
-	dw	3C6F, 396C, 3BA0, 1000		; da      "xorlw  "
-	dw	30EE, 326C, 3BA0, 1000		; da      "andlw  "
-	dw	34EF, 396C, 3BA0, 1000		; da      "iorlw  "
-	dw	3965, 3A6C, 3BA0, 1000		; da      "retlw  "
-	dw	36EF, 3B6C, 3BA0, 1000		; da      "movlw  "
+	dw	0x30E4, 0x326C, 0x3BA0, 0x1000		; da      "addlw  "
+	dw	0x39F5, 0x316C, 0x3BA0, 0x1000		; da      "sublw  "
+	dw	0x3C6F, 0x396C, 0x3BA0, 0x1000		; da      "xorlw  "
+	dw	0x30EE, 0x326C, 0x3BA0, 0x1000		; da      "andlw  "
+	dw	0x34EF, 0x396C, 0x3BA0, 0x1000		; da      "iorlw  "
+	dw	0x3965, 0x3A6C, 0x3BA0, 0x1000		; da      "retlw  "
+	dw	0x36EF, 0x3B6C, 0x3BA0, 0x1000		; da      "movlw  "
 opc_mlb:
-	dw	36EF, 3B6C, 3120, 1000		; da      "movlb  "
+	dw	0x36EF, 0x3B6C, 0x3120, 0x1000		; da      "movlb  "
 opc_mlp:
-	dw	36EF, 3B6C, 3820, 1000		; da      "movlp  "
+	dw	0x36EF, 0x3B6C, 0x3820, 0x1000		; da      "movlp  "
 opc_af0:
-	dw	30E4, 3266, 39F2 		; da      "addfsr FSR0,",0
-	dw	1046, 29D2, 182C, 0000
+	dw	0x30E4, 0x3266, 0x39F2 			; da      "addfsr FSR0,",0
+	dw	0x1046, 0x29D2, 0x182C, 0x0000
 opc_af1:
-	dw	30E4, 3266, 39F2 		; da      "addfsr FSR1,",0
-	dw	1046, 29D2, 18AC, 0000 
+	dw	0x30E4, 0x3266, 0x39F2 			; da      "addfsr FSR1,",0
+	dw	0x1046, 0x29D2, 0x18AC, 0x0000 
 opc_reg:
-	dw	30E4, 3277, 3363, 1000		; da      "addwfc "
-	dw	39F5, 3177, 3362, 1000		; da      "subwfb "
-	dw	30F3, 3966, 1020, 1000		; da      "asrf   "
-	dw	3673, 3966, 1020, 1000		; da      "lsrf   "
-	dw	3673, 3666, 1020, 1000		; da      "lslf   "
-	dw	34EE, 31E6, 39FA, 1000		; da      "incfsz "
-	dw	39F7, 30F0, 3320, 1000		; da      "swapf  "
-	dw	396C, 3320, 1020, 1000		; da      "rlf    "
-	dw	3972, 3320, 1020, 1000		; da      "rrf    "
-	dw	3265, 31E6, 39FA, 1000		; da      "decfsz "
-	dw	34EE, 31E6, 1020, 1000		; da      "incf   "
-	dw	31EF, 36E6, 1020, 1000		; da      "comf   "
-	dw	36EF, 3B66, 1020, 1000		; da      "movf   "
-	dw	30E4, 3277, 3320, 1000		; da      "addwf  "
-	dw	3C6F, 3977, 3320, 1000		; da      "xorwf  "
-	dw	30EE, 3277, 3320, 1000		; da      "andwf  "
-	dw	34EF, 3977, 3320, 1000		; da      "iorwf  "
-	dw	3265, 31E6, 1020, 1000		; da      "decf   "
-	dw	39F5, 3177, 3320, 1000		; da      "subwf  "
+	dw	0x30E4, 0x3277, 0x3363, 0x1000		; da      "addwfc "
+	dw	0x39F5, 0x3177, 0x3362, 0x1000		; da      "subwfb "
+	dw	0x30F3, 0x3966, 0x1020, 0x1000		; da      "asrf   "
+	dw	0x3673, 0x3966, 0x1020, 0x1000		; da      "lsrf   "
+	dw	0x3673, 0x3666, 0x1020, 0x1000		; da      "lslf   "
+	dw	0x34EE, 0x31E6, 0x39FA, 0x1000		; da      "incfsz "
+	dw	0x39F7, 0x30F0, 0x3320, 0x1000		; da      "swapf  "
+	dw	0x396C, 0x3320, 0x1020, 0x1000		; da      "rlf    "
+	dw	0x3972, 0x3320, 0x1020, 0x1000		; da      "rrf    "
+	dw	0x3265, 0x31E6, 0x39FA, 0x1000		; da      "decfsz "
+	dw	0x34EE, 0x31E6, 0x1020, 0x1000		; da      "incf   "
+	dw	0x31EF, 0x36E6, 0x1020, 0x1000		; da      "comf   "
+	dw	0x36EF, 0x3B66, 0x1020, 0x1000		; da      "movf   "
+	dw	0x30E4, 0x3277, 0x3320, 0x1000		; da      "addwf  "
+	dw	0x3C6F, 0x3977, 0x3320, 0x1000		; da      "xorwf  "
+	dw	0x30EE, 0x3277, 0x3320, 0x1000		; da      "andwf  "
+	dw	0x34EF, 0x3977, 0x3320, 0x1000		; da      "iorwf  "
+	dw	0x3265, 0x31E6, 0x1020, 0x1000		; da      "decf   "
+	dw	0x39F5, 0x3177, 0x3320, 0x1000		; da      "subwf  "
 opc_mov:
-	dw	36EF, 3B77, 3320, 1000		; da      "movwf  "
+	dw	0x36EF, 0x3B77, 0x3320, 0x1000		; da      "movwf  "
 opc_bit:
-	dw	3163, 3320, 1020, 1000		; da      "bcf    "
-	dw	3173, 3320, 1020, 1000		; da      "bsf    "
-	dw	3174, 3373, 31A0, 1000		; da      "btfsc  "
-	dw	3174, 3373, 39A0, 1000		; da      "btfss  "
+	dw	0x3163, 0x3320, 0x1020, 0x1000		; da      "bcf    "
+	dw	0x3173, 0x3320, 0x1020, 0x1000		; da      "bsf    "
+	dw	0x3174, 0x3373, 0x31A0, 0x1000		; da      "btfsc  "
+	dw	0x3174, 0x3373, 0x39A0, 0x1000		; da      "btfss  "
 opccall:
-	dw	31E1, 366C, 1020, 1030, 3C00	; da      "call   0x"
+	dw	0x31E1, 0x366C, 0x1020, 0x1030, 0x3C00	; da      "call   0x"
 opcgoto:
-	dw	33EF, 3A6F, 1020, 1030, 3C00	; da      "goto   0x"
+	dw	0x33EF, 0x3A6F, 0x1020, 0x1030, 0x3C00	; da      "goto   0x"
 
 opcclrw:
-	dw	31EC, 3977, 1020, 1000		; da      "clrw   "
-	dw	31EC, 3966, 1020, 1000		; da      "clrf   "
+	dw	0x31EC, 0x3977, 0x1020, 0x1000		; da      "clrw   "
+	dw	0x31EC, 0x3966, 0x1020, 0x1000		; da      "clrf   "
 opcomni:
-	dw	376F, 3820, 1020, 1000		; da      "nop    "
-	dw	3965, 39E5, 3A20, 1000		; da      "reset  "
-	dw	37F0, 3A69, 37EE, 1000		; da      "option "
-	dw	39EC, 32E5, 3820, 1000		; da      "sleep  "
-	dw	31EC, 3977, 3274, 1000		; da      "clrwdt "
-	dw	3A72, 34F3, 1041, 1000		; da      "tris A "
-	dw	3A72, 34F3, 1042, 1000		; da      "tris B "
-	dw	3A72, 34F3, 1043, 1000		; da      "tris C "
-	dw	3965, 3A75, 396E, 1000		; da      "return "
-	dw	3965, 3A66, 34E5, 1000		; da      "retfie "
-	dw	31E1, 366C, 3BA0, 1000		; da      "callw  "
-	dw	3172, 3BA0, 1020, 1000		; da      "brw    "
-	dw	34EE, 3B61, 3669, 3200		; da      "invalid"
-	dw	34EE, 3B61, 3669, 3200		; da      "invalid"
-	dw	34EE, 3B61, 3669, 3200		; da      "invalid"
-	dw	34EE, 3B61, 3669, 3200		; da      "invalid"
+	dw	0x376F, 0x3820, 0x1020, 0x1000		; da      "nop    "
+	dw	0x3965, 0x39E5, 0x3A20, 0x1000		; da      "reset  "
+	dw	0x37F0, 0x3A69, 0x37EE, 0x1000		; da      "option "
+	dw	0x39EC, 0x32E5, 0x3820, 0x1000		; da      "sleep  "
+	dw	0x31EC, 0x3977, 0x3274, 0x1000		; da      "clrwdt "
+	dw	0x3A72, 0x34F3, 0x1041, 0x1000		; da      "tris A "
+	dw	0x3A72, 0x34F3, 0x1042, 0x1000		; da      "tris B "
+	dw	0x3A72, 0x34F3, 0x1043, 0x1000		; da      "tris C "
+	dw	0x3965, 0x3A75, 0x396E, 0x1000		; da      "return "
+	dw	0x3965, 0x3A66, 0x34E5, 0x1000		; da      "retfie "
+	dw	0x31E1, 0x366C, 0x3BA0, 0x1000		; da      "callw  "
+	dw	0x3172, 0x3BA0, 0x1020, 0x1000		; da      "brw    "
+	dw	0x34EE, 0x3B61, 0x3669, 0x3200		; da      "invalid"
+	dw	0x34EE, 0x3B61, 0x3669, 0x3200		; da      "invalid"
+	dw	0x34EE, 0x3B61, 0x3669, 0x3200		; da      "invalid"
+	dw	0x34EE, 0x3B61, 0x3669, 0x3200		; da      "invalid"
 hexpref:
-	dw	1878, 0000      		; da      "0x",0
+	dw	0x1878, 0x0000		      		; da      "0x",0
 hex_neg:
-	dw	16B0, 3C00      		; da      "-0x"
+	dw	0x16B0, 0x3C00      			; da      "-0x"
 regnam0:
-	dw	24CE, 2246, 1800 		; da      "INDF0"
+	dw	0x24CE, 0x2246, 0x1800 			; da      "INDF0"
 regnam1:
-	dw	24CE, 2246, 1880 		; da      "INDF1"
+	dw	0x24CE, 0x2246, 0x1880	 		; da      "INDF1"
 regnam2:
-	dw	2843, 2600      		; da      "PCL"
+	dw	0x2843, 0x2600      			; da      "PCL"
 regnam3:
-	dw	29D4, 20D4, 2AD3, 0000		; da      "STATUS",0
+	dw	0x29D4, 0x20D4, 0x2AD3, 0x0000		; da      "STATUS",0
 regnam4:
-	dw	2353, 2930, 2600 		; da      "FSR0L"
+	dw	0x2353, 0x2930, 0x2600 			; da      "FSR0L"
 regnam5:
-	dw	2353, 2930, 2400 		; da      "FSR0H"
+	dw	0x2353, 0x2930, 0x2400	 		; da      "FSR0H"
 regnam6:
-	dw	2353, 2931, 2600 		; da      "FSR1L"
+	dw	0x2353, 0x2931, 0x2600 			; da      "FSR1L"
 regnam7:
-	dw	2353, 2931, 2400 		; da      "FSR1H"
+	dw	0x2353, 0x2931, 0x2400 			; da      "FSR1H"
 regnam8:
-	dw	2153, 2900      		; da      "BSR"
+	dw	0x2153, 0x2900		      		; da      "BSR"
 regnam9:
-	dw	2BD2, 22C7, 0000 		; da      "WREG",0
+	dw	0x2BD2, 0x22C7, 0x0000 			; da      "WREG",0
 regnamA:
-	dw	2843, 2641, 2A48, 0000		; da      "PCLATH",0
+	dw	0x2843, 0x2641, 0x2A48, 0x0000		; da      "PCLATH",0
 regnamB:
-	dw	24CE, 2A43, 27CE, 0000		; da      "INTCON",0
+	dw	0x24CE, 0x2A43, 0x27CE, 0x0000		; da      "INTCON",0
 
 	endm
 
