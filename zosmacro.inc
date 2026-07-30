@@ -2762,12 +2762,12 @@ monsave:
 	addwf	char_io,f	;  char_io = 0;
 	movf	accumul,w	; } // if () // was less than 32 so aborts
 	movwf	zOS_AR1		;
-	if (isr)
+#if isr
 	pagesel	isr
-	 goto	isr		; zOS_RFI(); // reached only if isr == 0
-	else
+	goto	isr		; zOS_RFI(); // reached only if isr == 0
+#else
 	 zOS_RFI
-	endif
+#endif
 
 ;;;
 monprmp:
