@@ -545,7 +545,7 @@ zos_emp:
 	movlw	0x10		;   for (fsr1 = 0x10*(1+zos_job);
 	addwf	FSR1L,f		;
 	incf	zOS_JOB,f	;        zos_job++ <= zOS_NUM;
-	movlw	0xff-zOS_NUM	;
+	movlw	0xff - zOS_NUM	;
 	addwf	zOS_JOB,w	;
 	btfsc	STATUS,2	;        fsr1 += 0x10) {
 	bra	zos_err		;    if (zOS_PCH]fsr1 == 0)
@@ -665,7 +665,7 @@ zos_cp1:
 	clrw			;
 	addwfc	FSR1H,f		;    fsr1 += 0x80;
 	incf	zOS_JOB,f	;
-	movlw	0xff-zOS_NUM	;
+	movlw	0xff - zOS_NUM	;
 	addwf	zOS_JOB,w	;
 	btfsc	STATUS,2	;
 	bra	zos_cpd		;
@@ -731,7 +731,7 @@ zos_sw7:
 	movlw	zOS_NUM		;
 	addlw	1		;
 	movwf	zOS_JOB		;
-	addlw	0xfe-zOS_NUM	;   if (zOS_AR2 && ((uint8_t)zOS_AR2<=zOS_NUM))
+	addlw	0xfe - zOS_NUM	;   if (zOS_AR2 && ((uint8_t)zOS_AR2<=zOS_NUM))
 	btfsc	WREG,7		;    zOS_JOB = zOS_AR2 + 1;
 	movlw	1+zOS_NUM	;   else
 	movwf	zOS_JOB		;    zOS_JOB = zOS_NUM + 1;
