@@ -270,7 +270,7 @@ loop:
 	endif
 	if (incr)
 	 incf	job,f		;  *fsrnum += incr ? 0x10 : -0x10;// next struct
-	 movlw	0xff-zOS_NUM	;  job += incr ? 1 : -1; // next job#
+	 movlw	0xff - zOS_NUM	;  job += incr ? 1 : -1; // next job#
 	 addwf	job,w		;  if ((job == 0) || (job >= zOS_NUM+1)) {//past
 	 btfss	WREG,7		;
 	else
