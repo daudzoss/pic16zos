@@ -1301,9 +1301,9 @@ condecl:
 	
 #else
 	if (p eq 0)|(p eq 1)
-	 bcf	BANKMASK(TX1STA),4 ; copied from #define TXEN in pix16f18013.inc
+	 bcf	BANKMASK(TX1STA),5 ; copied from #define TXEN in pic16f18013.inc
 	else
-	 bcf	BANKMASK(TX2STA),4
+	 bcf	BANKMASK(TX2STA),5
 	endif
 #endif
 
