@@ -2268,10 +2268,9 @@ max	set	0x70
 
 #ifdef zOS_MIN
 #else
-	local	monout,loop,done,disasmb,disasmr,monpack,monback,monloop,monhex
-	local	monlsb,mon0,monx,monspc,monlf,monbufs,monbufd,monramd,monsave
+     local monout,loop,done,disasmb,disasmr,monpack,monback,monloop/*,monhex*/
+     local /*monlsb,*/mon0,monx,monspc,monlf/*,monbufs*/,monbufd,monramd,monsave
 	local	monempty,monzero
-;;;^^^^^this line causes error 798^^^^^
 
 monpack:
 #ifdef CAUTIOUS
