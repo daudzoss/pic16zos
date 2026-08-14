@@ -538,19 +538,19 @@ isr:
 	btfsc	STATUS,2	; if (0[fsr1] | 1[fsr1])
 	bra	invalid		;  goto invalid;// not init'ed according to mbox
 
-#if (mi - fi)
+ if (mi - fi) ne 0
 	movf	zOS_MSK,w	;
 	andlw	mi		; //////////////////////////////////////////////
 	btfsc	STATUS,2	; /////             malloc()                  //
 	bra	free		; if (((mi != fi) && (zOS_MSK & mi)) ||
-#else
+ else
 	movf	zOS_AR1,w	;    ((mi == fi) && (zOS_AR0=/*sic*/zOS_AR1))) {
 	movf	zOS_AR0,f	;
 	btfsc	STATUS,2	;  // can either assign separate SWIs for malloc
 	movwf	zOS_AR0		;  // and free or if nearing the SWI limit of 5,
 	btfsc	STATUS,2	;  // put the parameter in ARG1 instead of ARG0
 	bra	free		;  // and ARG0!=0 for malloc() or ==0 for free()
-#endif
+ endif
 	zOS_LOC	FSR0L,BSR,adrarry;  for (fsr0 = (bsr<<7)+adrarry,
 	zOS_LOC	FSR1L,BSR,sizarry;       fsr1 = (bsr<<7)+sizarry;
 mloop:
@@ -771,10 +771,11 @@ pre:
 	endm
 post:
 len	set	post-pre
-#if (len > 254)
+#if 0//spews endif errors
+	if (post - pre) gt 254
 	 error "string too long"
-#endif
-
+	endif
+#endif// 0
 setup:
 	movlw	len		; zOS_SWI(zOS_YLD); // get buffer empty as poss.
 	movwf	temp		; for (*temp = strlen(str); *temp; --*temp) {
@@ -1112,13 +1113,13 @@ max	set	0x70
 ;zOS_MON()-derived macros referring to these local variables wouldn't open it
 ;until expansion and would throw an undefined-var error during the processing
 	local	uatbase,uatxmit
-#if p
+ if p
 
 uatbase	set	TX&p&REG and 0xff80
 uatxmit	set	TX&p&REG and 0x001f ; mask off just the sfr SFR
 rtsflag	set	rts&_TX&p&IF_POSN
 
-#else
+ else
 
 #ifdef TXREG
 uatbase	set	TXREG and 0xff80
@@ -1134,7 +1135,7 @@ rtsflag	set	rts&_TXIF_POSN
 rtsflag	set	rts&_TX1IF_POSN
 #endif
 
-#endif
+ endif
 	zOS_NAM	"console (output-only)"
 contask:
 	movlw	high uatbase	; goto decl;
@@ -1321,15 +1322,15 @@ brgvall	set	low brgvalm
 #ifdef SYNC_TXSTA
 	bcf	SYNC_TXSTA
 #else
-#if p
+ if p
 	bcf	TX&p&STA,TX&p&STA_SYNC_POSN
-#else
+ else
 #ifdef TX1STA
 	bcf	TX1STA,TX1STA_SYNC_POSN
 #else
 	bcf	TXSTA,TXSTA_SYNC_POSN
 #endif // def TX1STA
-#endif // p
+ endif // p
 #endif // def SYNC_TXSTA
 #endif // def SYNC
 
@@ -1501,13 +1502,13 @@ max	set	0x70
 ;zOS_MON()-derived macros referring to these local variables wouldn't open it
 ;until expansion and would throw an undefined-var error during the processing
 	local	uarbase,uarecv,rxflag
-#if p
+ if p
 
 uarbase	set	RC&p&REG and 0xff80
 uarecv	set	RC&p&REG and 0x7f
 rxflag	set	rt&_RC&p&IF_POSN
 
-#else
+ else
 
 #ifdef RCREG
 uarbase	set	RCREG and 0xff80
@@ -1523,7 +1524,7 @@ rxflag	set	rt&_RCIF_POSN
 rxflag	set	rt&_RC1IF_POSN
 #endif
 
-#endif
+ endif
 
 
 	zOS_NAM	"console I/O"
@@ -2761,12 +2762,12 @@ monsave:
 	addwf	char_io,f	;  char_io = 0;
 	movf	accumul,w	; } // if () // was less than 32 so aborts
 	movwf	zOS_AR1		;
-#if isr
+	if isr
 	pagesel	isr
-	goto	isr		; zOS_RFI(); // reached only if isr == 0
-#else
+	 goto	isr		; zOS_RFI(); // reached only if isr == 0
+	else
 	 zOS_RFI
-#endif
+	endif
 
 ;;;
 monprmp:
@@ -3502,9 +3503,9 @@ clctbl:
 	retlw	'^' ; '~'	; 0 to disable command-line zos_mac() exponents
 clcalcs:
 clcsize	equ	clcalcs-clctbl
-#if clcsize-0x3f
+ if clcsize ne 0x3f
 	; error "bad size: ASCII translation table expected to span 0x20 to 0x5e"
-#endif
+ endif
 	movwf	char_io		;
 	xorlw	'+'		;
 	btfss	STATUS,2	;
