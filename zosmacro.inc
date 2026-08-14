@@ -510,7 +510,7 @@ zOS_HEA	macro	base,size,mi,fi	;void zOS_HEA(void* base, void* size, uint8_t
 
 	bra	decl		; goto decl;
 
-	local	maxnon0,alloced,always0,temp,adrarry,tblsize
+	local	maxnon0,alloced,always0,temp,adrarry,tblsize,skp1,skp2
 	local	tblrows,sizarry,memroun,mem3nyb,membase,memsize
 maxnon0	set	0x6c
 alloced	set	0x6d
@@ -538,19 +538,21 @@ isr:
 	btfsc	STATUS,2	; if (0[fsr1] | 1[fsr1])
 	bra	invalid		;  goto invalid;// not init'ed according to mbox
 
-#if (mi - fi)
+
+	bra	(mi-fi)?$+1:skp1;
 	movf	zOS_MSK,w	;
 	andlw	mi		; //////////////////////////////////////////////
 	btfsc	STATUS,2	; /////             malloc()                  //
 	bra	free		; if (((mi != fi) && (zOS_MSK & mi)) ||
-#else
+	bra	skp2		;
+skp1:
 	movf	zOS_AR1,w	;    ((mi == fi) && (zOS_AR0=/*sic*/zOS_AR1))) {
 	movf	zOS_AR0,f	;
 	btfsc	STATUS,2	;  // can either assign separate SWIs for malloc
 	movwf	zOS_AR0		;  // and free or if nearing the SWI limit of 5,
 	btfsc	STATUS,2	;  // put the parameter in ARG1 instead of ARG0
 	bra	free		;  // and ARG0!=0 for malloc() or ==0 for free()
-#endif
+skp2:
 	zOS_LOC	FSR0L,BSR,adrarry;  for (fsr0 = (bsr<<7)+adrarry,
 	zOS_LOC	FSR1L,BSR,sizarry;       fsr1 = (bsr<<7)+sizarry;
 mloop:
@@ -1112,29 +1114,29 @@ max	set	0x70
 ;zOS_MON()-derived macros referring to these local variables wouldn't open it
 ;until expansion and would throw an undefined-var error during the processing
 	local	uatbase,uatxmit
-#if p
-
-uatbase	set	TX&p&REG and 0xff80
-uatxmit	set	TX&p&REG and 0x001f ; mask off just the sfr SFR
-rtsflag	set	rts&_TX&p&IF_POSN
-
-#else
-
 #ifdef TXREG
 uatbase	set	TXREG and 0xff80
-uatxmit	set	TXREG and 0x001f ; mask off just the SFR space
+uatxmit	set	TXREG and 0x001f
 #else
-uatbase	set	TX1REG and 0xff80
-uatxmit	set	TX1REG and 0x001f ; mask off just the SFR space
+TX0REG equ TX1REG
+uatbase	set	TX&p&REG and 0xff80
+uatxmit	set	TX&p&REG and 0x001f
 #endif
 
 #ifdef TXIF
 rtsflag	set	rts&_TXIF_POSN
 #else
-rtsflag	set	rts&_TX1IF_POSN
+PIR1_TX0IF_POSN equ PIR1_TX1IF_POSN
+PIR2_TX0IF_POSN equ PIR2_TX1IF_POSN
+PIR3_TX0IF_POSN equ PIR3_TX1IF_POSN
+PIR4_TX0IF_POSN equ PIR4_TX1IF_POSN
+PIR5_TX0IF_POSN equ PIR5_TX1IF_POSN
+PIR6_TX0IF_POSN equ PIR6_TX1IF_POSN
+PIR7_TX0IF_POSN equ PIR7_TX1IF_POSN
+PIR8_TX0IF_POSN equ PIR8_TX1IF_POSN
+rtsflag	set	rts&_TX&p&IF_POSN
 #endif
 
-#endif
 	zOS_NAM	"console (output-only)"
 contask:
 	movlw	high uatbase	; goto decl;
@@ -1298,7 +1300,7 @@ condecl:
 
 #ifdef TXEN
 	bcf	TXEN		; TXSTA &= ~(1<<TXEN);
-	
+
 #else
 	if (p eq 0)|(p eq 1)
 	 bcf	BANKMASK(TX1STA),5 ; copied from #define TXEN in pic16f18013.inc
@@ -1321,7 +1323,7 @@ brgvall	set	low brgvalm
 #ifdef SYNC_TXSTA
 	bcf	SYNC_TXSTA
 #else
-#if p
+#ifdef TX&p&STA
 	bcf	TX&p&STA,TX&p&STA_SYNC_POSN
 #else
 #ifdef TX1STA
@@ -1375,7 +1377,7 @@ brgvall	set	low brgvalm
 #ifdef SP1BRGL
 	 movwf	SP1BRGL		; SPBRG = (rat/16) - 1;
 	 clrf	SP1BRGH		;
-#else	
+#else
 	 movwf	SPBRG		; SPBRG = (rat/16) - 1;
 #endif
 	else
@@ -1501,30 +1503,29 @@ max	set	0x70
 ;zOS_MON()-derived macros referring to these local variables wouldn't open it
 ;until expansion and would throw an undefined-var error during the processing
 	local	uarbase,uarecv,rxflag
-#if p
-
-uarbase	set	RC&p&REG and 0xff80
-uarecv	set	RC&p&REG and 0x7f
-rxflag	set	rt&_RC&p&IF_POSN
-
-#else
 
 #ifdef RCREG
 uarbase	set	RCREG and 0xff80
 uarecv	set	RCREG and 0x7f
 #else
-uarbase	set	RC1REG and 0xff80
-uarecv	set	RC1REG and 0x7f
+RC0REG equ RC1REG
+uarbase	set	RC&p&REG and 0xff80
+uarecv	set	RC&p&REG and 0x7f
 #endif
 
 #ifdef RCIF
 rxflag	set	rt&_RCIF_POSN
 #else
-rxflag	set	rt&_RC1IF_POSN
+PIR1_RC0IF_POSN equ PIR1_RC1IF_POSN
+PIR2_RC0IF_POSN equ PIR2_RC1IF_POSN
+PIR3_RC0IF_POSN equ PIR3_RC1IF_POSN
+PIR4_RC0IF_POSN equ PIR4_RC1IF_POSN
+PIR5_RC0IF_POSN equ PIR5_RC1IF_POSN
+PIR6_RC0IF_POSN equ PIR6_RC1IF_POSN
+PIR7_RC0IF_POSN equ PIR7_RC1IF_POSN
+PIR8_RC0IF_POSN equ PIR8_RC1IF_POSN
+rxflag	set	rt&_RC&p&IF_POSN
 #endif
-
-#endif
-
 
 	zOS_NAM	"console I/O"
 ;;; FIXME: haven't actually written the var init code for zOS_MON et al yet
@@ -2761,12 +2762,9 @@ monsave:
 	addwf	char_io,f	;  char_io = 0;
 	movf	accumul,w	; } // if () // was less than 32 so aborts
 	movwf	zOS_AR1		;
-#if isr
 	pagesel	isr
 	goto	isr		; zOS_RFI(); // reached only if isr == 0
-#else
-	 zOS_RFI
-#endif
+	zOS_RFI
 
 ;;;
 monprmp:
