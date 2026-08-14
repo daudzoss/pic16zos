@@ -1617,7 +1617,7 @@ rxdecl:
 	movlw	low rxtask	; fsr0 = 0x10 + w << 4;
 	movwi	[zOS_HDL]fsr0	;
 	movwi	[zOS_PCL]fsr0	;
-	movlw	0x80|high rxtask	;
+	movlw	0x80|high rxtask	; FIXME: 0x80| undoes the RTOSACT above!
 	movwi	[zOS_PCH]fsr0	; zOS_PC[fsr0] = rxtask;
 	iorlw	0x80		;
 	movwi	[zOS_HDH]fsr0	; zOS_HD[fsr0] = rxtask | 0x8000;
