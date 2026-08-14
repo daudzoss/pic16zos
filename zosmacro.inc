@@ -538,21 +538,20 @@ isr:
 	btfsc	STATUS,2	; if (0[fsr1] | 1[fsr1])
 	bra	invalid		;  goto invalid;// not init'ed according to mbox
 
-
-	bra	(mi-fi)?$+1:skp1;
+        if (mi - fi)
 	movf	zOS_MSK,w	;
 	andlw	mi		; //////////////////////////////////////////////
 	btfsc	STATUS,2	; /////             malloc()                  //
 	bra	free		; if (((mi != fi) && (zOS_MSK & mi)) ||
 	bra	skp2		;
-skp1:
+	else
 	movf	zOS_AR1,w	;    ((mi == fi) && (zOS_AR0=/*sic*/zOS_AR1))) {
 	movf	zOS_AR0,f	;
 	btfsc	STATUS,2	;  // can either assign separate SWIs for malloc
 	movwf	zOS_AR0		;  // and free or if nearing the SWI limit of 5,
 	btfsc	STATUS,2	;  // put the parameter in ARG1 instead of ARG0
 	bra	free		;  // and ARG0!=0 for malloc() or ==0 for free()
-skp2:
+	endif
 	zOS_LOC	FSR0L,BSR,adrarry;  for (fsr0 = (bsr<<7)+adrarry,
 	zOS_LOC	FSR1L,BSR,sizarry;       fsr1 = (bsr<<7)+sizarry;
 mloop:
@@ -1320,19 +1319,15 @@ brgvall	set	low brgvalm
 #ifdef SYNC //TX1STA_SYNC_POSN
 	bcf	SYNC		; // (1) "Initialize..the desired baud rate"
 #else
-#ifdef SYNC_TXSTA
-	bcf	SYNC_TXSTA
+
+#ifdef TXSTA_SYNC
+	bcf	TXSTA_SYNC
 #else
-#ifdef TX&p&STA
+TX0STA	equ	TX1STA
+TX0STA_SYNC_POSN	equ	TX1STA_SYNC_POSN
 	bcf	TX&p&STA,TX&p&STA_SYNC_POSN
-#else
-#ifdef TX1STA
-	bcf	TX1STA,TX1STA_SYNC_POSN
-#else
-	bcf	TXSTA,TXSTA_SYNC_POSN
-#endif // def TX1STA
-#endif // p
 #endif // def SYNC_TXSTA
+
 #endif // def SYNC
 
 	bsf	BRGH		; BAUDCON |= 1<<BRG16; // 16-bit generator
@@ -2762,12 +2757,12 @@ monsave:
 	addwf	char_io,f	;  char_io = 0;
 	movf	accumul,w	; } // if () // was less than 32 so aborts
 	movwf	zOS_AR1		;
-	if isr
+//	if isr
 	pagesel	isr
-	 goto	isr		; zOS_RFI(); // reached only if isr == 0
-	else
-	 zOS_RFI
-	endif
+	 goto	isr		; // isr must now be nonzero
+//	else
+//	 zOS_RFI
+//	endif
 
 ;;;
 monprmp:

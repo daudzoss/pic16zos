@@ -372,7 +372,11 @@ CLKRAT	equ	020000000/000009600
 #endif
 
 #ifdef zOS_MIN
-	zOS_MAN	0,CLKRAT,PIR1,PORTB,PORTB_RB5_POSN,0
+	bra	endisr
+nullisr:
+	zOS_RFI
+endisr:
+	zOS_MAN	0,CLKRAT,PIR1,PORTB,PORTB_RB5_POSN,nullisr
 	movlw	OUTCHAR		; zOS_MON(/*UART*/1,20MHz/9600bps,PIR1,PORTB,5);
 	movwi	0[FSR0]		; zOS_ARG(3, OUTCHAR/*only 1 SWI*/);
 #endif
