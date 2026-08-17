@@ -3674,15 +3674,14 @@ endclc:
 
 zOS_T63	macro
 	local	chrtran
-	addlw	0-0x1f		;#define zOS_T63(w) \
-	btfsc	WREG,7		;\
-	clrw			;\
-	andlw	0x3f		;\
-	pagesel	chrtran		;\
-	call	chrtran		; w = table[(w >= ' ') ? (w & 0x3f) : 0];\
-	bra	$+0x42		; /*must be followed by 63-char retlw string:*/\
+	addlw	0-0x1f		;#define zOS_T63(w) /
+	btfsc	WREG,7		;/
+	clrw			;/
+	andlw	0x3f		;/
+	pagesel	chrtran		;/
+	call	chrtran		; w = table[(w >= ' ') ? (w & 0x3f) : 0];/
+	bra	$+0x42		; /*must be followed by 63-char retlw string:*//
 chrtran:
-	brw			; static char table[64] = "\0\
+	brw			; static char table[64] = "\0/
 	retlw	0		;/* zOS_T63() */
 	endm
-
