@@ -1687,9 +1687,6 @@ zOS_DEC	macro	putch,puts,enc,retadr
 ;	local	opc_mov,opc_bit,opccall
 ;	local	opcgoto,opcclrw,opcomni,hexpref,hex_neg
 
-
-
-
 	local	regnam0,regnam1,regnam2,regnam3,regnam4,regnam5
 	local	regnam6,regnam7,regnam8,regnam9,regnamA,regnamB
 
@@ -1704,9 +1701,9 @@ ophi_0X:
 	btfsc	1+enc,4		;
 	bra	bitops		;  enc = w; // builds string index in bits 8~12
 ophi_11:
-	clrf	1+enc		;  switch (w) { case 0: /*
-	brw			;movwf/callw/movlb/brw/retfie/return/clrwdt/nop/
-	bra	overld0		;option/reset/sleep/tris/mov[wi]*/ goto overld0;
+	clrf	1+enc		;  switch (w) { case 0: /*movwf/callw/movlb/*/
+	brw			;/*brw/retfie/return/clrwdt/nop/option/reset*/
+	bra	overld0		;/sleep/tris/mov[wi]*/ goto overld0;
 	bra	overld1		;/* 0x01nn=>clrf/clrw*/ case 1: goto overld1;
 	bra	destreg-0x12	;/* 0x02nn => subwf  */ case 2: goto destreg-18;
 	bra	destreg-0x11	;/* 0x03nn => decf   */ case 3: goto destreg-17;
