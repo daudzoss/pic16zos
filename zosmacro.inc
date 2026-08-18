@@ -3430,21 +3430,21 @@ clcisr:
 	movf	zOS_AR0,w	; switch (char_io = zOS_AR0) {
 	zOS_T63
 clctbl:
-	retlw	' '		; 0 to disable just about any RPN functionality
-	retlw   '!'		; 0 to disable command-line zos_mac() factorial
+	retlw	' '		; before daisy-chained isr, so can't be disabled
+	retlw   '!'		; before daisy-chained isr, so can't be disabled
 	retlw	0x22
 	retlw	'#'
 	retlw	'$'
-	retlw	'%'		; 0 to disable 2.5x shortcut
+	retlw	'%'		; before daisy-chained isr, so can't be disabled
 	retlw	0x26 ; '&'
 	retlw	"'"
 	retlw	'('
 	retlw	')'
 	retlw	'*'		; 0 to disable zos_mac() access on command line
 	retlw	'+'		; 0 to disable addition on command line
-	retlw	','		; 0 to disable just about any RPN functionality
+	retlw	','		; before daisy-chained isr, so can't be disabled
 	retlw	'-'		; 0 to disable subtraction on command line
-	retlw	'.'		; 0 to disable memory view/disassembly
+	retlw	'.'		; before daisy-chained isr, so can't be disabled
 	retlw	'/'		; 0 to disable zos_div() access on command line
 	retlw	'0'
 	retlw	'1'
@@ -3454,22 +3454,22 @@ clctbl:
 	retlw	'5'
 	retlw	'6'
 	retlw	'7'
-	retlw	'8'		; 0 to disable entry of decimal constants
-	retlw	'9'		; 0 to disable entry of decimal constants
+	retlw	'8'		;
+	retlw	'9'		;
 	retlw	':'
-	retlw	0x3b		; 0 to disable shortcut access to top job global
+	retlw	0x3b		; before daisy-chained isr, so can't be disabled
 	retlw	'<'
-	retlw	'='		; 0 to disable direct memory poking
+	retlw	'='		; before daisy-chained isr, so can't be disabled
 	retlw	'>'
-	retlw	'?'
+	retlw	'?'		; before daisy-chained isr, so can't be disabled
 	retlw	0x40 ; '@'
-	retlw	'A'		; 0 to disable entry of hexadecimal constants
-	retlw	'B'		; 0 to disable entry of hexadecimal constants
-	retlw	'C'		; 0 to disable entry of hexadecimal constants
-	retlw	'D'		; 0 to disable entry of hexadecimal constants
-	retlw	'E'		; 0 to disable entry of hexadecimal constants
-	retlw	'F'		; 0 to disable entry of hexadecimal constants
-	retlw	'G'		; 0 to disable job Generation similar to fork()
+	retlw	'A'		;
+	retlw	'B'		;
+	retlw	'C'		;
+	retlw	'D'		;
+	retlw	'E'		;
+	retlw	'F'		;
+	retlw	'G'		;
 	retlw	'H'		; 0 to disable job Hunting by handle address
 	retlw	'I'		; 0 to disable command-line software Interrupts
 	retlw	'J'		; 0 to disable listing running Jobs
@@ -3486,7 +3486,7 @@ clctbl:
 	retlw	'U'
 	retlw	'V'
 	retlw	'W'
-	retlw	'X'		; 0 to disable entry of hexadecimal constants
+	retlw	'X'		; before daisy-chained isr, so can't be disabled
 	retlw	'Y'
 	retlw	'Z'		; 0 to disable entry into low-power sleep mode
 	retlw	'[' ; '{'	;
