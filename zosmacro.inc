@@ -1213,7 +1213,7 @@ conisr:
 	;; if it's a simple and frequent timer overflow interrupt finish quickly
 	banksel	zOS_T0F
 #ifdef TMR0IF
-	btfss	TMR0IF
+	btfss	TMR0IF		; if (/*presumed true:(zOS_T0E & (1<<T0IE)) &&*/
 	bra	nottmr		;     (zOS_T0F & (1<<T0IF))) { // timer overflow
 	bcf	TMR0IF		;  zOS_T0F &= ~(1<<T0IF);// clear interrupt flag
 #else
@@ -1624,7 +1624,7 @@ rxdecl:
 	addfsr	FSR0,zOS_ISR	; fsr0 += zOS_ISR; // last 4 bytes of job record
 	movlw	low rxisr	; *fsr0++ = rxisr & 0x00ff;
 	movwi	FSR0++
-	movlw	0x80|high rxisr	; *fsr0++ = rxisr >> 8;
+	movlw/*0x80|*/high rxisr; *fsr0++ = rxisr >> 8;
 	movwi	FSR0++
 	movf	zOS_AR2,w	; *fsr0++ |= (1<<RCIF);// |(0<<TXIF)|(1<<T0IF));
 	iorlw	1<<rxflag	; // still in job "0"; caller sets any SWI value
